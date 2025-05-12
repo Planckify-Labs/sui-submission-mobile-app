@@ -13,7 +13,7 @@ export default function Home() {
     <>
       <StatusBar barStyle="dark-content" />
       <SafeAreaView style={styles.container} edges={["top"]}>
-        <View>
+        <View className="bg-red-500 flex-1">
           <Text>Hello</Text>
           <Text>{privateKey}</Text>
           <Text>{mnemonic}</Text>
