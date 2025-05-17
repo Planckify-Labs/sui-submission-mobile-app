@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { router } from "expo-router";
-import { Check, Copy, Info, Shield } from "lucide-react-native";
+import { ArrowLeftRight, Check, ChevronRight, Coins, Copy, Info, Shield, Wallet } from "lucide-react-native";
 import React from "react";
 import { Alert, Pressable, Text, View } from "react-native";
 
@@ -158,7 +158,7 @@ export const createWalletSteps = (
         </View>
         
         <Pressable 
-          className="flex-row items-center mb-6 p-2" 
+          className="flex-row items-center mb-6 p-2"
           onPress={() => setIsChecked(!isChecked)}
         >
           <View className={`w-8 h-8 aspect-square rounded-lg mr-3 ${isChecked ? 'bg-light-primary-red' : 'border-2 border-gray-400'} items-center justify-center`}>
@@ -226,19 +226,57 @@ export const createWalletSteps = (
     content: (
       <>
         <View className="items-center mb-6">
-          <View className="bg-light w-16 h-16 rounded-full items-center justify-center mb-4 shadow-sm">
-            <View className="w-8 h-8 border-2 border-light-primary-red rounded-md items-center justify-center">
-              <Text className="text-light-primary-red font-bold">$</Text>
+          <View className="bg-light-primary-red- w-20- h-20- rounded-3xl items-center justify-center mb-5">
+            <Check size={142} color="#c71c4b" strokeWidth={3} />
+          </View>
+          
+          <Text className="text-light-matte-black text-2xl font-bold mb-2">Your wallet is ready!</Text>
+          <Text className="text-light-matte-black/80 text-center mb-6">
+            You now have full control of your digital assets
+          </Text>
+          
+          <View className="w-full bg-light rounded-xl overflow-hidden mb-6">
+            <View className="bg-light-primary-red/10 p-4 border-b border-light-primary-red/10">
+              <Text className="text-light-matte-black font-bold">Next Steps</Text>
+            </View>
+            
+            <Pressable className="p-4 border-b border-gray-100 flex-row items-center">
+              <View className="w-8 h-8 rounded-full bg-light-primary-red/10 items-center justify-center mr-3">
+                <Wallet size={16} color="#c71c4b" />
+              </View>
+              <Text className="text-light-matte-black flex-1">Fund your wallet</Text>
+              <ChevronRight size={16} color="#c71c4b" />
+            </Pressable>
+            
+            <Pressable className="p-4 border-b border-gray-100 flex-row items-center">
+              <View className="w-8 h-8 rounded-full bg-light-primary-red/10 items-center justify-center mr-3">
+                <ArrowLeftRight size={16} color="#c71c4b" />
+              </View>
+              <Text className="text-light-matte-black flex-1">Swap tokens</Text>
+              <ChevronRight size={16} color="#c71c4b" />
+            </Pressable>
+            
+            <Pressable className="p-4 flex-row items-center">
+              <View className="w-8 h-8 rounded-full bg-light-primary-red/10 items-center justify-center mr-3">
+                <Coins size={16} color="#c71c4b" />
+              </View>
+              <Text className="text-light-matte-black flex-1">Earn rewards</Text>
+              <ChevronRight size={16} color="#c71c4b" />
+            </Pressable>
+          </View>
+          
+          <View className="bg-light-primary-red/10 p-4 rounded-lg w-full">
+            <View className="flex-row items-start gap-2">
+              <Info size={18} color="#c71c4b" className="mr-2 mt-0.5" />
+              <Text className="text-light-matte-black/80 text-sm flex-1">
+                Remember to keep your recovery phrase safe. It's the only way to recover your wallet.
+              </Text>
             </View>
           </View>
-          <Text className="text-light-matte-black text-2xl font-bold mb-2">Your Wallet is Ready</Text>
-          <Text className="text-light-matte-black text-center">
-            You're now in control of your TakumiPay wallet. You can start exploring DeFi, swapping tokens, and participating in governance
-          </Text>
         </View>
       </>
     ),
-    buttonText: "Enter my wallet",
+    buttonText: "Start Using My Wallet",
     onButtonPress: () => router.push("/"),
   },
 ];
