@@ -320,8 +320,8 @@ const WordOption = ({
 }) => {
   return (
     <Pressable 
-      className={`flex-1 py-3 px-2 rounded-md items-center justify-center ${
-        isSelected ? 'bg-light-primary-red/20' : 'bg-light-main-container'
+      className={`flex-1 py-3- px-2- p-4 rounded-xl bg-light-main-container items-center justify-center ${
+        isSelected ? 'border-2 border-light-primary-red' : 'border-light- text-light-matte-black'
       }`}
       onPress={onSelect}
     >
