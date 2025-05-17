@@ -18,7 +18,7 @@ export default function Header() {
         ]}
         className="rounded-full bg-light items-center justify-center aspect-square w-[45px]"
       >
-        <Link href="/user">
+        <Link href="/wallet">
           <View className="items-center justify-center  p-1 aspect-square h-full w-full">
             <UserRound color="#20222c" size={30} />
           </View>
