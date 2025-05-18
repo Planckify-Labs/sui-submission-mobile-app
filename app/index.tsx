@@ -2,6 +2,7 @@ import ActivitySection from "@/components/home/ActivitySection";
 import BalanceSection from "@/components/home/BalanceSection";
 import Header from "@/components/home/Header";
 import PaymentSection from "@/components/home/PaymentSection";
+import { QrCode } from "lucide-react-native";
 import React from "react";
 import {
   Pressable,
@@ -31,7 +32,8 @@ export default function Home() {
           </View>
         </ScrollView>
         <View className="absolute bottom-2 justify-center items-center w-full">
-          <Pressable className="bg-light-primary-red px-10 py-4 rounded-full">
+          <Pressable className="bg-light-primary-red px-10 py-4 rounded-full flex-row items-center gap-2">
+            <QrCode size={22} color="#fff" />
             <Text className="text-light font-bold text-2xl">Scan To Pay</Text>
           </Pressable>
         </View>
