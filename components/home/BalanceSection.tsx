@@ -1,3 +1,4 @@
+import { useWallet } from "@/hooks/useWallet";
 import {
   ArrowBigDown,
   ChevronDown,
@@ -6,10 +7,27 @@ import {
   PlusIcon,
 } from "lucide-react-native";
 import React, { useState } from "react";
-import { Pressable, Text, Vibration, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  Text,
+  Vibration,
+  View,
+} from "react-native";
 
 export default function BalanceSection() {
-  const [isShoBalance, setShowBalance] = useState(true);
+  const { activeWallet, isLoading } = useWallet();
+  const [isShowBalance, setShowBalance] = useState(true);
+
+  if (isLoading) {
+    return (
+      <View className="bg-light rounded-[14px] w-full p-[22px] items-center justify-center">
+        <ActivityIndicator size="small" color="#c71c4b" />
+        <Text className="text-light-matte-black mt-2">Loading wallet...</Text>
+      </View>
+    );
+  }
+
   return (
     <View className="bg-light rounded-[14px] w-full p-[22px]">
       <View className="flex-row">
@@ -23,7 +41,7 @@ export default function BalanceSection() {
           <Text className="font-bold text-light-matte-black text-[11px]">
             TakumiPay
           </Text>
-          {isShoBalance ? (
+          {isShowBalance ? (
             <Eye size={15} color="#c71c4b" />
           ) : (
             <EyeClosed size={15} color="#c71c4b" />
@@ -56,9 +74,9 @@ export default function BalanceSection() {
           </View>
           <View className="flex-row">
             <Text className="text-light-primary-red font-bold text-7xl">$</Text>
-            {isShoBalance ? (
+            {isShowBalance ? (
               <Text className="text-light-primary-red font-bold text-7xl">
-                90.001
+                {activeWallet.balance}
               </Text>
             ) : (
               <View className="flex-row items-center gap-4">
