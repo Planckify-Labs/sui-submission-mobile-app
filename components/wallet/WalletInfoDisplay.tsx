@@ -1,7 +1,7 @@
 import { type TWallet } from "@/constants/walletData";
 import { Copy, Eye, EyeOff } from "lucide-react-native";
 import React from "react";
-import { Pressable, Text, View } from "react-native";
+import { Image, Pressable, Text, View } from "react-native";
 
 type TWalletInfoDisplayProps = {
   wallet: TWallet;
@@ -89,7 +89,14 @@ export default function WalletInfoDisplay({
             <View className="flex-row items-center mb-3">
               <View className="w-8 h-8 bg-light-primary-red/10 rounded-full items-center justify-center mr-3">
                 <Text className="text-light-primary-red font-bold">
-                  {wallet.socialAccount?.provider.charAt(0) || "?"}
+                  {wallet.socialAccount?.provider === "Google" ? (
+                    <Image
+                      source={require("@/assets/images/google-takumipay.png")}
+                      style={{ width: 20, height: 20 }}
+                    />
+                  ) : (
+                    "?"
+                  )}
                 </Text>
               </View>
               <View>
