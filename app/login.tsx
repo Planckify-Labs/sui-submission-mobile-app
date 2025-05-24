@@ -14,7 +14,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function Login() {
   return (
     <SafeAreaView className="flex-1 bg-light-main-container" edges={["top"]}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={StyleSheet.absoluteFill} className="overflow-hidden">
           <View className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-light-primary-red/10" />
           <View className="absolute top-40 -left-40 w-80 h-80 rounded-full bg-light-primary-red/5" />
