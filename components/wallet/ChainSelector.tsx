@@ -1,24 +1,98 @@
 import { supportedChains } from "@/constants/configs/chainConfig";
 import { useWallet } from "@/hooks/useWallet";
 import { Check, ChevronDown } from "lucide-react-native";
-import React, { memo, useCallback, useState } from "react";
-import { Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import React, { memo, useCallback, useRef, useState } from "react";
+import {
+  Animated,
+  Dimensions,
+  Image,
+  Modal,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  Text,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
+
+const { height } = Dimensions.get("window");
+const MODAL_HEIGHT = height * 0.67;
 
 const ChainSelector = memo(function ChainSelector() {
   const { activeChain, changeActiveChain } = useWallet();
   const [modalVisible, setModalVisible] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
 
   const handleChainSelect = useCallback(
     async (chainId: number) => {
       await changeActiveChain(chainId);
-      setModalVisible(false);
+      closeModal();
     },
     [changeActiveChain],
   );
 
-  const toggleModal = useCallback(() => {
-    setModalVisible((prev) => !prev);
-  }, []);
+  const openModal = useCallback(() => {
+    setModalVisible(true);
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, translateY]);
+
+  const closeModal = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: MODAL_HEIGHT,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setModalVisible(false);
+    });
+  }, [fadeAnim, translateY]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return gestureState.dy > 0;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 50 || gestureState.vy > 0.5) {
+          Animated.timing(translateY, {
+            toValue: MODAL_HEIGHT,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => closeModal());
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 5,
+          }).start();
+        }
+      },
+    }),
+  ).current;
 
   const renderChainItem = useCallback(
     (chain: (typeof supportedChains)[0]) => {
@@ -71,7 +145,7 @@ const ChainSelector = memo(function ChainSelector() {
   return (
     <>
       <Pressable
-        onPress={toggleModal}
+        onPress={openModal}
         className="flex-row items-center bg-light-main-container px-3 py-2 rounded-full"
       >
         {activeChain.iconUrl && (
@@ -87,35 +161,66 @@ const ChainSelector = memo(function ChainSelector() {
         <ChevronDown size={16} color="#c71c4b" />
       </Pressable>
 
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={toggleModal}
-      >
-        <View className="flex-1 justify-end bg-black/50">
-          <View className="bg-light rounded-t-3xl p-6 h-2/3">
-            <View className="w-12 h-1 bg-gray-300 rounded-full self-center mb-6" />
+      {modalVisible && (
+        <Modal
+          transparent
+          visible
+          animationType="none"
+          onRequestClose={closeModal}
+        >
+          <View style={{ flex: 1 }}>
+            <TouchableWithoutFeedback onPress={closeModal}>
+              <Animated.View
+                style={{
+                  flex: 1,
+                  backgroundColor: "rgba(0, 0, 0, 0.5)",
+                  opacity: fadeAnim,
+                }}
+              />
+            </TouchableWithoutFeedback>
 
-            <Text className="text-light-matte-black text-xl font-bold mb-4">
-              Select Network
-            </Text>
-
-            <ScrollView className="flex-1">
-              {supportedChains.map(renderChainItem)}
-            </ScrollView>
-
-            <Pressable
-              className="bg-light-main-container p-4 rounded-xl mt-4"
-              onPress={toggleModal}
+            <Animated.View
+              style={{
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: MODAL_HEIGHT,
+                backgroundColor: "white",
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                transform: [{ translateY: translateY }],
+              }}
             >
-              <Text className="text-light-matte-black font-bold text-center">
-                Close
-              </Text>
-            </Pressable>
+              <View
+                {...panResponder.panHandlers}
+                className="w-full items-center pt-4 pb-2"
+              >
+                <View className="w-12 h-1 bg-gray-300 rounded-full" />
+              </View>
+
+              <View className="px-6 flex-1">
+                <Text className="text-light-matte-black text-xl font-bold mb-4">
+                  Select Network
+                </Text>
+
+                <ScrollView className="flex-1">
+                  {supportedChains.map(renderChainItem)}
+                </ScrollView>
+
+                <Pressable
+                  className="bg-light-main-container p-4 rounded-xl my-4"
+                  onPress={closeModal}
+                >
+                  <Text className="text-light-matte-black font-bold text-center">
+                    Close
+                  </Text>
+                </Pressable>
+              </View>
+            </Animated.View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
     </>
   );
 });
