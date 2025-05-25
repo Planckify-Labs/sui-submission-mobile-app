@@ -3,9 +3,11 @@ import { useWallet } from "@/hooks/useWallet";
 import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
 import { ArrowLeft, Clipboard as ClipboardIcon } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
   Pressable,
   ScrollView,
   StatusBar,
@@ -21,6 +23,7 @@ export default function ImportWalletScreen() {
   );
   const [currentWordIndex, setCurrentWordIndex] = useState<number | null>(null);
   const [currentWord, setCurrentWord] = useState<string>("");
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const { addWallet } = useWallet();
 
@@ -76,89 +79,127 @@ export default function ImportWalletScreen() {
       }
     });
   };
+
+  const scrollToInput = (index: number) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: 300 + index * 20,
+        animated: true,
+      });
+    }, 300);
+  };
+
   return (
     <>
       <StatusBar barStyle="dark-content" />
       <SafeAreaView className="flex-1 bg-light-main-container" edges={["top"]}>
-        <ScrollView className="flex-1 p-6">
-          <Pressable onPress={() => router.back()} className="mb-6">
-            <ArrowLeft color="#c71c4b" size={24} />
-          </Pressable>
+        <View className="flex-1">
+          <ScrollView
+            ref={scrollViewRef}
+            className="flex-1 p-6"
+            contentContainerStyle={{ paddingBottom: 20 }}
+            keyboardShouldPersistTaps="always"
+            keyboardDismissMode="interactive"
+          >
+            <Pressable
+              onPress={() => {
+                Keyboard.dismiss();
+                router.back();
+              }}
+              className="mb-6"
+            >
+              <ArrowLeft color="#c71c4b" size={24} />
+            </Pressable>
 
-          <Text className="text-light-matte-black text-3xl font-bold mb-6">
-            Import Wallet
-          </Text>
+            <Text className="text-light-matte-black text-3xl font-bold mb-6">
+              Import Wallet
+            </Text>
 
-          <View className="bg-light rounded-xl p-5 mb-6">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-light-matte-black font-medium">
-                Enter your seed phrase
-              </Text>
+            <View className="bg-light rounded-xl p-5 mb-6">
+              <View className="flex-row justify-between items-center mb-4">
+                <Text className="text-light-matte-black font-medium">
+                  Enter your seed phrase
+                </Text>
+                <Pressable
+                  className="flex-row items-center bg-light-primary-red/10 px-3 py-2 rounded-lg"
+                  onPress={handlePasteFromClipboard}
+                >
+                  <ClipboardIcon size={16} color="#c71c4b" className="mr-2" />
+                  <Text className="text-light-primary-red font-medium">
+                    Paste
+                  </Text>
+                </Pressable>
+              </View>
+
+              <SeedPhraseGrid
+                mnemonic={seedPhraseArray}
+                showCopyButton={false}
+                editable={true}
+                onWordPress={(index: number) => {
+                  setCurrentWordIndex(index);
+                  setCurrentWord(seedPhraseArray[index]);
+                  scrollToInput(index);
+                }}
+              />
+
+              {currentWordIndex !== null && (
+                <KeyboardAvoidingView behavior="position">
+                  <View className="bg-light-main-container p-4 rounded-xl mb-4">
+                    <Text className="text-light-matte-black mb-2">
+                      Word #{currentWordIndex + 1}
+                    </Text>
+                    <TextInput
+                      className="bg-light p-3 rounded-lg text-light-matte-black border border-light-matte-black/10"
+                      value={currentWord}
+                      onChangeText={setCurrentWord}
+                      autoFocus
+                      returnKeyType="done"
+                      onSubmitEditing={() => {
+                        if (currentWord.trim()) {
+                          handleWordChange(
+                            currentWordIndex,
+                            currentWord.trim(),
+                          );
+                          setCurrentWordIndex(null);
+                          setCurrentWord("");
+                          Keyboard.dismiss();
+                        }
+                      }}
+                    />
+                    <View className="flex-row justify-end mt-2">
+                      <Pressable
+                        className="bg-light-primary-red px-4 py-2 rounded-lg"
+                        onPress={() => {
+                          if (currentWord.trim()) {
+                            handleWordChange(
+                              currentWordIndex,
+                              currentWord.trim(),
+                            );
+                            setCurrentWordIndex(null);
+                            setCurrentWord("");
+                            Keyboard.dismiss();
+                          }
+                        }}
+                      >
+                        <Text className="text-light font-medium">Save</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </KeyboardAvoidingView>
+              )}
+            </View>
+            <View className="pb-2 bg-light-main-container">
               <Pressable
-                className="flex-row items-center bg-light-primary-red/10 px-3 py-2 rounded-lg"
-                onPress={handlePasteFromClipboard}
+                className="bg-light-primary-red py-4 rounded-full items-center"
+                onPress={handleImport}
               >
-                <ClipboardIcon size={16} color="#c71c4b" className="mr-2" />
-                <Text className="text-light-primary-red font-medium">
-                  Paste
+                <Text className="text-light font-bold text-lg">
+                  Import Wallet
                 </Text>
               </Pressable>
             </View>
-
-            <SeedPhraseGrid
-              mnemonic={seedPhraseArray}
-              showCopyButton={false}
-              editable={true}
-              onWordPress={(index: number) => {
-                setCurrentWordIndex(index);
-                setCurrentWord(seedPhraseArray[index]);
-              }}
-            />
-
-            {currentWordIndex !== null && (
-              <View className="bg-light-main-container p-4 rounded-xl mb-4">
-                <Text className="text-light-matte-black mb-2">
-                  Word #{currentWordIndex + 1}
-                </Text>
-                <TextInput
-                  className="bg-light p-3 rounded-lg text-light-matte-black border border-light-matte-black/10"
-                  value={currentWord}
-                  onChangeText={setCurrentWord}
-                  autoFocus
-                  returnKeyType="done"
-                  onSubmitEditing={() => {
-                    if (currentWord.trim()) {
-                      handleWordChange(currentWordIndex, currentWord.trim());
-                      setCurrentWordIndex(null);
-                      setCurrentWord("");
-                    }
-                  }}
-                />
-                <View className="flex-row justify-end mt-2">
-                  <Pressable
-                    className="bg-light-primary-red px-4 py-2 rounded-lg"
-                    onPress={() => {
-                      if (currentWord.trim()) {
-                        handleWordChange(currentWordIndex, currentWord.trim());
-                        setCurrentWordIndex(null);
-                        setCurrentWord("");
-                      }
-                    }}
-                  >
-                    <Text className="text-light font-medium">Save</Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-          </View>
-
-          <Pressable
-            className="bg-light-primary-red py-4 rounded-full items-center"
-            onPress={handleImport}
-          >
-            <Text className="text-light font-bold text-lg">Import Wallet</Text>
-          </Pressable>
-        </ScrollView>
+          </ScrollView>
+        </View>
       </SafeAreaView>
     </>
   );
