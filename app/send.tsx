@@ -1,3 +1,4 @@
+import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import ChainSelector from "@/components/wallet/ChainSelector";
 import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
 import { useWallet } from "@/hooks/useWallet";
@@ -8,12 +9,15 @@ import {
   ChevronDown,
   ClipboardCopy,
   Info,
+  Loader,
   Send,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   Pressable,
   ScrollView,
   StatusBar,
@@ -42,6 +46,31 @@ export default function SendScreen() {
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [recipientModalVisible, setRecipientModalVisible] = useState(false);
   const [isLoadingBalance, setIsLoadingBalance] = useState(true);
+  const [transactionStatus, setTransactionStatus] = useState(
+    "Preparing transaction...",
+  );
+
+  const spinValue = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (isLoading) {
+      Animated.loop(
+        Animated.timing(spinValue, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+      ).start();
+    } else {
+      spinValue.setValue(0);
+    }
+  }, [isLoading, spinValue]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   const fetchBalance = useCallback(async () => {
     if (!activeWallet?.address) return;
@@ -126,9 +155,13 @@ export default function SendScreen() {
   const handleSend = useCallback(async () => {
     if (!validateInputs()) return;
 
-    try {
-      setIsLoading(true);
+    setIsLoading(true);
+    setTransactionStatus("Preparing transaction...");
 
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    try {
+      setTransactionStatus("Initializing wallet...");
       const walletClient = getClientForActiveWallet();
       if (!walletClient) {
         console.log("No wallet client available");
@@ -147,8 +180,14 @@ export default function SendScreen() {
       console.log("Wallet client ready for", activeWallet.address);
 
       try {
+        setTransactionStatus("Building transaction...");
         const value = parseUnits(amount, 18);
 
+        console.log("Sending transaction...");
+
+        setTransactionStatus(
+          `Sending ${amount} ${activeChain.chain.nativeCurrency.symbol} to the network...`,
+        );
         const hash = await walletClient.sendTransaction({
           account: walletClient.account,
           to: recipient as `0x${string}`,
@@ -157,8 +196,10 @@ export default function SendScreen() {
         });
 
         console.log("Transaction sent with hash:", hash);
+        setTransactionStatus("Transaction complete!");
 
-        setIsLoading(false);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
         Alert.alert(
           "Transaction Sent",
           `Transaction has been submitted.\nHash: ${hash}\nNetwork: ${activeChain.chain.name}`,
@@ -339,7 +380,14 @@ export default function SendScreen() {
               disabled={isLoading}
             >
               {isLoading ? (
-                <ActivityIndicator size="small" color="#ffffff" />
+                <View className="flex-row items-center">
+                  <Animated.View
+                    style={{ transform: [{ rotate: spin }], marginRight: 8 }}
+                  >
+                    <Loader size={20} color="#ffffff" />
+                  </Animated.View>
+                  <Text className="text-light font-bold">Processing...</Text>
+                </View>
               ) : (
                 <View className="flex-row items-center">
                   <Send size={20} color="#ffffff" className="mr-2" />
@@ -350,6 +398,12 @@ export default function SendScreen() {
           </ScrollView>
         </View>
       </SafeAreaView>
+
+      <LoadinngSpinnerPopup
+        visible={isLoading}
+        title="Processing Transaction"
+        message={transactionStatus}
+      />
 
       <WalletSelectorModal
         visible={walletModalVisible}
