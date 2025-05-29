@@ -156,9 +156,10 @@ export default function BalanceSection() {
         <View className="bg-light-main-container/50 p-4 rounded-xl mb-6">
           <View className="flex-row items-center justify-between mb-1">
             <Pressable
-              onPress={() =>
-                setSelectedToken(activeChain.chain.nativeCurrency.symbol)
-              }
+              onPress={() => {
+                setSelectedToken(activeChain.chain.nativeCurrency.symbol);
+                router.push("/asset-explorer");
+              }}
               className="flex-row items-center"
             >
               <Text className="text-light-matte-black font-medium text-sm mr-1">
