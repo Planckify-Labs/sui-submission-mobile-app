@@ -1,3 +1,4 @@
+import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import SeedPhraseGrid from "@/components/common/SeedPhraseGrid";
 import { useWallet } from "@/hooks/useWallet";
 import * as Clipboard from "expo-clipboard";
@@ -23,6 +24,8 @@ export default function ImportWalletScreen() {
   );
   const [currentWordIndex, setCurrentWordIndex] = useState<number | null>(null);
   const [currentWord, setCurrentWord] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
   const scrollViewRef = useRef<ScrollView>(null);
 
   const { addWallet } = useWallet();
@@ -65,19 +68,40 @@ export default function ImportWalletScreen() {
       return;
     }
 
+    setIsLoading(true);
+    setLoadingMessage("Importing your wallet...");
+
+    setTimeout(() => {
+      setLoadingMessage("Securing your recovery phrase with encryption...");
+    }, 1500);
+
+    setTimeout(() => {
+      setLoadingMessage("Almost there! Finalizing your wallet setup...");
+    }, 3500);
+
     addWallet({
       source: "SeedPhrase",
       seedPhrase: seedPhrase,
       name: "My Wallet",
-    }).then((success) => {
-      if (success) {
-        Alert.alert("Success", "Wallet imported successfully", [
-          { text: "OK", onPress: () => router.replace("/") },
-        ]);
-      } else {
-        Alert.alert("Error", "Failed to import wallet");
-      }
-    });
+    })
+      .then((success) => {
+        setIsLoading(false);
+        if (success) {
+          Alert.alert("Success", "Wallet imported successfully", [
+            { text: "OK", onPress: () => router.replace("/") },
+          ]);
+        } else {
+          Alert.alert("Error", "Failed to import wallet");
+        }
+      })
+      .catch((error) => {
+        setIsLoading(false);
+        console.error("Import error:", error);
+        Alert.alert(
+          "Error",
+          "An unexpected error occurred during wallet import",
+        );
+      });
   };
 
   const scrollToInput = (index: number) => {
@@ -190,8 +214,9 @@ export default function ImportWalletScreen() {
             </View>
             <View className="pb-2 bg-light-main-container">
               <Pressable
-                className="bg-light-primary-red py-4 rounded-full items-center"
+                className={`bg-light-primary-red py-4 rounded-full items-center ${isLoading ? "opacity-70" : ""}`}
                 onPress={handleImport}
+                disabled={isLoading}
               >
                 <Text className="text-light font-bold text-lg">
                   Import Wallet
@@ -199,6 +224,12 @@ export default function ImportWalletScreen() {
               </Pressable>
             </View>
           </ScrollView>
+
+          <LoadinngSpinnerPopup
+            visible={isLoading}
+            title="Setting Up Your Wallet"
+            message={loadingMessage}
+          />
         </View>
       </SafeAreaView>
     </>

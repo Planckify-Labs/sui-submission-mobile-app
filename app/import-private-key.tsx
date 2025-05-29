@@ -1,3 +1,4 @@
+import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import { useWallet } from "@/hooks/useWallet";
 import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
@@ -22,6 +23,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function ImportPrivateKeyScreen() {
   const [privateKey, setPrivateKey] = useState<string>("");
   const [showPrivateKey, setShowPrivateKey] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
   const { addWallet } = useWallet();
 
   const handlePasteFromClipboard = async () => {
@@ -48,19 +51,40 @@ export default function ImportPrivateKeyScreen() {
       return;
     }
 
+    setIsLoading(true);
+    setLoadingMessage("Importing your wallet...");
+
+    setTimeout(() => {
+      setLoadingMessage("Securing your private key with encryption...");
+    }, 1500);
+
+    setTimeout(() => {
+      setLoadingMessage("Almost there! Finalizing your wallet setup...");
+    }, 3500);
+
     addWallet({
       source: "PrivateKey",
       privateKey: privateKey,
       name: "My Wallet",
-    }).then((success) => {
-      if (success) {
-        Alert.alert("Success", "Wallet imported successfully", [
-          { text: "OK", onPress: () => router.replace("/") },
-        ]);
-      } else {
-        Alert.alert("Error", "Failed to import wallet");
-      }
-    });
+    })
+      .then((success) => {
+        setIsLoading(false);
+        if (success) {
+          Alert.alert("Success", "Wallet imported successfully", [
+            { text: "OK", onPress: () => router.replace("/") },
+          ]);
+        } else {
+          Alert.alert("Error", "Failed to import wallet");
+        }
+      })
+      .catch((error) => {
+        setIsLoading(false);
+        console.error("Import error:", error);
+        Alert.alert(
+          "Error",
+          "An unexpected error occurred during wallet import",
+        );
+      });
   };
   return (
     <>
@@ -123,12 +147,18 @@ export default function ImportPrivateKeyScreen() {
           </View>
 
           <Pressable
-            className="bg-light-primary-red py-4 rounded-full items-center"
+            className={`bg-light-primary-red py-4 rounded-full items-center ${isLoading ? "opacity-70" : ""}`}
             onPress={handleImport}
+            disabled={isLoading}
           >
             <Text className="text-light font-bold text-lg">Import Wallet</Text>
           </Pressable>
         </ScrollView>
+        <LoadinngSpinnerPopup
+          visible={isLoading}
+          title="Setting Up Your Wallet"
+          message={loadingMessage}
+        />
       </SafeAreaView>
     </>
   );
