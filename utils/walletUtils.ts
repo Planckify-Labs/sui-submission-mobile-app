@@ -1,4 +1,4 @@
-import { TWallet, WalletCreationParams } from "@/constants/types/walletTypes";
+import { TWallet, TWalletCreationParams } from "@/constants/types/walletTypes";
 import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 
 export function isValidPrivateKey(privateKey: string): boolean {
@@ -51,7 +51,7 @@ export function createWalletFromMnemonic(
 }
 
 export function createWalletFromParams(
-  params: WalletCreationParams,
+  params: TWalletCreationParams,
 ): TWallet | null {
   if (params.source === "PrivateKey" && params.privateKey) {
     return createWalletFromPrivateKey(params.privateKey, params.name);

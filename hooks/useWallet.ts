@@ -1,7 +1,7 @@
 import { usePerformance } from "@/components/providers/PerformanceProvider";
 import { ChainConfig, supportedChains } from "@/constants/configs/chainConfig";
 import QKEY_Wallets from "@/constants/queryKeys/walletQueryKeys";
-import { TWallet, WalletCreationParams } from "@/constants/types/walletTypes";
+import { TWallet, TWalletCreationParams } from "@/constants/types/walletTypes";
 import * as walletService from "@/services/walletService";
 import { getPublicClient, getWalletClient } from "@/utils/clients";
 import { createWalletFromParams } from "@/utils/walletUtils";
@@ -123,7 +123,7 @@ export function useWallet() {
   );
 
   const addWallet = useCallback(
-    async (walletData: WalletCreationParams) => {
+    async (walletData: TWalletCreationParams) => {
       return await deferredTask(async () => {
         const wallet = createWalletFromParams(walletData);
         if (!wallet) return false;
