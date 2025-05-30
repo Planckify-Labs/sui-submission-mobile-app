@@ -2,7 +2,13 @@ import { SAMPLE_ASSETS } from "@/constants/dummyData/assets";
 import { useWallet } from "@/hooks/useWallet";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Dimensions, StatusBar, View } from "react-native";
+import {
+  Animated,
+  Dimensions,
+  ScrollView,
+  StatusBar,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import AddTokenForm from "@/components/asset-explorer/AddTokenForm";
@@ -297,64 +303,69 @@ export default function AssetExplorer() {
     <>
       <StatusBar barStyle="dark-content" />
       <SafeAreaView className="flex-1 bg-light-main-container" edges={["top"]}>
-        <View className="flex-1 p-4">
-          <AssetExplorerHeader
-            selectionMode={selectionMode}
-            selectedAssetsCount={selectedAssets.length}
-            cancelSelectionMode={handleCancelSelectionMode}
-            addSelectedAssets={handleAddSelectedAssets}
-          />
-
-          {!selectionMode && <WalletInfo activeWallet={activeWallet} />}
-
-          {!selectionMode && (
-            <SearchBar
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              showAddToken={showAddToken}
-              setShowAddToken={setShowAddToken}
+        <ScrollView
+          className="flex-1"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 100 }}
+        >
+          <View className="flex-1 p-4">
+            <AssetExplorerHeader
+              selectionMode={selectionMode}
+              selectedAssetsCount={selectedAssets.length}
+              cancelSelectionMode={handleCancelSelectionMode}
+              addSelectedAssets={handleAddSelectedAssets}
             />
-          )}
 
-          {showAddToken && !selectionMode && (
-            <AddTokenForm
-              tokenAddress={tokenAddress}
-              setTokenAddress={setTokenAddress}
-              addCustomToken={handleAddCustomToken}
-              isLoading={isLoading}
-            />
-          )}
+            {!selectionMode && <WalletInfo activeWallet={activeWallet} />}
 
-          <AssetExplorerTabs
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            selectionMode={selectionMode}
-          />
+            {!selectionMode && (
+              <SearchBar
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                showAddToken={showAddToken}
+                setShowAddToken={setShowAddToken}
+              />
+            )}
 
-          <TabContent
-            activeTab={activeTab}
-            userAssets={userAssets}
-            setActiveTab={setActiveTab}
-            filteredUserAssets={filteredUserAssets}
-            filteredAvailableAssets={filteredAvailableAssets}
-            isAssetAdded={checkIsAssetAdded}
-            addAsset={handleAddAsset}
-            selectionMode={selectionMode}
-            searchQuery={searchQuery}
-            renderUserAssetItem={renderUserAssetItem}
-            renderAvailableAssetItem={renderAvailableAssetItem}
-          />
+            {showAddToken && !selectionMode && (
+              <AddTokenForm
+                tokenAddress={tokenAddress}
+                setTokenAddress={setTokenAddress}
+                addCustomToken={handleAddCustomToken}
+                isLoading={isLoading}
+              />
+            )}
 
-          {!selectionMode && (
-            <NetworkRadioButtons
-              networks={networks}
-              activeNetwork={activeNetwork}
+            <AssetExplorerTabs
               activeTab={activeTab}
-              selectNetwork={handleSelectNetwork}
-              openNetworkModal={openNetworkModal}
+              setActiveTab={setActiveTab}
+              selectionMode={selectionMode}
             />
-          )}
-        </View>
+
+            <TabContent
+              activeTab={activeTab}
+              userAssets={userAssets}
+              setActiveTab={setActiveTab}
+              filteredUserAssets={filteredUserAssets}
+              filteredAvailableAssets={filteredAvailableAssets}
+              isAssetAdded={checkIsAssetAdded}
+              addAsset={handleAddAsset}
+              selectionMode={selectionMode}
+              searchQuery={searchQuery}
+              renderUserAssetItem={renderUserAssetItem}
+              renderAvailableAssetItem={renderAvailableAssetItem}
+            />
+          </View>
+        </ScrollView>
+        {!selectionMode && (
+          <NetworkRadioButtons
+            networks={networks}
+            activeNetwork={activeNetwork}
+            activeTab={activeTab}
+            selectNetwork={handleSelectNetwork}
+            openNetworkModal={openNetworkModal}
+          />
+        )}
       </SafeAreaView>
 
       <NetworkSelectorModal

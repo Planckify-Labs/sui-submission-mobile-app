@@ -1,6 +1,6 @@
 import { AssetListContentProps } from "@/constants/types/assetTypes";
 import React from "react";
-import { FlatList, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 const AssetListContent = ({
   activeTab,
@@ -14,26 +14,23 @@ const AssetListContent = ({
 }: AssetListContentProps) => {
   if (activeTab === "your-assets") {
     return (
-      <>
+      <View>
         {userAssets.length > 0 ? (
-          <FlatList
-            data={filteredUserAssets}
-            renderItem={renderUserAssetItem}
-            keyExtractor={(item) => item.id}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 140 }}
-            ListEmptyComponent={
-              searchQuery ? (
-                <View className="items-center justify-center py-5">
-                  <Text className="text-light-matte-black/60 text-center">
-                    No assets found matching your search
-                  </Text>
-                </View>
-              ) : null
-            }
-          />
+          filteredUserAssets.length > 0 ? (
+            <View>
+              {filteredUserAssets.map(item => renderUserAssetItem({ item }))}
+            </View>
+          ) : (
+            searchQuery ? (
+              <View className="items-center justify-center py-5">
+                <Text className="text-light-matte-black/60 text-center">
+                  No assets found matching your search
+                </Text>
+              </View>
+            ) : null
+          )
         ) : (
-          <View className="flex-1 items-center justify-center">
+          <View className="items-center justify-center py-5">
             <Text className="text-light-matte-black/60 text-center mb-4">
               You haven't added any assets yet
             </Text>
@@ -47,17 +44,16 @@ const AssetListContent = ({
             </Pressable>
           </View>
         )}
-      </>
+      </View>
     );
   } else {
     return (
-      <FlatList
-        data={filteredAvailableAssets}
-        renderItem={renderAvailableAssetItem}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 140 }}
-        ListEmptyComponent={
+      <View>
+        {filteredAvailableAssets.length > 0 ? (
+          <View>
+            {filteredAvailableAssets.map(item => renderAvailableAssetItem({ item }))}
+          </View>
+        ) : (
           <View className="items-center justify-center py-10">
             <Text className="text-light-matte-black/60 text-center">
               {searchQuery
@@ -65,8 +61,8 @@ const AssetListContent = ({
                 : "No assets available"}
             </Text>
           </View>
-        }
-      />
+        )}
+      </View>
     );
   }
 };
