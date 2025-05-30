@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "takumipay-mobile-app",
-    "slug": "takumipay-mobile-app",
+    "name": "TakumiPay - Your Crypto, Your Digital Goods",
+    "slug": "takumipay",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "takumipaymobileapp",
+    "icon": "./assets/images/takumipay-logo.png",
+    "scheme": "takumipay",
     "userInterfaceStyle": "automatic",
     "jsEngine": "hermes",
     "newArchEnabled": true,
@@ -15,24 +15,25 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/takumipay-no-bg.png",
         "backgroundColor": "#ffffff"
       },
       "jsEngine": "hermes",
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.planckify.takumipay"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/takumipay-no-bg.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/takumipay-logo.png",
+          "imageWidth": 100,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
@@ -42,7 +43,13 @@
     "experiments": {
       "typedRoutes": true,
       "tsconfigPaths": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a1df7e5b-c6f5-46a6-8ae1-fcab178f08ab"
+      }
+    },
+    "owner": "cstralpt"
   }
 }
-
