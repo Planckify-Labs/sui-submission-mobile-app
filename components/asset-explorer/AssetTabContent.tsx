@@ -18,7 +18,11 @@ const AssetListContent = ({
         {userAssets.length > 0 ? (
           filteredUserAssets.length > 0 ? (
             <View>
-              {filteredUserAssets.map(item => renderUserAssetItem({ item }))}
+              {filteredUserAssets.map((item) => (
+                <React.Fragment key={item.id}>
+                  {renderUserAssetItem({ item })}
+                </React.Fragment>
+              ))}
             </View>
           ) : (
             searchQuery ? (
@@ -51,7 +55,11 @@ const AssetListContent = ({
       <View>
         {filteredAvailableAssets.length > 0 ? (
           <View>
-            {filteredAvailableAssets.map(item => renderAvailableAssetItem({ item }))}
+            {filteredAvailableAssets.map(item =>(
+              <React.Fragment key={item.id}>
+                {renderAvailableAssetItem({ item })}
+              </React.Fragment>
+            ))}
           </View>
         ) : (
           <View className="items-center justify-center py-10">
