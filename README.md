@@ -25,6 +25,36 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Troubleshooting
+
+### EAS Build Errors
+
+If you encounter the following error during EAS build:
+
+```
+Build failed
+pnpm install --frozen-lockfile exited with non-zero code: 1
+```
+
+**Temporary solution:**
+- For EAS builds: Delete the pnpm lock file before building
+- For local machine: Run the following command:
+  ```bash
+  pnpm install --no-frozen-lockfile --ignore-scripts
+  ```
+
+## Building the App
+
+### Development Build
+
+To create a development build for Android:
+
+```bash
+eas build --platform android --profile development
+```
+
+This command will build the app using the development profile defined in your eas.json file, which includes development client features for testing.
+
 ## Get a fresh project
 
 When you're ready, run:
@@ -48,3 +78,5 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+
