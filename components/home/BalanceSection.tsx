@@ -11,6 +11,7 @@ import {
   Eye,
   EyeOff,
   PlusIcon,
+  Wallet,
 } from "lucide-react-native";
 import React, { useCallback, useRef, useState } from "react";
 import {
@@ -209,8 +210,11 @@ export default function BalanceSection() {
               onPress={() => router.push("/withdraw")}
               className="flex-1 min-w-[100px] bg-light-main-container rounded-xl py-3 px-3 flex-row items-center"
             >
-              <View className="bg-light-primary-red/10 rounded-full p-1.5 mr-2">
-                <ArrowBigDown size={20} color="#c71c4b" />
+              <View className="bg-light-primary-red/10 rounded-full p-1.5 mr-2 relative">
+                <Wallet size={20} color="#c71c4b" />
+                <View className="absolute -right-1 -bottom-1 -rotate-45">
+                  <ArrowBigDown size={14} color="#c71c4b" />
+                </View>
               </View>
               <Text className="text-light-matte-black text-[10px] font-medium">
                 Withdraw
