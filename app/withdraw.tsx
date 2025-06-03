@@ -22,6 +22,7 @@ const PAYMENT_PLATFORMS = [
   { id: "ovo", name: "OVO" },
   { id: "dana", name: "DANA" },
   { id: "gopay", name: "GoPay" },
+  { id: "linkaja", name: "Link aja" },
 ];
 
 const QUICK_AMOUNTS = ["10", "50", "100", "250", "500"];
@@ -122,6 +123,7 @@ export default function Withdraw() {
         return false;
       }
     } catch (error) {
+      console.error("Error validating inputs:", error);
       Alert.alert("Error", "Invalid amount format");
       return false;
     }
@@ -180,8 +182,8 @@ export default function Withdraw() {
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
-            <View className="bg-light rounded-xl p-5 mb-6 shadow-sm">
-              <View className="mb-6">
+            <View className="bg-light rounded-xl mb-6 shadow-sm">
+              <View className="mb-6 p-5">
                 <Text className="text-light-matte-black/70 mb-2">From</Text>
                 <Pressable
                   className="bg-light-main-container p-4 rounded-xl flex-row items-center justify-between"
@@ -212,7 +214,7 @@ export default function Withdraw() {
                 </View>
               </View>
 
-              <View className="mb-6">
+              <View className="mb-6 p-5">
                 <Text className="text-light-matte-black/70 mb-2">Token</Text>
                 <Pressable
                   className="bg-light-main-container p-4 rounded-xl flex-row items-center justify-between"
@@ -226,37 +228,43 @@ export default function Withdraw() {
               </View>
 
               <View className="mb-6">
-                <Text className="text-light-matte-black/70 mb-2">
+                <Text className="text-light-matte-black/70 mb-2 mx-5">
                   To Platform
                 </Text>
-                <View className="flex-row justify-between mb-4">
-                  {PAYMENT_PLATFORMS.map((platform) => (
-                    <Pressable
-                      key={platform.id}
-                      className={`flex-1 p-3 rounded-xl items-center mx-1 ${
-                        selectedPlatform.id === platform.id
-                          ? "bg-light-primary-red/10"
-                          : "bg-light-main-container"
-                      }`}
-                      onPress={() => setSelectedPlatform(platform)}
-                    >
-                      <View className="w-10 h-10 bg-light-primary-red/10 rounded-full items-center justify-center mb-2">
-                        <Wallet size={20} color="#c71c4b" />
-                      </View>
-                      <Text
-                        className={`text-xs font-medium ${
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  className="mb-4"
+                >
+                  <View className="mx-5 flex-row gap-2">
+                    {PAYMENT_PLATFORMS.map((platform) => (
+                      <Pressable
+                        key={platform.id}
+                        className={`p-3 rounded-xl items-center mr-3 w-24 ${
                           selectedPlatform.id === platform.id
-                            ? "text-light-primary-red"
-                            : "text-light-matte-black"
+                            ? "bg-light-primary-red/10"
+                            : "bg-light-main-container"
                         }`}
+                        onPress={() => setSelectedPlatform(platform)}
                       >
-                        {platform.name}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
+                        <View className="w-10 h-10 bg-light-primary-red/10 rounded-full items-center justify-center mb-2">
+                          <Wallet size={20} color="#c71c4b" />
+                        </View>
+                        <Text
+                          className={`text-xs font-medium ${
+                            selectedPlatform.id === platform.id
+                              ? "text-light-primary-red"
+                              : "text-light-matte-black"
+                          }`}
+                        >
+                          {platform.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
 
-                <View>
+                <View className="mx-5">
                   <Text className="text-light-matte-black/70 mb-2">
                     Phone Number
                   </Text>
@@ -271,7 +279,7 @@ export default function Withdraw() {
                 </View>
               </View>
 
-              <View className="mb-6">
+              <View className="mb-6 p-5">
                 <View className="flex-row items-center justify-between mb-2">
                   <Text className="text-light-matte-black/70">Amount</Text>
                   <Pressable onPress={handleMaxAmount}>
@@ -310,7 +318,7 @@ export default function Withdraw() {
               </View>
 
               <Pressable
-                className="bg-light-primary-red p-4 rounded-xl"
+                className="bg-light-primary-red p-4 rounded-xl mx-5 mb-5"
                 onPress={handleWithdraw}
                 disabled={isLoading}
               >
