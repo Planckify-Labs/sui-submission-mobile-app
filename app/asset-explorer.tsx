@@ -23,7 +23,7 @@ import SearchBar from "@/components/asset-explorer/SearchBar";
 import UserAssetItem from "@/components/asset-explorer/UserAssetItem";
 
 import WalletInfo from "@/components/asset-explorer/WalletInfo";
-import { TCryptoAsset } from "@/constants/types/assetTypes";
+import { TAssetTabType, TCryptoAsset } from "@/constants/types/assetTypes";
 import {
   adaptAssetForNetwork,
   addAsset,
@@ -51,8 +51,6 @@ import {
 const { height } = Dimensions.get("window");
 const MODAL_HEIGHT = height * 0.67;
 
-type TabType = "your-assets" | "available-assets";
-
 export default function AssetExplorer() {
   const [userAssets, setUserAssets] = useState<TCryptoAsset[]>([]);
   const [availableAssets, setAvailableAssets] = useState<TCryptoAsset[]>([]);
@@ -66,7 +64,7 @@ export default function AssetExplorer() {
   const [tokenAddress, setTokenAddress] = useState("");
   const [walletSelectorVisible, setWalletSelectorVisible] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>("your-assets");
+  const [activeTab, setActiveTab] = useState<TAssetTabType>("my-assets");
 
   const [activeNetwork, setActiveNetwork] = useState(ALL_NETWORKS[0].id);
   const [networks, setNetworks] = useState<Network[]>(getPinnedNetworks());

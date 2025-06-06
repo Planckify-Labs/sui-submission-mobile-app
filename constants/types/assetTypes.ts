@@ -17,7 +17,7 @@ export type TExtendedCryptoAsset = TCryptoAsset & {
   contractAddress?: string;
 };
 
-export type TAssetTabType = "your-assets" | "available-assets";
+export type TAssetTabType = "my-assets" | "explore-assets";
 
 export type AssetListContentProps = {
   activeTab: TAssetTabType;

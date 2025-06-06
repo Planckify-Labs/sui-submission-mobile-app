@@ -13,15 +13,13 @@ const MyAssetsAndExploreAssetTabs = ({
     <View className="flex-row bg-light rounded-xl mb-4 shadow-sm overflow-hidden">
       <Pressable
         className={`flex-1 py-3 items-center ${
-          activeTab === "your-assets" ? "bg-light-primary-red" : "bg-light"
+          activeTab === "my-assets" ? "bg-light-primary-red" : "bg-light"
         }`}
-        onPress={() => setActiveTab("your-assets")}
+        onPress={() => setActiveTab("my-assets")}
       >
         <Text
           className={`font-bold ${
-            activeTab === "your-assets"
-              ? "text-white"
-              : "text-light-matte-black"
+            activeTab === "my-assets" ? "text-white" : "text-light-matte-black"
           }`}
         >
           My Assets
@@ -29,13 +27,13 @@ const MyAssetsAndExploreAssetTabs = ({
       </Pressable>
       <Pressable
         className={`flex-1 py-3 items-center ${
-          activeTab === "available-assets" ? "bg-light-matte-black" : "bg-light"
+          activeTab === "explore-assets" ? "bg-light-matte-black" : "bg-light"
         }`}
-        onPress={() => setActiveTab("available-assets")}
+        onPress={() => setActiveTab("explore-assets")}
       >
         <Text
           className={`font-bold ${
-            activeTab === "available-assets"
+            activeTab === "explore-assets"
               ? "text-white"
               : "text-light-matte-black"
           }`}

@@ -12,7 +12,7 @@ const AssetListContent = ({
   renderUserAssetItem,
   renderAvailableAssetItem,
 }: AssetListContentProps) => {
-  if (activeTab === "your-assets") {
+  if (activeTab === "my-assets") {
     return (
       <View>
         {userAssets.length > 0 ? (
@@ -24,22 +24,20 @@ const AssetListContent = ({
                 </React.Fragment>
               ))}
             </View>
-          ) : (
-            searchQuery ? (
-              <View className="items-center justify-center py-5">
-                <Text className="text-light-matte-black/60 text-center">
-                  No assets found matching your search
-                </Text>
-              </View>
-            ) : null
-          )
+          ) : searchQuery ? (
+            <View className="items-center justify-center py-5">
+              <Text className="text-light-matte-black/60 text-center">
+                No assets found matching your search
+              </Text>
+            </View>
+          ) : null
         ) : (
           <View className="items-center justify-center py-5">
             <Text className="text-light-matte-black/60 text-center mb-4">
               You haven't added any assets yet
             </Text>
             <Pressable
-              onPress={() => setActiveTab("available-assets")}
+              onPress={() => setActiveTab("explore-assets")}
               className="bg-light-primary-red px-4 py-2 rounded-lg"
             >
               <Text className="text-white font-bold">
@@ -55,7 +53,7 @@ const AssetListContent = ({
       <View>
         {filteredAvailableAssets.length > 0 ? (
           <View>
-            {filteredAvailableAssets.map(item =>(
+            {filteredAvailableAssets.map((item) => (
               <React.Fragment key={item.id}>
                 {renderAvailableAssetItem({ item })}
               </React.Fragment>

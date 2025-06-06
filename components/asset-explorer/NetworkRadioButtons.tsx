@@ -14,7 +14,7 @@ type Network = {
 type NetworkButtonsProps = {
   networks: Network[];
   activeNetwork: string;
-  activeTab: "your-assets" | "available-assets";
+  activeTab: "my-assets" | "explore-assets";
   selectNetwork: (networkId: string) => void;
   openNetworkModal: () => void;
 };
@@ -27,16 +27,20 @@ const NetworkRadioButtons = ({
   openNetworkModal,
 }: NetworkButtonsProps) => {
   const { activeChain } = useWallet();
-  
+
   // Get accent color based on active tab
   const getAccentColor = () => {
-    return activeTab === "your-assets" ? "bg-light-primary-red" : "bg-light-matte-black";
+    return activeTab === "my-assets"
+      ? "bg-light-primary-red"
+      : "bg-light-matte-black";
   };
-  
+
   const getBorderColor = () => {
-    return activeTab === "your-assets" ? "border-light-primary-red" : "border-light-matte-black";
+    return activeTab === "my-assets"
+      ? "border-light-primary-red"
+      : "border-light-matte-black";
   };
-  
+
   const getAccentTextColor = () => {
     return "text-white";
   };
@@ -71,7 +75,9 @@ const NetworkRadioButtons = ({
   const accentTextColor = getAccentTextColor();
 
   return (
-    <View className={`absolute bottom-4 left-2 right-2 flex-row justify-center bg-light rounded-full overflow-hidden border-4 ${borderColor}`}>
+    <View
+      className={`absolute bottom-4 left-2 right-2 flex-row justify-center bg-light rounded-full overflow-hidden border-4 ${borderColor}`}
+    >
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View className="flex-row p-1 pr-10 gap-2">
           {networks.map((network) => (
@@ -88,8 +94,8 @@ const NetworkRadioButtons = ({
                 className={`w-3 h-3 rounded-full mr-2 ${
                   activeNetwork === network.id
                     ? "bg-white"
-                    : activeTab === "your-assets" 
-                      ? "bg-light-primary-red/70" 
+                    : activeTab === "my-assets"
+                      ? "bg-light-primary-red/70"
                       : "bg-light-matte-black/70"
                 }`}
               />
