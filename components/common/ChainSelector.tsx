@@ -1,8 +1,10 @@
-import { supportedChains } from "@/constants/configs/chainConfig";
+import { useTokens } from "@/hooks/queries/useTokens";
+import { useBlockchainsWithStorage } from "@/hooks/useBlockchainsWithStorage";
 import { useWallet } from "@/hooks/useWallet";
 import { Check, ChevronDown } from "lucide-react-native";
-import React, { memo, useCallback, useRef, useState } from "react";
+import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   Image,
@@ -23,6 +25,43 @@ const ChainSelector = memo(() => {
   const [modalVisible, setModalVisible] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
+
+  const { data: blockchains, isLoading: isLoadingBlockchains } =
+    useBlockchainsWithStorage({ isActive: true });
+
+  const { data: nativeTokens, isLoading: isLoadingTokens } = useTokens({
+    isNativeCurrency: true,
+    isActive: true,
+  });
+
+  const isLoading = isLoadingBlockchains || isLoadingTokens;
+
+  const allChains = useMemo(() => {
+    if (!blockchains || !nativeTokens) return [];
+
+    const nativeTokenMap = new Map(
+      nativeTokens.map((token) => [token.blockchainId, token]),
+    );
+
+    return blockchains.map((blockchain) => {
+      const nativeToken = nativeTokenMap.get(blockchain.id);
+
+      return {
+        chain: {
+          id: blockchain.chainId,
+          name: blockchain.name,
+          nativeCurrency: {
+            name: nativeToken?.name || "Ether",
+            symbol: nativeToken?.symbol || "ETH",
+            decimals: nativeToken?.decimals || 18,
+          },
+        },
+        iconUrl: nativeToken?.logoUrl || "",
+        isTestnet: false,
+        blockchainId: blockchain.id,
+      };
+    });
+  }, [blockchains, nativeTokens]);
 
   const handleChainSelect = useCallback(
     async (chainId: number) => {
@@ -95,7 +134,7 @@ const ChainSelector = memo(() => {
   ).current;
 
   const renderChainItem = useCallback(
-    (chain: (typeof supportedChains)[0]) => {
+    (chain: any) => {
       const isActive = activeChain.chain.id === chain.chain.id;
 
       return (
@@ -205,7 +244,16 @@ const ChainSelector = memo(() => {
                 </Text>
 
                 <ScrollView className="flex-1">
-                  {supportedChains.map(renderChainItem)}
+                  {isLoading ? (
+                    <View className="items-center justify-center py-8">
+                      <ActivityIndicator color="#c71c4b" />
+                      <Text className="text-light-matte-black mt-2">
+                        Loading networks...
+                      </Text>
+                    </View>
+                  ) : (
+                    allChains.map(renderChainItem)
+                  )}
                 </ScrollView>
 
                 <Pressable

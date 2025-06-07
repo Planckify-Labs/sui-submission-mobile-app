@@ -10,4 +10,15 @@ export type TBlockchain = {
   updatedAt: string;
 };
 
+export interface TUseBlockchainsWithStorageOptions {
+  name?: string;
+  chainId?: number;
+  isEVM?: boolean;
+  isActive?: boolean;
+  take?: number;
+  cursor?: string;
+  forceRefresh?: boolean;
+  isNativeCurrency?: boolean;
+}
+
 export type TBlockchainListResponse = TBlockchain[];
