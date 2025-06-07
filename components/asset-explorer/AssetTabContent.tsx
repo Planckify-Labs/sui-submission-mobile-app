@@ -1,8 +1,9 @@
 import { AssetListContentProps } from "@/constants/types/assetTypes";
 import React from "react";
 import { Pressable, Text, View } from "react-native";
+import AssetLoadingSkeletons from "./AssetLoadingSkeletons";
 
-const AssetListContent = ({
+const AssetTabContent = ({
   activeTab,
   userAssets,
   filteredUserAssets,
@@ -11,6 +12,7 @@ const AssetListContent = ({
   setActiveTab,
   renderUserAssetItem,
   renderAvailableAssetItem,
+  isLoading,
 }: AssetListContentProps) => {
   if (activeTab === "my-assets") {
     return (
@@ -51,7 +53,9 @@ const AssetListContent = ({
   } else {
     return (
       <View>
-        {filteredAvailableAssets.length > 0 ? (
+        {isLoading ? (
+          <AssetLoadingSkeletons count={5} />
+        ) : filteredAvailableAssets.length > 0 ? (
           <View>
             {filteredAvailableAssets.map((item) => (
               <React.Fragment key={item.id}>
@@ -73,4 +77,4 @@ const AssetListContent = ({
   }
 };
 
-export default AssetListContent;
+export default AssetTabContent;

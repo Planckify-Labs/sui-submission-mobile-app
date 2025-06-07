@@ -38,6 +38,7 @@ export type AssetListContentProps = {
   selectedAssets?: TCryptoAsset[];
   toggleAssetSelection?: (asset: TCryptoAsset) => void;
   handleAssetLongPress?: (asset: TCryptoAsset) => void;
+  isLoading?: boolean;
 };
 
 export type TAssetCategoryTabsProps = {

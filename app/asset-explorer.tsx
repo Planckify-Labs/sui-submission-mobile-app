@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AddTokenForm from "@/components/asset-explorer/AddTokenForm";
 import AssetExplorerHeader from "@/components/asset-explorer/AssetExplorerHeader";
 import AssetItem from "@/components/asset-explorer/AssetItem";
-import TabContent from "@/components/asset-explorer/AssetTabContent";
+import AssetTabContent from "@/components/asset-explorer/AssetTabContent";
 import AssetWalletSelectorModal from "@/components/asset-explorer/AssetWalletSelectorModal";
 import AssetExplorerTabs from "@/components/asset-explorer/MyAssetsAndExploreAssetTabs";
 import NetworkRadioButtons from "@/components/asset-explorer/NetworkRadioButtons";
@@ -24,6 +24,7 @@ import UserAssetItem from "@/components/asset-explorer/UserAssetItem";
 
 import WalletInfo from "@/components/asset-explorer/WalletInfo";
 import { TAssetTabType, TCryptoAsset } from "@/constants/types/assetTypes";
+import { useTokens } from "@/hooks/queries/useTokens";
 import {
   adaptAssetForNetwork,
   addAsset,
@@ -67,6 +68,9 @@ export default function AssetExplorer() {
   const [activeTab, setActiveTab] = useState<TAssetTabType>("my-assets");
 
   const [activeNetwork, setActiveNetwork] = useState(ALL_NETWORKS[0].id);
+  const [activeBlockchainId, setActiveBlockchainId] = useState<
+    string | undefined
+  >(undefined);
   const [networks, setNetworks] = useState<Network[]>(getPinnedNetworks());
   const [networkModalVisible, setNetworkModalVisible] = useState(false);
 
@@ -75,6 +79,11 @@ export default function AssetExplorer() {
 
   const { wallets, activeWalletIndex } = useWallet();
   const activeWallet = wallets[activeWalletIndex];
+
+  const { data: tokens, isLoading: isLoadingTokens } = useTokens({
+    blockchainId: activeBlockchainId,
+    isActive: true,
+  });
 
   useEffect(() => {
     if (activeWallet?.address) {
@@ -117,13 +126,29 @@ export default function AssetExplorer() {
   }, [userAssets, getStorageKey]);
 
   useEffect(() => {
-    const networkAssets = getNetworkSpecificAssets(
-      SAMPLE_ASSETS,
-      activeNetwork,
-      ALL_NETWORKS,
-    );
-    setAvailableAssets(networkAssets);
-  }, [activeNetwork]);
+    if (tokens) {
+      const tokenAssets = tokens.map((token) => ({
+        id: token.id || `token-${token.contractAddress}`,
+        name: token.name || "Unknown Token",
+        symbol: token.symbol || "???",
+        logo: token.logoUrl || token.symbol?.charAt(0) || "?",
+        balance: "0",
+        value: "0.00",
+        change: "0%",
+        contractAddress: token.contractAddress,
+        decimals: token.decimals,
+      }));
+
+      setAvailableAssets(tokenAssets);
+    } else if (!activeBlockchainId || !isLoadingTokens) {
+      const networkAssets = getNetworkSpecificAssets(
+        SAMPLE_ASSETS,
+        activeNetwork,
+        ALL_NETWORKS,
+      );
+      setAvailableAssets(networkAssets);
+    }
+  }, [tokens, isLoadingTokens, activeNetwork, activeBlockchainId]);
 
   const filteredAvailableAssets = filterAssets(availableAssets, searchQuery);
   const filteredUserAssets = filterAssets(userAssets, searchQuery);
@@ -232,9 +257,13 @@ export default function AssetExplorer() {
     [userAssets],
   );
 
-  const handleSelectNetwork = useCallback((networkId: string) => {
-    setActiveNetwork(networkId);
-  }, []);
+  const handleSelectNetwork = useCallback(
+    (networkId: string, blockchainId?: string) => {
+      setActiveNetwork(networkId);
+      setActiveBlockchainId(blockchainId);
+    },
+    [],
+  );
 
   const handleToggleNetworkPin = useCallback((networkId: string) => {
     const updatedNetworks = toggleNetworkPin(networkId);
@@ -340,7 +369,7 @@ export default function AssetExplorer() {
               selectionMode={selectionMode}
             />
 
-            <TabContent
+            <AssetTabContent
               activeTab={activeTab}
               userAssets={userAssets}
               setActiveTab={setActiveTab}
@@ -352,6 +381,7 @@ export default function AssetExplorer() {
               searchQuery={searchQuery}
               renderUserAssetItem={renderUserAssetItem}
               renderAvailableAssetItem={renderAvailableAssetItem}
+              isLoading={isLoadingTokens && activeTab === "explore-assets"}
             />
           </View>
         </ScrollView>

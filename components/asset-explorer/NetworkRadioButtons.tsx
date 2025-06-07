@@ -11,13 +11,14 @@ type Network = {
   symbol: string;
   color: string;
   isPinned?: boolean;
+  blockchainId?: string; // Add blockchainId to the Network type
 };
 
 type NetworkButtonsProps = {
   networks: Network[];
   activeNetwork: string;
   activeTab: "my-assets" | "explore-assets";
-  selectNetwork: (networkId: string) => void;
+  selectNetwork: (networkId: string, blockchainId?: string) => void; // Update to pass blockchainId
   openNetworkModal: () => void;
 };
 
@@ -31,6 +32,7 @@ const NetworkRadioButtons = ({
   const { activeChain } = useWallet();
   const { data: blockchains, isLoading } = useBlockchains({ isActive: true });
 
+  // Map blockchain data to network format with blockchainId
   const blockchainNetworks = React.useMemo(() => {
     if (!blockchains) return [];
 
@@ -38,8 +40,9 @@ const NetworkRadioButtons = ({
       id: blockchain.chainId.toString(),
       name: blockchain.name,
       symbol: "ETH",
-      color: "#627EEA",
+      color: "#627EEA", // Default color
       isPinned: true,
+      blockchainId: blockchain.id, // Include the blockchain ID from the API
     }));
   }, [blockchains]);
 
@@ -101,7 +104,9 @@ const NetworkRadioButtons = ({
               (network) => (
                 <Pressable
                   key={network.id}
-                  onPress={() => selectNetwork(network.id)}
+                  onPress={() =>
+                    selectNetwork(network.id, network.blockchainId)
+                  }
                   className={`px-3 py-2 rounded-full mx-1- flex-row items-center ${
                     activeNetwork === network.id
                       ? accentColor
