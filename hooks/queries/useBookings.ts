@@ -1,5 +1,5 @@
-import { bookingApi } from "@/src/api/endpoints/bookings";
-import type { TBooking, TBookingCreateRequest } from "@/src/api/types/booking";
+import { bookingApi } from "@/api/endpoints/bookings";
+import type { TBooking, TBookingCreateRequest } from "@/api/types/booking";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 interface TUseBookingsOptions {

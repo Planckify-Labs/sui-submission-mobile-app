@@ -1,5 +1,5 @@
+import type { TokenListResponse } from "@/api/types/token";
 import { api } from "@/constants/configs/ky";
-import type { TokenListResponse } from "@/src/api/types/token";
 
 interface TTokenSearchParams {
   symbol?: string;

@@ -1,5 +1,5 @@
-import { blockchainApi } from "@/src/api/endpoints/blockchains";
-import type { TBlockchain } from "@/src/api/types/blockchain";
+import { blockchainApi } from "@/api/endpoints/blockchains";
+import type { TBlockchain } from "@/api/types/blockchain";
 import { useQuery } from "@tanstack/react-query";
 
 interface TUseBlockchainsOptions {

@@ -1,5 +1,5 @@
-import { tokenApi } from "@/src/api/endpoints/token";
-import type { TToken } from "@/src/api/types/token";
+import { tokenApi } from "@/api/endpoints/tokens";
+import type { TToken } from "@/api/types/token";
 import { useQuery } from "@tanstack/react-query";
 
 export const BLOCKCHAIN_IDS = {
