@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { MoveRight } from "lucide-react-native";
 import React from "react";
 import { Pressable, Text, View } from "react-native";
@@ -7,7 +8,10 @@ export default function PaymentSection() {
     <View className="bg-light rounded-[14px] w-full p-[22px] gap-4">
       <View className="flex-row px-[22px]-">
         <Text className="text-light-matte-black text-sm">Payments</Text>
-        <Pressable className="flex-row items-center justify-center border-2 ml-auto border-light-primary-red bg-light-primary-red/10 gap-2 rounded-full px-4 py-1">
+        <Pressable
+          onPress={() => router.push("/payment")}
+          className="flex-row items-center justify-center border-2 ml-auto border-light-primary-red bg-light-primary-red/10 gap-2 rounded-full px-4 py-1"
+        >
           <Text className="text-light-matte-black text-sm font-bold">
             View All
           </Text>
