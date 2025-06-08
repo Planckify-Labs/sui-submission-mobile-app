@@ -97,3 +97,55 @@ export const useBlockchainsWithStorage = (
     gcTime: 30 * 60 * 1000,
   });
 };
+
+export const useNativeTokensWithStorage = (
+  options?: TUseBlockchainsWithStorageOptions,
+) => {
+  const {
+    data: blockchains,
+    isLoading,
+    error,
+  } = useBlockchainsWithStorage(options);
+
+  const nativeTokens =
+    blockchains?.flatMap(
+      (blockchain) =>
+        blockchain.tokens?.filter((token) => token.isNativeCurrency) || [],
+    ) || [];
+
+  return {
+    data: nativeTokens,
+    isLoading,
+    error,
+  };
+};
+
+export const useBlockchainByChainId = (chainId: number) => {
+  const { data: blockchains, isLoading, error } = useBlockchainsWithStorage();
+
+  const blockchain = blockchains?.find((chain) => chain.chainId === chainId);
+
+  return {
+    data: blockchain,
+    isLoading,
+    error,
+  };
+};
+
+export const useNativeTokenForChainId = (chainId: number) => {
+  const {
+    data: blockchain,
+    isLoading,
+    error,
+  } = useBlockchainByChainId(chainId);
+
+  const nativeToken = blockchain?.tokens?.find(
+    (token) => token.isNativeCurrency,
+  );
+
+  return {
+    data: nativeToken,
+    isLoading,
+    error,
+  };
+};
