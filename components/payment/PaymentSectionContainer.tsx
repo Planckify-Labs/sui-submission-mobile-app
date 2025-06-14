@@ -13,7 +13,7 @@ export default function PaymentSectionContainer({
 }: PaymentSectionContainerProps) {
   const handleViewAll = () => {
     if (section.viewAllPath) {
-      router.push(section.viewAllPath as any);
+      router.push(section.viewAllPath);
     }
   };
 

@@ -1,4 +1,5 @@
 import { TPromotionBannerProps } from "@/components/payment/PromotionBanner";
+import { Href } from "expo-router";
 
 export type ProductItem = {
   id: string;
@@ -10,7 +11,7 @@ export type ProductItem = {
 export type SectionData = {
   id: string;
   title: string;
-  viewAllPath?: string;
+  viewAllPath?: Href;
   items: ProductItem[];
 };
 export type ListItemData = {
@@ -21,7 +22,7 @@ export const PAYMENT_SECTIONS: SectionData[] = [
   {
     id: "recommendations",
     title: "Recommendations",
-    viewAllPath: "/recommendations",
+    viewAllPath: "/asset-explorer",
     items: [
       { id: "r1", name: "Telkomsel 50K" },
       { id: "r2", name: "PLN 100K" },
@@ -33,7 +34,7 @@ export const PAYMENT_SECTIONS: SectionData[] = [
   {
     id: "reload",
     title: "Reload",
-    viewAllPath: "/reload",
+    viewAllPath: "/asset-explorer",
     items: [
       { id: "rl1", name: "PLN Token" },
       { id: "rl2", name: "Telkomsel" },
