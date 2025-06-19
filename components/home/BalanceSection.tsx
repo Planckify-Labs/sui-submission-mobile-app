@@ -28,7 +28,7 @@ import BalanceSectionSkeleton from "./BalanceSectionSkeleton";
 import RecievePaymentModal from "./RecievePaymentModal";
 
 const { height } = Dimensions.get("window");
-const MODAL_HEIGHT = height * 0.67;
+const MODAL_HEIGHT = height * 0.6;
 
 export default function BalanceSection() {
   const { activeWallet, activeChain, isLoading } = useWallet();
@@ -255,7 +255,6 @@ export default function BalanceSection() {
           activeChain={activeChain}
           fadeAnim={fadeAnim}
           translateY={translateY}
-          MODAL_HEIGHT={MODAL_HEIGHT}
           panResponder={panResponder}
           isModalAnimationComplete={isModalAnimationComplete}
         />

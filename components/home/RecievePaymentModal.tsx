@@ -26,7 +26,6 @@ type ReceivePaymentModalProps = {
   };
   fadeAnim: Animated.Value;
   translateY: Animated.Value;
-  MODAL_HEIGHT: number;
   panResponder: any;
   isModalAnimationComplete: boolean;
 };
@@ -38,7 +37,6 @@ export default function RecievePaymentModal({
   activeChain,
   fadeAnim,
   translateY,
-  MODAL_HEIGHT,
   panResponder,
   isModalAnimationComplete,
 }: ReceivePaymentModalProps) {
@@ -66,7 +64,8 @@ export default function RecievePaymentModal({
             bottom: 0,
             left: 0,
             right: 0,
-            height: MODAL_HEIGHT,
+            height: "auto",
+            paddingBottom: 20,
             backgroundColor: "#f5f6f9",
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
