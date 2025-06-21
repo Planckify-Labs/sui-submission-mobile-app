@@ -143,7 +143,7 @@ export default function ItemWithoutInput() {
           activeOpacity={0.7}
           className={`bg-light-primary-red py-4 rounded-full items-center ${!selectedItemVariant ? "opacity-50" : ""}`}
           disabled={!selectedItemVariant}
-          onPress={() => selectedItemVariant && router.push("/service")}
+          onPress={() => selectedItemVariant && router.push("/payment")}
         >
           <Text className="text-light font-bold text-lg">
             Continue to Payment
