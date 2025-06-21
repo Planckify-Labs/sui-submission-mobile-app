@@ -1,5 +1,6 @@
 import ChainSelector from "@/components/common/ChainSelector";
 import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
+import PinConfirmationModal from "@/components/common/PinConfirmationModal";
 import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
 import { useWallet } from "@/hooks/useWallet";
 import * as Clipboard from "expo-clipboard";
@@ -45,6 +46,7 @@ export default function SendScreen() {
   const [balance, setBalance] = useState<bigint>(BigInt(0));
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [recipientModalVisible, setRecipientModalVisible] = useState(false);
+  const [isPinModalVisible, setIsPinModalVisible] = useState(false);
   const [isLoadingBalance, setIsLoadingBalance] = useState(true);
   const [transactionStatus, setTransactionStatus] = useState(
     "Preparing transaction...",
@@ -161,6 +163,13 @@ export default function SendScreen() {
   const handleSend = useCallback(async () => {
     if (!validateInputs()) return;
 
+    setIsPinModalVisible(true);
+  }, [validateInputs]);
+
+  const handlePinConfirm = async (pin: string) => {
+    console.log("Transaction confirmed with PIN:", pin);
+
+    setIsPinModalVisible(false);
     setIsLoading(true);
     setTransactionStatus("Preparing transaction...");
 
@@ -227,14 +236,7 @@ export default function SendScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [
-    amount,
-    recipient,
-    activeWallet,
-    activeChain,
-    getClientForActiveWallet,
-    validateInputs,
-  ]);
+  };
 
   const handleSelectWallet = (index: number) => {
     setActiveWallet(index);
@@ -429,6 +431,13 @@ export default function SendScreen() {
         title="Select Recipient"
         disabledWalletIndex={activeWalletIndex}
         disabledLabel="Current wallet"
+      />
+
+      <PinConfirmationModal
+        visible={isPinModalVisible}
+        onClose={() => setIsPinModalVisible(false)}
+        onConfirm={handlePinConfirm}
+        title="Confirm Transaction"
       />
     </>
   );
