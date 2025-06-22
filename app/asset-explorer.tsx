@@ -19,8 +19,8 @@ import AssetWalletSelectorModal from "@/components/asset-explorer/AssetWalletSel
 import AssetExplorerTabs from "@/components/asset-explorer/MyAssetsAndExploreAssetTabs";
 import NetworkRadioButtons from "@/components/asset-explorer/NetworkRadioButtons";
 import NetworkSelectorModal from "@/components/asset-explorer/NetworkSelectorModal";
-import SearchBar from "@/components/asset-explorer/SearchBar";
 import UserAssetItem from "@/components/asset-explorer/UserAssetItem";
+import SearchBar from "@/components/common/SearchBar";
 
 import WalletInfo from "@/components/asset-explorer/WalletInfo";
 import { TAssetTabType, TCryptoAsset } from "@/constants/types/assetTypes";

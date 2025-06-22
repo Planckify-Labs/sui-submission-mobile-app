@@ -1,6 +1,6 @@
 import { TToken } from "@/api/types/token";
-import SearchBar from "@/components/asset-explorer/SearchBar";
 import PinnedTokenCard from "@/components/common/PinnedTokenCard";
+import SearchBar from "@/components/common/SearchBar";
 import { useTokens } from "@/hooks/queries/useTokens";
 import { usePinnedTokens } from "@/hooks/usePinnedTokens";
 import { router } from "expo-router";
