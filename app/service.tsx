@@ -1,6 +1,7 @@
 import SearchBar from "@/components/common/SearchBar";
 import PromotionBanner from "@/components/service/PromotionBanner";
 import ServiceHeader from "@/components/service/ServiceHeader";
+import ServiceScreenSkeleton from "@/components/service/ServiceScreenSkeleton";
 import ServiceSectionContainer from "@/components/service/ServiceSectionContainer";
 import {
   type ListItemData as ListItem,
@@ -111,8 +112,8 @@ export default function ServiceScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-light-main-container items-center justify-center">
-        <Text>Loading services...</Text>
+      <SafeAreaView className="flex-1 bg-light-main-container">
+        <ServiceScreenSkeleton />
       </SafeAreaView>
     );
   }
