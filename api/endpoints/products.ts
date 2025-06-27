@@ -1,5 +1,10 @@
 import { api } from "@/constants/configs/ky";
-import type { TProduct, TProductCategory, TProductWithCategory } from "../types/product";
+import type {
+  TProduct,
+  TProductCategory,
+  TProductDetail,
+  TProductWithCategory,
+} from "../types/product";
 
 export const productApi = {
   getAllProducts: async (): Promise<TProduct[]> => {
@@ -12,9 +17,18 @@ export const productApi = {
     return response.json();
   },
 
-  getProductById: async (id: string): Promise<TProduct> => {
-    const response = await api.get(`products/${id}`);
-    return response.json();
+  getProductById: async (id: string): Promise<TProductDetail> => {
+    try {
+      const response = await api.get(`products/${id}`);
+      return response.json();
+    } catch (error: any) {
+      // Handle aborted requests gracefully
+      if (error && error.name === "AbortError") {
+        console.log("Request was aborted");
+        return {} as TProductDetail;
+      }
+      throw error;
+    }
   },
 
   getProductsByCategory: async (categoryId: string): Promise<TProduct[]> => {
@@ -26,9 +40,9 @@ export const productApi = {
     const response = await api.get("products/categories");
     return response.json();
   },
-  
+
   getCategoryById: async (id: string): Promise<TProductCategory> => {
     const response = await api.get(`products/categories/${id}`);
     return response.json();
-  }
-}; 
+  },
+};

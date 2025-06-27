@@ -1,5 +1,10 @@
 import { productApi } from "@/api/endpoints/products";
-import type { TProduct, TProductCategory, TProductWithCategory } from "@/api/types/product";
+import type {
+  TProduct,
+  TProductCategory,
+  TProductDetail,
+  TProductWithCategory,
+} from "@/api/types/product";
 import { productsQueryKeys } from "@/constants/queryKeys/productsQueryKeys";
 import { useQuery } from "@tanstack/react-query";
 
@@ -37,21 +42,37 @@ export const useProductsByCategories = () => {
   });
 };
 
-export const useProduct = (productId: string) => {
-  return useQuery<TProduct>({
+export const useProductById = (productId: string) => {
+  return useQuery<TProductDetail>({
     queryKey: productsQueryKeys.byId(productId),
-    queryFn: async () => {
+    queryFn: async (context) => {
+      // Don't proceed if no productId
+      if (!productId) {
+        return {} as TProductDetail;
+      }
+
       try {
         const response = await productApi.getProductById(productId);
         return response;
       } catch (error) {
+        // Check if the request was cancelled
+        if (context.signal && context.signal.aborted) {
+          return {} as TProductDetail; // Return empty object to prevent errors
+        }
         console.error("API Error:", error);
         throw error;
       }
     },
     staleTime: 5 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
+    gcTime: 5 * 60 * 1000, // Reduce garbage collection time to prevent stale data issues
     enabled: !!productId,
+    retry: (failureCount, error) => {
+      // Don't retry aborted requests
+      if (error && error.name === "AbortError") return false;
+      return failureCount < 3;
+    },
+    // Prevent refetching on window focus to avoid issues when switching components
+    refetchOnWindowFocus: false,
   });
 };
 
@@ -106,4 +127,4 @@ export const useCategory = (categoryId: string) => {
     gcTime: 30 * 60 * 1000,
     enabled: !!categoryId,
   });
-}; 
+};

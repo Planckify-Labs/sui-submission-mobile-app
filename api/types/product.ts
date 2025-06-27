@@ -8,6 +8,38 @@ export type TProductCategory = {
   updatedAt: string;
 };
 
+export type TVendor = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TProductPrice = {
+  id: string;
+  productVariantId: string;
+  vendorId: string;
+  realValue: string;
+  priceFromVendor: string;
+  sellPrice: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  vendor: TVendor;
+};
+
+export type TProductVariant = {
+  id: string;
+  name: string;
+  description: string;
+  sku: string;
+  productId: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  ProductPrice: TProductPrice[];
+};
+
 export type TProduct = {
   id: string;
   name: string;
@@ -18,9 +50,16 @@ export type TProduct = {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  inputType: string | null;
+  inputDescription: string | null;
 };
 
 export type TProductWithCategory = {
   category: TProductCategory;
   products: TProduct[];
-}; 
+};
+
+export type TProductDetail = TProduct & {
+  category: TProductCategory;
+  variants: TProductVariant[];
+};

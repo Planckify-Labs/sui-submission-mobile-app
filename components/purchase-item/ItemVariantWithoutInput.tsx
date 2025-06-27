@@ -1,19 +1,54 @@
+import { useProductById } from "@/hooks/queries/useProducts";
 import { router } from "expo-router";
 import { ArrowLeft, Info } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Pressable,
   ScrollView,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import OptimizedImage from "../common/OptimizedImage";
+import ItemVariantWithoutInputSkeleton from "./ItemVariantWithoutInputSkeleton";
 
-export default function ItemWithoutInput() {
-  const [selectedItemVariant, setSelectedItemVariant] = useState<string | null>(
-    null,
-  );
+interface ItemVariantWithoutInputProps {
+  productId?: string;
+}
+
+export default function ItemWithoutInput({ productId }: ItemVariantWithoutInputProps) {
+  const isMounted = useRef(true);
+  const { data: product, isLoading, error } = useProductById(productId || "");
+  const [selectedItemVariant, setSelectedItemVariant] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  if (isLoading) {
+    return <ItemVariantWithoutInputSkeleton />;
+  }
+
+  if (error || !product) {
+    return (
+      <View className="flex-1 justify-center items-center p-6">
+        <Text className="text-light-matte-black text-lg font-bold mb-2">
+          Could not load product
+        </Text>
+        <Text className="text-light-error text-center mb-6">
+          {error instanceof Error ? error.message : "Unknown error"}
+        </Text>
+        <TouchableOpacity
+          className="bg-light-primary-red py-3 px-6 rounded-full"
+          onPress={() => router.back()}
+        >
+          <Text className="text-light font-bold">Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
@@ -23,13 +58,13 @@ export default function ItemWithoutInput() {
             <ArrowLeft color="#c71c4b" size={24} />
           </Pressable>
           <Text className="text-light-matte-black text-xl font-bold">
-            Select Item
+            {product.name}
           </Text>
         </View>
 
         <View className="h-56 w-full bg-light rounded-xl overflow-hidden mb-6 shadow-sm">
           <OptimizedImage
-            source={require("@/assets/images/takumipay-no-bg.png")}
+            source={{ uri: product.imageUrl }}
             style={{ width: "100%", height: "100%" }}
             contentFit="cover"
           />
@@ -37,56 +72,34 @@ export default function ItemWithoutInput() {
 
         <View className="bg-light rounded-xl p-5 mb-6 shadow-sm">
           <Text className="text-light-matte-black font-bold text-lg mb-4">
-            Select Package
+            Options
           </Text>
 
           <View className="flex-row flex-wrap justify-between">
-            {[
-              {
-                value: "basic",
-                name: "Basic Package",
-                price: "Rp25.000",
-                features: "Standard features",
-              },
-              {
-                value: "premium",
-                name: "Premium Package",
-                price: "Rp50.000",
-                features: "All features included",
-              },
-              {
-                value: "family",
-                name: "Family Package",
-                price: "Rp75.000",
-                features: "Up to 5 users",
-              },
-              {
-                value: "business",
-                name: "Business Package",
-                price: "Rp100.000",
-                features: "Enterprise support",
-              },
-            ].map((option) => (
-              <Pressable
-                key={option.value}
-                className={`bg-light-main-container border ${
-                  selectedItemVariant === option.value
-                    ? "border-light-primary-red bg-light-primary-red/5"
-                    : "border-light-matte-black/10"
-                } rounded-xl p-4 mb-3 w-[48%]`}
-                onPress={() => setSelectedItemVariant(option.value)}
-              >
-                <Text className="text-light-matte-black font-bold mb-1">
-                  {option.name}
-                </Text>
-                <Text className="text-light-primary-red font-bold text-lg">
-                  {option.price}
-                </Text>
-                <Text className="text-light-matte-black/70 text-xs mt-1">
-                  {option.features}
-                </Text>
-              </Pressable>
-            ))}
+            {product.variants.map((variant) => {
+              const price = variant.ProductPrice[0]?.sellPrice || "N/A";
+              return (
+                <Pressable
+                  key={variant.id}
+                  className={`bg-light-main-container border ${
+                    selectedItemVariant === variant.id
+                      ? "border-light-primary-red bg-light-primary-red/5"
+                      : "border-light-matte-black/10"
+                  } rounded-xl p-4 mb-3 w-[48%]`}
+                  onPress={() => setSelectedItemVariant(variant.id)}
+                >
+                  <Text className="text-light-matte-black font-bold mb-1">
+                    {variant.name}
+                  </Text>
+                  <Text className="text-light-primary-red font-bold text-lg">
+                    Rp{parseInt(price).toLocaleString("id-ID")}
+                  </Text>
+                  <Text className="text-light-matte-black/70 text-xs mt-1">
+                    {variant.description}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 
@@ -97,14 +110,18 @@ export default function ItemWithoutInput() {
 
           <View className="flex-row mb-4">
             <View className="w-20 h-20 bg-light-primary-red/10 rounded-xl mr-4 items-center justify-center">
-              <Text className="text-light-primary-red text-2xl">📦</Text>
+              <OptimizedImage
+                source={{ uri: product.imageUrl }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
+              />
             </View>
             <View className="flex-1 justify-center">
               <Text className="text-light-matte-black font-bold text-lg">
-                Premium Service
+                {product.name}
               </Text>
               <Text className="text-light-matte-black/70">
-                Access to all premium features
+                {product.description}
               </Text>
             </View>
           </View>
@@ -123,7 +140,7 @@ export default function ItemWithoutInput() {
             <View className="flex-row justify-between mb-2">
               <Text className="text-light-matte-black/70">Provider</Text>
               <Text className="text-light-matte-black font-medium">
-                TakumiPay Services
+                {product.category?.name || "TakumiPay Services"}
               </Text>
             </View>
             <View className="flex-row justify-between mb-2">
@@ -143,7 +160,13 @@ export default function ItemWithoutInput() {
           activeOpacity={0.7}
           className={`bg-light-primary-red py-4 rounded-full items-center ${!selectedItemVariant ? "opacity-50" : ""}`}
           disabled={!selectedItemVariant}
-          onPress={() => selectedItemVariant && router.push("/payment")}
+          onPress={() => selectedItemVariant && router.push({
+            pathname: "/payment",
+            params: {
+              productId: product.id,
+              variantId: selectedItemVariant
+            }
+          })}
         >
           <Text className="text-light font-bold text-lg">
             Continue to Payment
