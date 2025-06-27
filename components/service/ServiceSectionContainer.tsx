@@ -1,3 +1,4 @@
+import OptimizedImage from "@/components/common/OptimizedImage";
 import { ProductItem, SectionData } from "@/constants/dummyData/paymentScreen";
 import { router } from "expo-router";
 import { MoveRight } from "lucide-react-native";
@@ -40,10 +41,23 @@ export default function ServiceSectionContainer({
           {section.items.map((item: ProductItem) => (
             <Pressable
               key={item.id}
-              onPress={() => router.push("/purchase-item")}
+              onPress={() => router.push({
+                pathname: "/purchase-item", 
+                params: { productId: item.id }
+              })}
               className="max-w-24 grow"
             >
-              <View className="rounded-2xl border-2 border-light-matte-black w-16 aspect-square bg-light-primary-red/40" />
+              {item.icon ? (
+                <View className="rounded-2xl overflow-hidden w-16 h-16 border-2 border-light-matte-black bg-light-primary-red/40">
+                  <OptimizedImage
+                    source={{ uri: item.icon }}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                  />
+                </View>
+              ) : (
+                <View className="rounded-2xl border-2 border-light-matte-black w-16 aspect-square bg-light-primary-red/40" />
+              )}
               <Text className="text-[10px] text-center text-wrap max-w-16">
                 {item.name}
               </Text>

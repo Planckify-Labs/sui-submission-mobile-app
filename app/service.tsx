@@ -4,20 +4,22 @@ import ServiceHeader from "@/components/service/ServiceHeader";
 import ServiceSectionContainer from "@/components/service/ServiceSectionContainer";
 import {
   type ListItemData as ListItem,
-  createPaymentListData as createServiceListData,
 } from "@/constants/dummyData/paymentScreen";
+import { useProductsByCategories } from "@/hooks/queries/useProducts";
 import React, { useRef, useState } from "react";
 import {
   Animated,
   FlatList,
   ListRenderItemInfo,
   StatusBar,
+  Text
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ServiceScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const scrollY = useRef(new Animated.Value(0)).current;
+  const { data: productsByCategories, isLoading, error } = useProductsByCategories();
 
   const searchBarOpacity = scrollY.interpolate({
     inputRange: [50, 150],
@@ -25,7 +27,60 @@ export default function ServiceScreen() {
     extrapolate: "clamp",
   });
 
-  const serviceList = createServiceListData(searchQuery, setSearchQuery);
+  const serviceList: ListItem[] = [
+    {
+      type: "header",
+      data: {
+        title: "Payments",
+      },
+    },
+    {
+      type: "searchBar",
+      data: {
+        searchQuery,
+        setSearchQuery,
+      },
+    },
+    {
+      type: "banner",
+      data: {
+        title: "Special Offer!",
+        description: "Get 10% cashback on all data packages",
+        buttonText: "Claim Now",
+        onPress: () => {
+          console.log("Banner button pressed");
+        },
+      },
+    },
+  ];
+
+  if (productsByCategories) {
+    productsByCategories.forEach((categoryData) => {
+      const filteredProducts = searchQuery 
+        ? categoryData.products.filter(product => 
+            product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            product.description.toLowerCase().includes(searchQuery.toLowerCase())
+          )
+        : categoryData.products;
+      
+      if (filteredProducts.length > 0) {
+        serviceList.push({
+          type: "section",
+          data: {
+            id: categoryData.category.id,
+            title: categoryData.category.name,
+            viewAllPath: "/asset-explorer",
+            items: filteredProducts.map(product => ({
+              id: product.id,
+              name: product.name,
+              description: product.description,
+              icon: product.imageUrl
+            })),
+          },
+        });
+      }
+    });
+  }
 
   const renderListItem = ({ item }: ListRenderItemInfo<ListItem>) => {
     if (item.type === "header") {
@@ -53,6 +108,25 @@ export default function ServiceScreen() {
       return <ServiceSectionContainer section={item.data} />;
     }
   };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-light-main-container items-center justify-center">
+        <Text>Loading services...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView className="flex-1 bg-light-main-container items-center justify-center">
+        <Text>Failed to load services.</Text>
+        <Text className="text-light-error mt-2">
+          {error instanceof Error ? error.message : "Unknown error"}
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <>
