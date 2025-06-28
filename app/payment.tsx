@@ -1,14 +1,18 @@
 import { exchangeRateApi } from "@/api/endpoints/exchange-rates";
+import type { TToken } from "@/api/types/token";
 import ChainSelector from "@/components/common/ChainSelector";
 import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import PinConfirmationModal from "@/components/common/PinConfirmationModal";
 import TokenSelectorModal from "@/components/wallet/TokenSelectorModal";
 import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
+import { useBlockchains } from "@/hooks/queries/useBlockchains";
+import { useCreateBooking } from "@/hooks/queries/useBookings";
 import { useProductVariantById } from "@/hooks/queries/useProducts";
+import { useTokens } from "@/hooks/queries/useTokens";
 import { useWallet } from "@/hooks/useWallet";
 import { router, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, ChevronDown } from "lucide-react-native";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -19,15 +23,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { formatUnits } from "viem";
-
-const SUPPORTED_TOKENS = [
-  { symbol: "USDT", name: "Tether USD", balance: "500.00" },
-  { symbol: "ETH", name: "Ethereum", balance: "1.2345" },
-  { symbol: "USDC", name: "USD Coin", balance: "750.00" },
-  { symbol: "LINK", name: "Chainlink", balance: "25.75" },
-  { symbol: "DAI", name: "Dai Stablecoin", balance: "1000.00" },
-];
+import { erc20Abi, formatUnits } from "viem";
 
 export default function PaymentScreen() {
   const {
@@ -36,14 +32,23 @@ export default function PaymentScreen() {
     activeWalletIndex,
     setActiveWallet,
     getPublicClientForActiveChain,
+    activeChain,
   } = useWallet();
+
+  const { data: blockchains } = useBlockchains();
+  const activeBlockchain = useMemo(() => {
+    if (!blockchains || !activeChain) return null;
+    return blockchains.find((b) => b.chainId === activeChain.chain.id);
+  }, [blockchains, activeChain]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [balance, setBalance] = useState<bigint>(BigInt(0));
+  const [tokenBalance, setTokenBalance] = useState<string>("0");
+  const [isLoadingTokenBalance, setIsLoadingTokenBalance] = useState(false);
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [tokenModalVisible, setTokenModalVisible] = useState(false);
   const [isLoadingBalance, setIsLoadingBalance] = useState(true);
-  const [selectedToken, setSelectedToken] = useState(SUPPORTED_TOKENS[0]);
+  const [selectedToken, setSelectedToken] = useState<TToken | null>(null);
   const [transactionStatus, setTransactionStatus] = useState("");
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
@@ -55,6 +60,21 @@ export default function PaymentScreen() {
 
   const { data: variantData, isLoading: isLoadingVariant } =
     useProductVariantById(variantId);
+
+  const { mutateAsync: createBooking } = useCreateBooking();
+
+  const { data: tokens, isLoading: isLoadingTokens } = useTokens({
+    blockchainId: activeBlockchain?.id,
+    isStablecoin: true,
+    isActive: true,
+  });
+
+  useEffect(() => {
+    if (tokens && tokens.length > 0 && !selectedToken) {
+      console.log("Setting default token:", tokens[0].symbol);
+      setSelectedToken(tokens[0]);
+    }
+  }, [tokens]);
 
   useEffect(() => {
     const fetchExchangeRate = async () => {
@@ -108,12 +128,61 @@ export default function PaymentScreen() {
     fetchBalance();
   }, [activeWallet, getPublicClientForActiveChain]);
 
+  useEffect(() => {
+    if (
+      selectedToken &&
+      activeBlockchain &&
+      selectedToken.blockchainId !== activeBlockchain.id
+    ) {
+      console.log("Network changed, resetting selected token");
+      setSelectedToken(null);
+
+      // Automatically select a new token for the new blockchain if available
+      if (tokens && tokens.length > 0) {
+        console.log("Auto-selecting token for new network:", tokens[0].symbol);
+        setSelectedToken(tokens[0]);
+      }
+    }
+  }, [activeBlockchain?.id, selectedToken?.blockchainId, tokens]);
+
+  const fetchTokenBalance = useCallback(async () => {
+    if (!selectedToken || !activeWallet.address) return;
+
+    setIsLoadingTokenBalance(true);
+    try {
+      const publicClient = getPublicClientForActiveChain();
+      if (!publicClient) return;
+
+      const balance = await publicClient.readContract({
+        address: selectedToken.contractAddress as `0x${string}`,
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [activeWallet.address as `0x${string}`],
+      });
+
+      setTokenBalance(formatUnits(balance as bigint, selectedToken.decimals));
+    } catch (error) {
+      console.error("Error fetching token balance:", error);
+      Alert.alert("Error", "Failed to fetch token balance");
+    } finally {
+      setIsLoadingTokenBalance(false);
+    }
+  }, [selectedToken, activeWallet.address, getPublicClientForActiveChain]);
+
+  useEffect(() => {
+    if (selectedToken && activeWallet.address) {
+      fetchTokenBalance();
+    } else {
+      setTokenBalance("0");
+    }
+  }, [selectedToken, activeWallet.address, fetchTokenBalance]);
+
   const handleSelectWallet = (index: number) => {
     setActiveWallet(index);
     setWalletModalVisible(false);
   };
 
-  const handleSelectToken = (token: (typeof SUPPORTED_TOKENS)[0]) => {
+  const handleSelectToken = (token: TToken) => {
     setSelectedToken(token);
     setTokenModalVisible(false);
   };
@@ -123,10 +192,32 @@ export default function PaymentScreen() {
   };
 
   const handlePayment = useCallback(async () => {
+    if (
+      !activeWallet.address ||
+      !variantData?.id ||
+      !variantData.ProductPrice?.[0]?.id ||
+      !selectedToken ||
+      !activeBlockchain
+    ) {
+      Alert.alert("Error", "Missing required data for payment");
+      return;
+    }
+
     setIsLoading(true);
-    setTransactionStatus("Preparing payment...");
+    setTransactionStatus("Creating booking...");
 
     try {
+      const booking = await createBooking({
+        walletAddress: activeWallet.address,
+        productVariantId: variantId,
+        productPriceId: variantData.ProductPrice[0].id,
+        payment: {
+          tokenAddress: selectedToken.contractAddress,
+          blockchainId: activeBlockchain.id,
+          exchangeRateId: 1,
+        },
+      });
+
       setTransactionStatus("Processing payment request...");
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
@@ -138,7 +229,7 @@ export default function PaymentScreen() {
 
       Alert.alert(
         "Payment Successful",
-        `You have successfully purchased the item for ${variantData?.ProductPrice?.[0]?.sellPrice} USD using ${tokenAmountNeeded} ${selectedToken.symbol}`,
+        `You have successfully purchased ${variantData.name} for ${tokenAmountNeeded} ${selectedToken.symbol}. Booking ID: ${booking.id}`,
         [{ text: "OK", onPress: () => router.back() }],
       );
     } catch (error) {
@@ -149,11 +240,16 @@ export default function PaymentScreen() {
       );
     } finally {
       setIsLoading(false);
+      setTransactionStatus("");
     }
   }, [
-    variantData?.ProductPrice?.[0]?.sellPrice,
+    activeWallet.address,
+    variantId,
+    variantData,
     tokenAmountNeeded,
     selectedToken,
+    createBooking,
+    activeBlockchain,
   ]);
 
   const handlePaymentConfirmation = () => {
@@ -164,6 +260,79 @@ export default function PaymentScreen() {
     setPinModalVisible(false);
     await handlePayment();
   };
+
+  const buttonDisabled = useMemo(() => {
+    const conditions = {
+      isLoading: isLoading,
+      isLoadingVariant: isLoadingVariant,
+      isLoadingRate: isLoadingRate,
+      isLoadingTokens: isLoadingTokens,
+      noActiveWallet: !activeWallet.address,
+      noSelectedToken: !selectedToken,
+      noActiveBlockchain: !activeBlockchain,
+      noVariantData: !variantData?.id || !variantData.ProductPrice?.[0]?.id,
+      noExchangeRate: !exchangeRate,
+      noTokensAvailable: tokens?.length === 0,
+    };
+
+    console.log("Button disable conditions:", conditions);
+
+    return (
+      conditions.isLoading ||
+      conditions.isLoadingVariant ||
+      conditions.isLoadingRate ||
+      conditions.isLoadingTokens ||
+      conditions.noActiveWallet ||
+      conditions.noSelectedToken ||
+      conditions.noActiveBlockchain ||
+      conditions.noVariantData ||
+      conditions.noExchangeRate ||
+      conditions.noTokensAvailable
+    );
+  }, [
+    isLoading,
+    isLoadingVariant,
+    isLoadingRate,
+    activeWallet.address,
+    selectedToken,
+    activeBlockchain,
+    variantData,
+    exchangeRate,
+  ]);
+
+  const getButtonText = useCallback(() => {
+    if (isLoading || isLoadingVariant || isLoadingRate || isLoadingTokens) {
+      return "Loading...";
+    }
+    if (!activeWallet.address) {
+      return "Select a wallet";
+    }
+    if (tokens?.length === 0) {
+      return "No tokens available";
+    }
+    if (!selectedToken) {
+      return "Loading token...";
+    }
+    if (!exchangeRate) {
+      return "Waiting for exchange rate";
+    }
+    if (!activeBlockchain) {
+      return "Invalid network";
+    }
+    if (!variantData?.id || !variantData.ProductPrice?.[0]?.id) {
+      return "Invalid product";
+    }
+    return "Confirm & Pay";
+  }, [
+    isLoading,
+    isLoadingVariant,
+    isLoadingRate,
+    activeWallet.address,
+    selectedToken,
+    exchangeRate,
+    activeBlockchain,
+    variantData,
+  ]);
 
   return (
     <>
@@ -233,11 +402,11 @@ export default function PaymentScreen() {
                     <View className="flex-row items-center">
                       <View className="bg-light-primary-red/10 w-5 h-5 rounded-full mr-2 items-center justify-center">
                         <Text className="text-light-primary-red text-xs font-bold">
-                          {selectedToken.symbol.charAt(0)}
+                          {selectedToken?.symbol?.charAt(0) || "?"}
                         </Text>
                       </View>
                       <Text className="text-light-matte-black text-sm font-medium">
-                        {tokenAmountNeeded} {selectedToken.symbol}
+                        {tokenAmountNeeded} {selectedToken?.symbol}
                       </Text>
                     </View>
                   </View>
@@ -249,7 +418,7 @@ export default function PaymentScreen() {
                     <Text className="text-light-matte-black text-sm">
                       {isLoadingRate
                         ? "Loading..."
-                        : `1 ${selectedToken.symbol} ≈ Rp${exchangeRate?.toLocaleString("id-ID") || "0"}`}
+                        : `1 ${selectedToken?.symbol} ≈ Rp${exchangeRate?.toLocaleString("id-ID") || "0"}`}
                     </Text>
                   </View>
 
@@ -262,11 +431,11 @@ export default function PaymentScreen() {
                     <View className="flex-row items-center">
                       <View className="bg-light-primary-red/10 w-6 h-6 rounded-full mr-2 items-center justify-center">
                         <Text className="text-light-primary-red text-xs font-bold">
-                          {selectedToken.symbol.charAt(0)}
+                          {selectedToken?.symbol?.charAt(0) || "?"}
                         </Text>
                       </View>
                       <Text className="text-light-primary-red font-bold text-base">
-                        {tokenAmountNeeded} {selectedToken.symbol}
+                        {tokenAmountNeeded} {selectedToken?.symbol}
                       </Text>
                     </View>
                   </View>
@@ -325,28 +494,32 @@ export default function PaymentScreen() {
                   <View className="flex-row items-center">
                     <View className="bg-light-primary-red/10 p-2 rounded-full mr-3">
                       <Text className="text-light-primary-red font-bold text-xs">
-                        {selectedToken.symbol.charAt(0)}
+                        {selectedToken?.symbol?.charAt(0) || "?"}
                       </Text>
                     </View>
                     <View>
                       <Text className="text-light-matte-black font-medium">
-                        {selectedToken.symbol} - {selectedToken.name}
+                        {selectedToken
+                          ? `${selectedToken.symbol} - ${selectedToken.name}`
+                          : "Select a token"}
                       </Text>
                       <Text className="text-light-matte-black/60 text-xs">
-                        Balance: {selectedToken.balance} {selectedToken.symbol}
+                        {isLoadingTokenBalance
+                          ? "Loading balance..."
+                          : selectedToken
+                            ? `Balance: ${parseFloat(tokenBalance).toFixed(4)} ${selectedToken.symbol}`
+                            : "Select a token"}
                       </Text>
                     </View>
                   </View>
                   <ChevronDown size={20} color="#c71c4b" />
                 </Pressable>
 
-                {parseFloat(selectedToken.balance) <
-                  parseFloat(tokenAmountNeeded) && (
+                {selectedToken && parseFloat(tokenAmountNeeded) > 0 && (
                   <View className="mt-2 bg-light-primary-red/10 p-3 rounded-lg">
                     <Text className="text-light-primary-red text-sm">
-                      Insufficient {selectedToken.symbol} balance. You need{" "}
-                      {tokenAmountNeeded} {selectedToken.symbol} for this
-                      transaction.
+                      You need {tokenAmountNeeded} {selectedToken.symbol} for
+                      this transaction.
                     </Text>
                   </View>
                 )}
@@ -356,21 +529,20 @@ export default function PaymentScreen() {
 
           <TouchableOpacity
             activeOpacity={0.7}
-            className="bg-light-primary-red p-4 rounded-full shadow-md"
+            className={`p-4 rounded-full shadow-md ${
+              buttonDisabled
+                ? "bg-light-matte-black/20"
+                : "bg-light-primary-red"
+            }`}
             onPress={handlePaymentConfirmation}
-            disabled={
-              isLoading ||
-              isLoadingVariant ||
-              parseFloat(selectedToken.balance) < parseFloat(tokenAmountNeeded)
-            }
+            disabled={buttonDisabled}
           >
-            <Text className="text-white font-bold text-center text-lg">
-              {isLoading || isLoadingVariant
-                ? "Loading..."
-                : parseFloat(selectedToken.balance) <
-                    parseFloat(tokenAmountNeeded)
-                  ? "Insufficient Balance"
-                  : "Confirm & Pay"}
+            <Text
+              className={`font-bold text-center text-lg ${
+                buttonDisabled ? "text-light-matte-black/40" : "text-white"
+              }`}
+            >
+              {getButtonText()}
             </Text>
           </TouchableOpacity>
 
@@ -396,15 +568,17 @@ export default function PaymentScreen() {
           onSelectWallet={handleSelectWallet}
           title="Select Wallet"
         />
-
-        <TokenSelectorModal
-          visible={tokenModalVisible}
-          onClose={() => setTokenModalVisible(false)}
-          tokens={SUPPORTED_TOKENS}
-          selectedToken={selectedToken}
-          onSelectToken={handleSelectToken}
-          title="Select Token"
-        />
+        {selectedToken && (
+          <TokenSelectorModal
+            visible={tokenModalVisible}
+            onClose={() => setTokenModalVisible(false)}
+            selectedToken={selectedToken}
+            onSelectToken={handleSelectToken}
+            title="Select Payment Token"
+            stablecoinsOnly={true}
+            blockchainId={activeBlockchain?.id}
+          />
+        )}
       </SafeAreaView>
     </>
   );

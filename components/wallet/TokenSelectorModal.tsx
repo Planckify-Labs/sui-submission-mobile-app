@@ -1,3 +1,5 @@
+import { TToken } from "@/api/types/token";
+import { useTokens } from "@/hooks/queries/useTokens";
 import { Search } from "lucide-react-native";
 import React, {
   memo,
@@ -8,6 +10,7 @@ import React, {
   useState,
 } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Modal,
   PanResponder,
@@ -21,39 +24,45 @@ import {
   ViewStyle,
 } from "react-native";
 
-type Token = {
-  symbol: string;
-  name: string;
-  balance: string;
-};
-
 interface TokenSelectorModalProps {
   visible: boolean;
   onClose: () => void;
-  tokens: Token[];
-  selectedToken: Token;
-  onSelectToken: (token: Token) => void;
-  title: string;
+  selectedToken?: TToken;
+  onSelectToken: (token: TToken) => void;
+  title?: string;
   panResponder?: any;
+  stablecoinsOnly?: boolean;
+  blockchainId?: string;
 }
 
 const TokenSelectorModal = memo(function TokenSelectorModal({
   visible,
   onClose,
-  tokens,
   selectedToken,
   onSelectToken,
   title = "Select Token",
   panResponder: externalPanResponder,
+  stablecoinsOnly = false,
+  blockchainId,
 }: TokenSelectorModalProps) {
-  const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const fadeAnim = useRef(new Animated.Value(visible ? 1 : 0)).current;
-  const translateY = useRef(new Animated.Value(visible ? 0 : 300)).current;
-  const hasAnimatedIn = useRef(visible);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(300)).current;
+
+  const {
+    data: tokens,
+    isLoading,
+    error,
+  } = useTokens({
+    blockchainId,
+    isStablecoin: stablecoinsOnly ? true : undefined,
+    isActive: true,
+  });
 
   const filteredTokens = useMemo(() => {
+    if (!tokens) return [];
     if (!searchQuery) return tokens;
+
     const lowerQuery = searchQuery.toLowerCase();
     return tokens.filter(
       (token) =>
@@ -62,14 +71,16 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
     );
   }, [tokens, searchQuery]);
 
-  const animateOpenModal = useCallback(() => {
+  const resetAnimation = useCallback(() => {
     fadeAnim.setValue(0);
     translateY.setValue(300);
+  }, []);
 
+  const animateIn = useCallback(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 250,
+        duration: 200,
         useNativeDriver: true,
       }),
       Animated.spring(translateY, {
@@ -77,62 +88,84 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
         useNativeDriver: true,
         bounciness: 0,
       }),
-    ]).start(() => {
-      hasAnimatedIn.current = true;
+    ]).start();
+  }, []);
+
+  const animateOut = useCallback(() => {
+    return new Promise<void>((resolve) => {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateY, {
+          toValue: 300,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        resetAnimation();
+        resolve();
+      });
     });
-  }, [fadeAnim, translateY]);
-
-  const animateCloseModal = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 300,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setModalVisible(false);
-      onClose();
-    });
-  }, [fadeAnim, translateY, onClose]);
-
-  const panResponderConfig = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderMove: (_: any, gestureState: { dy: number }) => {
-        if (gestureState.dy > 0) {
-          translateY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_: any, gestureState: { dy: number }) => {
-        if (gestureState.dy > 100) {
-          animateCloseModal();
-        } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-    }),
-  ).current;
-
-  const activePanResponder = externalPanResponder || panResponderConfig;
+  }, [resetAnimation]);
 
   useEffect(() => {
-    if (visible && !hasAnimatedIn.current) {
-      setModalVisible(true);
-      animateOpenModal();
-    } else if (!visible) {
-      fadeAnim.setValue(0);
-      translateY.setValue(300);
-      hasAnimatedIn.current = false;
+    if (visible) {
+      animateIn();
     }
-  }, [visible, animateOpenModal]);
+  }, [visible, animateIn]);
+
+  useEffect(() => {
+    if (visible && tokens && tokens.length > 0) {
+      if (
+        selectedToken &&
+        tokens.some((token) => token.id === selectedToken.id)
+      ) {
+        return;
+      }
+
+      onSelectToken(tokens[0]);
+    }
+  }, [visible, tokens, selectedToken?.id, onSelectToken]);
+
+  const handleClose = useCallback(async () => {
+    await animateOut();
+    onClose();
+  }, [animateOut, onClose]);
+
+  const handleTokenSelect = useCallback(
+    (token: TToken) => {
+      onSelectToken(token);
+    },
+    [onSelectToken],
+  );
+
+  const panResponderConfig = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onPanResponderMove: (_: any, gestureState: { dy: number }) => {
+          if (gestureState.dy > 0) {
+            translateY.setValue(gestureState.dy);
+          }
+        },
+        onPanResponderRelease: (_: any, gestureState: { dy: number }) => {
+          if (gestureState.dy > 100) {
+            handleClose();
+          } else {
+            Animated.spring(translateY, {
+              toValue: 0,
+              useNativeDriver: true,
+            }).start();
+          }
+        },
+      }),
+    [handleClose],
+  );
+
+  const activePanResponder = externalPanResponder || panResponderConfig;
 
   const overlayStyle = useMemo(
     (): Animated.WithAnimatedValue<ViewStyle> => ({
@@ -140,16 +173,16 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
       backgroundColor: "rgba(0, 0, 0, 0.5)",
       opacity: fadeAnim,
     }),
-    [fadeAnim],
+    [],
   );
 
   const modalContainerStyle = useMemo(
     (): Animated.WithAnimatedValue<ViewStyle> => ({
-      position: "absolute" as const,
+      position: "absolute",
       bottom: 0,
       left: 0,
       right: 0,
-      height: "auto" as const,
+      height: "auto",
       paddingBottom: 20,
       backgroundColor: "#f5f6f9",
       borderTopLeftRadius: 28,
@@ -162,7 +195,7 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
       elevation: 10,
       opacity: fadeAnim,
     }),
-    [fadeAnim, translateY],
+    [],
   );
 
   const SearchInput = useMemo(
@@ -178,12 +211,12 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
         />
       </View>
     ),
-    [searchQuery],
+    [searchQuery, setSearchQuery],
   );
 
   const renderTokenItem = useCallback(
-    (token: Token) => {
-      const isSelected = token.symbol === selectedToken.symbol;
+    (token: TToken) => {
+      const isSelected = selectedToken?.id === token.id;
 
       const containerStyle = `flex-row items-center justify-between p-4 rounded-xl mb-2 ${
         isSelected ? "bg-light-primary-red/10" : "bg-light-main-container"
@@ -203,8 +236,9 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
 
       return (
         <TouchableOpacity
-          key={token.symbol}
-          onPress={() => onSelectToken(token)}
+          key={token.id}
+          onPress={() => handleTokenSelect(token)}
+          activeOpacity={0.7}
           className={containerStyle}
         >
           <View className="flex-row items-center">
@@ -219,28 +253,27 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
             </View>
           </View>
           <View className="items-end">
-            <Text className="text-light-matte-black font-medium">
-              {token.balance}
+            <Text className="text-light-matte-black/60 text-xs">
+              {token.isStablecoin ? "Stablecoin" : "Token"}
             </Text>
-            <Text className="text-light-matte-black/60 text-xs">Available</Text>
           </View>
         </TouchableOpacity>
       );
     },
-    [selectedToken, onSelectToken],
+    [selectedToken?.id, handleTokenSelect],
   );
 
-  if (!modalVisible) return null;
+  if (!visible) return null;
 
   return (
     <Modal
       transparent
       visible={visible}
       animationType="none"
-      onRequestClose={animateCloseModal}
+      onRequestClose={handleClose}
     >
       <View style={{ flex: 1 }}>
-        <TouchableWithoutFeedback onPress={animateCloseModal}>
+        <TouchableWithoutFeedback onPress={handleClose}>
           <Animated.View style={overlayStyle} />
         </TouchableWithoutFeedback>
 
@@ -258,7 +291,7 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
                 {title}
               </Text>
               <Pressable
-                onPress={animateCloseModal}
+                onPress={handleClose}
                 className="bg-light-main-container p-2 rounded-full"
               >
                 <Text className="text-light-primary-red font-bold">✕</Text>
@@ -273,7 +306,32 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
                 keyboardShouldPersistTaps="handled"
               >
                 <View className="pb-4">
-                  {filteredTokens.map((token) => renderTokenItem(token))}
+                  {isLoading ? (
+                    <View className="items-center justify-center py-8">
+                      <ActivityIndicator color="#c71c4b" />
+                      <Text className="text-light-matte-black/60 mt-2">
+                        Loading tokens...
+                      </Text>
+                    </View>
+                  ) : error ? (
+                    <View className="items-center justify-center py-8">
+                      <Text className="text-light-primary-red text-center">
+                        Error loading tokens. Please try again.
+                      </Text>
+                    </View>
+                  ) : filteredTokens.length === 0 ? (
+                    <View className="items-center justify-center py-8">
+                      <Text className="text-light-matte-black/60 text-center">
+                        {searchQuery
+                          ? "No tokens found matching your search"
+                          : stablecoinsOnly
+                            ? "No stablecoins available for this blockchain"
+                            : "No tokens available"}
+                      </Text>
+                    </View>
+                  ) : (
+                    filteredTokens.map((token) => renderTokenItem(token))
+                  )}
                 </View>
               </ScrollView>
             </View>
