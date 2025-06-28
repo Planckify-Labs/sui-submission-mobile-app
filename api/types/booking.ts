@@ -1,10 +1,14 @@
 export type TBooking = {
   id: string;
   walletAddress: string;
-  productId: string;
   product: {
     id: string;
     name: string;
+    variant: {
+      id: string;
+      name: string;
+      sku: string;
+    };
     price: {
       amount: number;
       currency: string;
@@ -14,13 +18,14 @@ export type TBooking = {
     token: {
       symbol: string;
       address: string;
+      amount: string;
       blockchainId: string;
+      blockchainName: string;
     };
-    blockchainName: string;
-  };
-  exchangeRate: {
-    rate: number;
-    lockedAt: string;
+    exchangeRate: {
+      rate: number;
+      lockedAt: string;
+    };
   };
   status: "PENDING" | "COMPLETED" | "FAILED" | "EXPIRED";
   createdAt: string;
@@ -29,10 +34,12 @@ export type TBooking = {
 
 export type TBookingCreateRequest = {
   walletAddress: string;
-  productId: string;
+  productVariantId: string;
+  productPriceId: string;
   payment: {
     tokenAddress: string;
     blockchainId: string;
+    exchangeRateId: number;
   };
 };
 

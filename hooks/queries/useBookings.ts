@@ -50,7 +50,16 @@ export const useCreateBooking = () => {
   return useMutation({
     mutationFn: async (data: TBookingCreateRequest) => {
       try {
-        const response = await bookingApi.createBooking(data);
+        const response = await bookingApi.createBooking({
+          walletAddress: data.walletAddress,
+          productVariantId: data.productVariantId,
+          productPriceId: data.productPriceId,
+          payment: {
+            tokenAddress: data.payment.tokenAddress,
+            blockchainId: data.payment.blockchainId,
+            exchangeRateId: data.payment.exchangeRateId,
+          },
+        });
         console.log("Raw API Response (Create):", response);
         return response;
       } catch (error) {
