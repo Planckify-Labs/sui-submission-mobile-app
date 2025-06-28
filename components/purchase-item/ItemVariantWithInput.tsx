@@ -168,7 +168,6 @@ export default function ItemWithInput({ productId }: ItemVariantWithInputProps) 
           onPress={() => selectedItemVariant && router.push({
             pathname: "/payment",
             params: {
-              productId: product.id,
               variantId: selectedItemVariant
             }
           })}

@@ -3,6 +3,7 @@ import type {
   TProduct,
   TProductCategory,
   TProductDetail,
+  TProductVariant,
   TProductWithCategory,
 } from "../types/product";
 
@@ -43,6 +44,13 @@ export const productApi = {
 
   getCategoryById: async (id: string): Promise<TProductCategory> => {
     const response = await api.get(`products/categories/${id}`);
+    return response.json();
+  },
+
+  getProductVariantById: async (
+    variantId: string,
+  ): Promise<TProductVariant> => {
+    const response = await api.get(`products/variants/${variantId}`);
     return response.json();
   },
 };

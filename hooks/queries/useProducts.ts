@@ -3,6 +3,7 @@ import type {
   TProduct,
   TProductCategory,
   TProductDetail,
+  TProductVariant,
   TProductWithCategory,
 } from "@/api/types/product";
 import { productsQueryKeys } from "@/constants/queryKeys/productsQueryKeys";
@@ -126,5 +127,32 @@ export const useCategory = (categoryId: string) => {
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     enabled: !!categoryId,
+  });
+};
+
+export const useProductVariantById = (variantId: string) => {
+  return useQuery<TProductVariant>({
+    queryKey: productsQueryKeys.variants.byId(variantId),
+    queryFn: async () => {
+      if (!variantId) {
+        return {} as TProductVariant;
+      }
+
+      try {
+        const response = await productApi.getProductVariantById(variantId);
+        return response;
+      } catch (error) {
+        console.error("API Error:", error);
+        throw error;
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    enabled: !!variantId,
+    retry: (failureCount, error) => {
+      if (error && error.name === "AbortError") return false;
+      return failureCount < 3;
+    },
+    refetchOnWindowFocus: false,
   });
 };

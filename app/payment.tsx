@@ -3,6 +3,7 @@ import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import PinConfirmationModal from "@/components/common/PinConfirmationModal";
 import TokenSelectorModal from "@/components/wallet/TokenSelectorModal";
 import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
+import { useProductVariantById } from "@/hooks/queries/useProducts";
 import { useWallet } from "@/hooks/useWallet";
 import { router, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, ChevronDown } from "lucide-react-native";
@@ -20,11 +21,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { formatUnits } from "viem";
 
 const SUPPORTED_TOKENS = [
-  { symbol: "ETH", name: "Ethereum" },
-  { symbol: "USDT", name: "Tether USD" },
-  { symbol: "USDC", name: "USD Coin" },
-  { symbol: "LINK", name: "Chainlink" },
-  { symbol: "DAI", name: "Dai Stablecoin" },
+  { symbol: "ETH", name: "Ethereum", balance: "1.2345" },
+  { symbol: "USDT", name: "Tether USD", balance: "500.00" },
+  { symbol: "USDC", name: "USD Coin", balance: "750.00" },
+  { symbol: "LINK", name: "Chainlink", balance: "25.75" },
+  { symbol: "DAI", name: "Dai Stablecoin", balance: "1000.00" },
 ];
 
 export default function PaymentScreen() {
@@ -45,8 +46,15 @@ export default function PaymentScreen() {
   const [transactionStatus, setTransactionStatus] = useState("");
   const [pinModalVisible, setPinModalVisible] = useState(false);
 
-  const itemPrice = "25.00";
-  const tokenAmountNeeded = "0.000017";
+  const { variantId } = useLocalSearchParams<{
+    variantId: string;
+  }>();
+
+  const { data: variantData, isLoading: isLoadingVariant } = useProductVariantById(variantId);
+
+  const tokenAmountNeeded = variantData?.ProductPrice?.[0]?.sellPrice
+    ? (parseFloat(variantData.ProductPrice[0].sellPrice) / 16000000).toFixed(4)
+    : "0.0000";
 
   useEffect(() => {
     const fetchBalance = async () => {
@@ -103,7 +111,7 @@ export default function PaymentScreen() {
 
       Alert.alert(
         "Payment Successful",
-        `You have successfully purchased the item for ${itemPrice} USD using ${tokenAmountNeeded} ${selectedToken.symbol}`,
+        `You have successfully purchased the item for ${variantData?.ProductPrice?.[0]?.sellPrice} USD using ${tokenAmountNeeded} ${selectedToken.symbol}`,
         [{ text: "OK", onPress: () => router.back() }],
       );
     } catch (error) {
@@ -115,9 +123,7 @@ export default function PaymentScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [itemPrice, tokenAmountNeeded, selectedToken]);
-
-  const { name, price, features } = useLocalSearchParams();
+  }, [variantData?.ProductPrice?.[0]?.sellPrice, tokenAmountNeeded, selectedToken]);
 
   const handlePaymentConfirmation = () => {
     setPinModalVisible(true);
@@ -143,64 +149,92 @@ export default function PaymentScreen() {
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} className="mb-4">
-            <View className="bg-white rounded-2xl p-5 mb-5 shadow-sm">
-              <Text className="text-light-matte-black font-bold text-lg mb-5">
+            <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
+              <Text className="text-light-matte-black font-bold text-lg mb-3">
                 Purchase Summary
               </Text>
 
-              <View className="flex-row mb-4">
-                <View className="w-20 h-20 bg-light-primary-red/10 rounded-xl mr-4 items-center justify-center">
-                  <Text className="text-light-primary-red text-2xl">📦</Text>
+              <View className="bg-light-main-container/50 rounded-xl p-3 mb-4">
+                <View className="flex-row items-center mb-2">
+                  <View className="w-12 h-12 bg-light-primary-red/10 rounded-lg mr-3 items-center justify-center">
+                    <Text className="text-2xl">📦</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-light-matte-black font-bold text-base" numberOfLines={1}>
+                      {variantData?.name || "Loading..."}
+                    </Text>
+                    <Text className="text-light-matte-black/60 text-sm" numberOfLines={2}>
+                      {variantData?.description || "Loading..."}
+                    </Text>
+                  </View>
                 </View>
-                <View className="flex-1 justify-center">
-                  <Text className="text-light-matte-black font-bold text-lg">
-                    {name || "Premium Service"}
-                  </Text>
-                  <Text className="text-light-matte-black/70">
-                    {features || "Access to all premium features"}
-                  </Text>
+
+                <View className="bg-white rounded-lg p-3 shadow-sm">
+                  <View className="flex-row items-center justify-between mb-1">
+                    <Text className="text-light-matte-black/70 text-sm">Price</Text>
+                    <Text className="text-light-primary-red font-bold text-base">
+                      {variantData?.ProductPrice?.[0]?.sellPrice
+                        ? `Rp${parseInt(variantData.ProductPrice[0].sellPrice).toLocaleString("id-ID")}`
+                        : "Loading..."}
+                    </Text>
+                  </View>
                 </View>
               </View>
 
-              <View className="space-y-3 mb-4">
-                <View className="flex-row justify-between">
-                  <Text className="text-light-matte-black/70">Price</Text>
-                  <Text className="text-light-primary-red font-medium">
-                    {price || "Rp25.000"}
-                  </Text>
-                </View>
+              <View className="bg-light-main-container/50 rounded-xl p-3">
+                <Text className="text-light-matte-black font-medium text-sm mb-2">
+                  Payment Details
+                </Text>
 
-                <View className="flex-row justify-between">
-                  <Text className="text-light-matte-black/70">
-                    Token Conversion
-                  </Text>
-                  <Text className="text-light-matte-black font-medium">
-                    {tokenAmountNeeded} {selectedToken.symbol}
-                  </Text>
-                </View>
+                <View className="space-y-2">
+                  <View className="flex-row justify-between items-center">
+                    <Text className="text-light-matte-black/60 text-sm">
+                      Paying with
+                    </Text>
+                    <View className="flex-row items-center">
+                      <View className="bg-light-primary-red/10 w-5 h-5 rounded-full mr-2 items-center justify-center">
+                        <Text className="text-light-primary-red text-xs font-bold">
+                          {selectedToken.symbol.charAt(0)}
+                        </Text>
+                      </View>
+                      <Text className="text-light-matte-black text-sm font-medium">
+                        {tokenAmountNeeded} {selectedToken.symbol}
+                      </Text>
+                    </View>
+                  </View>
 
-                <View className="flex-row justify-between">
-                  <Text className="text-light-matte-black/70">Network Fee</Text>
-                  <Text className="text-light-matte-black font-medium">
-                    0.001 ETH
-                  </Text>
-                </View>
-              </View>
+                  <View className="flex-row justify-between items-center">
+                    <Text className="text-light-matte-black/60 text-sm">
+                      Rate
+                    </Text>
+                    <Text className="text-light-matte-black text-sm">
+                      1 {selectedToken.symbol} ≈ Rp16,000,000
+                    </Text>
+                  </View>
 
-              <View className="border-t border-light-matte-black/10 pt-4">
-                <View className="flex-row justify-between">
-                  <Text className="text-light-matte-black font-bold text-lg">
-                    Total to Pay
-                  </Text>
-                  <Text className="text-light-primary-red font-bold text-lg">
-                    {tokenAmountNeeded} {selectedToken.symbol}
-                  </Text>
+                  <View className="h-px bg-light-matte-black/5 my-2" />
+
+                  <View className="flex-row justify-between items-center">
+                    <Text className="text-light-matte-black font-medium">
+                      Total
+                    </Text>
+                    <View className="flex-row items-center">
+                      <View className="bg-light-primary-red/10 w-6 h-6 rounded-full mr-2 items-center justify-center">
+                        <Text className="text-light-primary-red text-xs font-bold">
+                          {selectedToken.symbol.charAt(0)}
+                        </Text>
+                      </View>
+                      <Text className="text-light-primary-red font-bold text-base">
+                        {tokenAmountNeeded} {selectedToken.symbol}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
               </View>
             </View>
 
-            <View className="bg-white rounded-2xl p-5 mb-5 shadow-sm">
-              <Text className="text-light-matte-black font-bold text-lg mb-5">
+            <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
+              <Text className="text-light-matte-black font-bold text-lg mb-4">
                 Payment Method
               </Text>
 
@@ -253,12 +287,25 @@ export default function PaymentScreen() {
                         {selectedToken.symbol.charAt(0)}
                       </Text>
                     </View>
-                    <Text className="text-light-matte-black font-medium">
-                      {selectedToken.symbol} - {selectedToken.name}
-                    </Text>
+                    <View>
+                      <Text className="text-light-matte-black font-medium">
+                        {selectedToken.symbol} - {selectedToken.name}
+                      </Text>
+                      <Text className="text-light-matte-black/60 text-xs">
+                        Balance: {selectedToken.balance} {selectedToken.symbol}
+                      </Text>
+                    </View>
                   </View>
                   <ChevronDown size={20} color="#c71c4b" />
                 </Pressable>
+
+                {parseFloat(selectedToken.balance) < parseFloat(tokenAmountNeeded) && (
+                  <View className="mt-2 bg-light-primary-red/10 p-3 rounded-lg">
+                    <Text className="text-light-primary-red text-sm">
+                      Insufficient {selectedToken.symbol} balance. You need {tokenAmountNeeded} {selectedToken.symbol} for this transaction.
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           </ScrollView>
@@ -267,10 +314,14 @@ export default function PaymentScreen() {
             activeOpacity={0.7}
             className="bg-light-primary-red p-5 rounded-full shadow-md"
             onPress={handlePaymentConfirmation}
-            disabled={isLoading}
+            disabled={isLoading || isLoadingVariant || parseFloat(selectedToken.balance) < parseFloat(tokenAmountNeeded)}
           >
             <Text className="text-white font-bold text-center text-lg">
-              {isLoading ? "Processing..." : "Confirm & Pay"}
+              {isLoading || isLoadingVariant 
+                ? "Loading..." 
+                : parseFloat(selectedToken.balance) < parseFloat(tokenAmountNeeded)
+                  ? "Insufficient Balance"
+                  : "Confirm & Pay"}
             </Text>
           </TouchableOpacity>
 

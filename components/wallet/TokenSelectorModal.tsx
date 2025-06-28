@@ -1,33 +1,41 @@
-import { CreditCard, X } from "lucide-react-native";
-import React, { memo, useCallback, useEffect, useRef, useState } from "react";
+import { Search } from "lucide-react-native";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Animated,
-  Dimensions,
   Modal,
   PanResponder,
   Pressable,
   ScrollView,
   Text,
+  TextInput,
+  TouchableOpacity,
   TouchableWithoutFeedback,
   View,
+  ViewStyle,
 } from "react-native";
-
-const { height } = Dimensions.get("window");
-const MODAL_HEIGHT = height * 0.67;
 
 type Token = {
   symbol: string;
   name: string;
+  balance: string;
 };
 
-type TokenSelectorModalProps = {
+interface TokenSelectorModalProps {
   visible: boolean;
   onClose: () => void;
   tokens: Token[];
   selectedToken: Token;
   onSelectToken: (token: Token) => void;
-  title?: string;
-};
+  title: string;
+  panResponder?: any;
+}
 
 const TokenSelectorModal = memo(function TokenSelectorModal({
   visible,
@@ -36,42 +44,54 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
   selectedToken,
   onSelectToken,
   title = "Select Token",
+  panResponder: externalPanResponder,
 }: TokenSelectorModalProps) {
   const [modalVisible, setModalVisible] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
+  const [searchQuery, setSearchQuery] = useState("");
+  const fadeAnim = useRef(new Animated.Value(visible ? 1 : 0)).current;
+  const translateY = useRef(new Animated.Value(visible ? 0 : 300)).current;
+  const hasAnimatedIn = useRef(visible);
 
-  useEffect(() => {
-    if (visible) {
-      setModalVisible(true);
-      fadeAnim.setValue(0);
-      translateY.setValue(MODAL_HEIGHT);
+  const filteredTokens = useMemo(() => {
+    if (!searchQuery) return tokens;
+    const lowerQuery = searchQuery.toLowerCase();
+    return tokens.filter(
+      (token) =>
+        token.symbol.toLowerCase().includes(lowerQuery) ||
+        token.name.toLowerCase().includes(lowerQuery),
+    );
+  }, [tokens, searchQuery]);
 
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [visible, fadeAnim, translateY]);
+  const animateOpenModal = useCallback(() => {
+    fadeAnim.setValue(0);
+    translateY.setValue(300);
 
-  const closeModal = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        bounciness: 0,
+      }),
+    ]).start(() => {
+      hasAnimatedIn.current = true;
+    });
+  }, [fadeAnim, translateY]);
+
+  const animateCloseModal = useCallback(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 0,
-        duration: 300,
+        duration: 250,
         useNativeDriver: true,
       }),
       Animated.timing(translateY, {
-        toValue: MODAL_HEIGHT,
-        duration: 300,
+        toValue: 300,
+        duration: 250,
         useNativeDriver: true,
       }),
     ]).start(() => {
@@ -80,68 +100,131 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
     });
   }, [fadeAnim, translateY, onClose]);
 
-  const panResponder = useRef(
+  const panResponderConfig = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState: { dy: number }) => {
-        return gestureState.dy > 0;
-      },
-      onPanResponderMove: (_, gestureState: { dy: number }) => {
+      onPanResponderMove: (_: any, gestureState: { dy: number }) => {
         if (gestureState.dy > 0) {
           translateY.setValue(gestureState.dy);
         }
       },
-      onPanResponderRelease: (_, gestureState: { dy: number; vy: number }) => {
-        if (gestureState.dy > 50 || gestureState.vy > 0.5) {
-          Animated.timing(translateY, {
-            toValue: MODAL_HEIGHT,
-            duration: 200,
-            useNativeDriver: true,
-          }).start(() => closeModal());
+      onPanResponderRelease: (_: any, gestureState: { dy: number }) => {
+        if (gestureState.dy > 100) {
+          animateCloseModal();
         } else {
           Animated.spring(translateY, {
             toValue: 0,
             useNativeDriver: true,
-            bounciness: 5,
           }).start();
         }
       },
     }),
   ).current;
 
+  const activePanResponder = externalPanResponder || panResponderConfig;
+
+  useEffect(() => {
+    if (visible && !hasAnimatedIn.current) {
+      setModalVisible(true);
+      animateOpenModal();
+    } else if (!visible) {
+      fadeAnim.setValue(0);
+      translateY.setValue(300);
+      hasAnimatedIn.current = false;
+    }
+  }, [visible, animateOpenModal]);
+
+  const overlayStyle = useMemo(
+    (): Animated.WithAnimatedValue<ViewStyle> => ({
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      opacity: fadeAnim,
+    }),
+    [fadeAnim],
+  );
+
+  const modalContainerStyle = useMemo(
+    (): Animated.WithAnimatedValue<ViewStyle> => ({
+      position: "absolute" as const,
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: "auto" as const,
+      paddingBottom: 20,
+      backgroundColor: "#f5f6f9",
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      transform: [{ translateY: translateY }],
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: -3 },
+      shadowOpacity: 0.1,
+      shadowRadius: 10,
+      elevation: 10,
+      opacity: fadeAnim,
+    }),
+    [fadeAnim, translateY],
+  );
+
+  const SearchInput = useMemo(
+    () => (
+      <View className="bg-light-main-container rounded-xl mb-4 flex-row items-center px-4 py-2">
+        <Search size={20} color="#666" />
+        <TextInput
+          className="flex-1 ml-2 text-light-matte-black"
+          placeholder="Search tokens"
+          placeholderTextColor="#666"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
+    ),
+    [searchQuery],
+  );
+
   const renderTokenItem = useCallback(
     (token: Token) => {
       const isSelected = token.symbol === selectedToken.symbol;
 
+      const containerStyle = `flex-row items-center justify-between p-4 rounded-xl mb-2 ${
+        isSelected ? "bg-light-primary-red/10" : "bg-light-main-container"
+      }`;
+
+      const iconContainerStyle = `w-10 h-10 rounded-full mr-3 items-center justify-center ${
+        isSelected ? "bg-light-primary-red/20" : "bg-light-primary-red/10"
+      }`;
+
+      const symbolStyle = `font-bold text-base ${
+        isSelected ? "text-light-primary-red" : "text-light-primary-red/70"
+      }`;
+
+      const nameStyle = `font-medium ${
+        isSelected ? "text-light-primary-red" : "text-light-matte-black"
+      }`;
+
       return (
-        <Pressable
+        <TouchableOpacity
           key={token.symbol}
-          className={`flex-row items-center p-4 mb-2 rounded-xl ${
-            isSelected ? "bg-light-primary-red/10" : "bg-light-main-container"
-          }`}
           onPress={() => onSelectToken(token)}
+          className={containerStyle}
         >
-          <View className="w-10 h-10 rounded-full bg-light-primary-red/10 items-center justify-center mr-3">
-            <Text className="text-light-primary-red font-bold">
-              {token.symbol.charAt(0)}
-            </Text>
-          </View>
-
-          <View className="flex-1">
-            <Text className="font-bold text-light-matte-black">
-              {token.symbol}
-            </Text>
-            <Text className="text-sm text-light-matte-black/70">
-              {token.name}
-            </Text>
-          </View>
-
-          {isSelected && (
-            <View className="w-6 h-6 rounded-full bg-light-primary-red items-center justify-center">
-              <CreditCard size={14} color="white" strokeWidth={3} />
+          <View className="flex-row items-center">
+            <View className={iconContainerStyle}>
+              <Text className={symbolStyle}>{token.symbol.charAt(0)}</Text>
             </View>
-          )}
-        </Pressable>
+            <View>
+              <Text className={nameStyle}>{token.symbol}</Text>
+              <Text className="text-light-matte-black/60 text-sm">
+                {token.name}
+              </Text>
+            </View>
+          </View>
+          <View className="items-end">
+            <Text className="text-light-matte-black font-medium">
+              {token.balance}
+            </Text>
+            <Text className="text-light-matte-black/60 text-xs">Available</Text>
+          </View>
+        </TouchableOpacity>
       );
     },
     [selectedToken, onSelectToken],
@@ -150,52 +233,50 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
   if (!modalVisible) return null;
 
   return (
-    <Modal transparent visible animationType="none" onRequestClose={closeModal}>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={animateCloseModal}
+    >
       <View style={{ flex: 1 }}>
-        <TouchableWithoutFeedback onPress={closeModal}>
-          <Animated.View
-            style={{
-              flex: 1,
-              backgroundColor: "rgba(0, 0, 0, 0.5)",
-              opacity: fadeAnim,
-            }}
-          />
+        <TouchableWithoutFeedback onPress={animateCloseModal}>
+          <Animated.View style={overlayStyle} />
         </TouchableWithoutFeedback>
 
-        <Animated.View
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: MODAL_HEIGHT,
-            backgroundColor: "white",
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            transform: [{ translateY: translateY }],
-          }}
-        >
+        <Animated.View style={modalContainerStyle}>
           <View
-            {...panResponder.panHandlers}
+            {...activePanResponder.panHandlers}
             className="w-full items-center pt-4 pb-2"
           >
             <View className="w-12 h-1 bg-gray-300 rounded-full" />
           </View>
 
-          <View className="px-6 flex-1 relative">
-            <Text className="text-light-matte-black text-xl font-bold mb-6 text-center">
-              {title}
-            </Text>
+          <View className="px-6 flex-1">
+            <View className="flex-row items-center justify-between mb-6">
+              <Text className="text-light-matte-black text-xl font-bold">
+                {title}
+              </Text>
+              <Pressable
+                onPress={animateCloseModal}
+                className="bg-light-main-container p-2 rounded-full"
+              >
+                <Text className="text-light-primary-red font-bold">✕</Text>
+              </Pressable>
+            </View>
 
-            <Pressable onPress={closeModal} className="absolute right-6 top-0">
-              <View className="w-8 h-8 rounded-full bg-light-matte-black/5 items-center justify-center">
-                <X size={18} color="#c71c4b" />
-              </View>
-            </Pressable>
-
-            <ScrollView className="flex-1">
-              {tokens.map((token) => renderTokenItem(token))}
-            </ScrollView>
+            <View className="bg-white rounded-3xl p-6 pb-0 shadow-sm">
+              {SearchInput}
+              <ScrollView
+                className="max-h-96"
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View className="pb-4">
+                  {filteredTokens.map((token) => renderTokenItem(token))}
+                </View>
+              </ScrollView>
+            </View>
           </View>
         </Animated.View>
       </View>

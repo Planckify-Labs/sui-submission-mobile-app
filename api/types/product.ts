@@ -37,6 +37,7 @@ export type TProductVariant = {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  product: TProduct;
   ProductPrice: TProductPrice[];
 };
 

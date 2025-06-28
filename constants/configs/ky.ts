@@ -5,7 +5,7 @@ interface ApiError {
 }
 
 export const api = ky.create({
-  prefixUrl: process.env.EXPO_PUBLIC_API_URL,
+  prefixUrl: process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, ""),
   timeout: 30000,
   hooks: {
     beforeRequest: [
