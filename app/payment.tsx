@@ -1,4 +1,5 @@
 import { exchangeRateApi } from "@/api/endpoints/exchange-rates";
+import { TExchangeRate } from "@/api/types/exchange-rate";
 import type { TToken } from "@/api/types/token";
 import ChainSelector from "@/components/common/ChainSelector";
 import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
@@ -51,7 +52,7 @@ export default function PaymentScreen() {
   const [selectedToken, setSelectedToken] = useState<TToken | null>(null);
   const [transactionStatus, setTransactionStatus] = useState("");
   const [pinModalVisible, setPinModalVisible] = useState(false);
-  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  const [exchangeRate, setExchangeRate] = useState<TExchangeRate | null>(null);
   const [isLoadingRate, setIsLoadingRate] = useState(true);
 
   const { variantId } = useLocalSearchParams<{
@@ -84,7 +85,7 @@ export default function PaymentScreen() {
           fromCurrency: "USDT",
           toCurrency: "IDR",
         });
-        setExchangeRate(response.rate);
+        setExchangeRate(response);
       } catch (error) {
         console.error("Error fetching exchange rate:", error);
         Alert.alert("Error", "Failed to fetch exchange rate");
@@ -99,7 +100,7 @@ export default function PaymentScreen() {
   const tokenAmountNeeded =
     variantData?.ProductPrice?.[0]?.sellPrice && exchangeRate
       ? (
-          parseFloat(variantData.ProductPrice[0].sellPrice) / exchangeRate
+          parseFloat(variantData.ProductPrice[0].sellPrice) / exchangeRate.rate
         ).toFixed(4)
       : "0.0000";
 
@@ -137,7 +138,6 @@ export default function PaymentScreen() {
       console.log("Network changed, resetting selected token");
       setSelectedToken(null);
 
-      // Automatically select a new token for the new blockchain if available
       if (tokens && tokens.length > 0) {
         console.log("Auto-selecting token for new network:", tokens[0].symbol);
         setSelectedToken(tokens[0]);
@@ -214,7 +214,7 @@ export default function PaymentScreen() {
         payment: {
           tokenAddress: selectedToken.contractAddress,
           blockchainId: activeBlockchain.id,
-          exchangeRateId: 1,
+          exchangeRateId: exchangeRate?.id ?? 0,
         },
       });
 
@@ -271,7 +271,7 @@ export default function PaymentScreen() {
       noSelectedToken: !selectedToken,
       noActiveBlockchain: !activeBlockchain,
       noVariantData: !variantData?.id || !variantData.ProductPrice?.[0]?.id,
-      noExchangeRate: !exchangeRate,
+      noExchangeRate: !exchangeRate?.rate,
       noTokensAvailable: tokens?.length === 0,
     };
 
@@ -298,40 +298,6 @@ export default function PaymentScreen() {
     activeBlockchain,
     variantData,
     exchangeRate,
-  ]);
-
-  const getButtonText = useCallback(() => {
-    if (isLoading || isLoadingVariant || isLoadingRate || isLoadingTokens) {
-      return "Loading...";
-    }
-    if (!activeWallet.address) {
-      return "Select a wallet";
-    }
-    if (tokens?.length === 0) {
-      return "No tokens available";
-    }
-    if (!selectedToken) {
-      return "Loading token...";
-    }
-    if (!exchangeRate) {
-      return "Waiting for exchange rate";
-    }
-    if (!activeBlockchain) {
-      return "Invalid network";
-    }
-    if (!variantData?.id || !variantData.ProductPrice?.[0]?.id) {
-      return "Invalid product";
-    }
-    return "Confirm & Pay";
-  }, [
-    isLoading,
-    isLoadingVariant,
-    isLoadingRate,
-    activeWallet.address,
-    selectedToken,
-    exchangeRate,
-    activeBlockchain,
-    variantData,
   ]);
 
   return (
@@ -418,7 +384,7 @@ export default function PaymentScreen() {
                     <Text className="text-light-matte-black text-sm">
                       {isLoadingRate
                         ? "Loading..."
-                        : `1 ${selectedToken?.symbol} ≈ Rp${exchangeRate?.toLocaleString("id-ID") || "0"}`}
+                        : `1 ${selectedToken?.symbol} ≈ Rp${exchangeRate?.toLocaleString() || "0"}`}
                     </Text>
                   </View>
 
