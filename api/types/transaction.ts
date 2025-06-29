@@ -2,19 +2,22 @@ export type TTransactionType = "SEND" | "RECEIVE" | "PAYMENT";
 
 export type TTransactionStatus = "PENDING" | "COMPLETED" | "FAILED";
 
+export interface TBlockchainInToken {
+  name: string;
+}
+
 export interface TToken {
-  id: string;
+  blockchain: TBlockchainInToken;
+  contractAddress: string;
   name: string;
   symbol: string;
-  decimals: number;
-  blockchainId: string;
-  contractAddress: string;
-  logoUrl: string;
-  isStablecoin: boolean;
-  isActive: boolean;
-  isNativeCurrency: boolean;
-  createdAt: string;
-  updatedAt: string;
+}
+
+export interface TProductVariantInPurchase {
+  name: string;
+  product: {
+    imageUrl: string;
+  };
 }
 
 export interface TPurchase {
@@ -26,6 +29,7 @@ export interface TPurchase {
   vendorRefId: string | null;
   createdAt: string;
   updatedAt: string;
+  productVariant: TProductVariantInPurchase;
 }
 
 export interface TTransaction {
