@@ -47,7 +47,6 @@ export const useProductById = (productId: string) => {
   return useQuery<TProductDetail>({
     queryKey: productsQueryKeys.byId(productId),
     queryFn: async (context) => {
-      // Don't proceed if no productId
       if (!productId) {
         return {} as TProductDetail;
       }
@@ -56,23 +55,20 @@ export const useProductById = (productId: string) => {
         const response = await productApi.getProductById(productId);
         return response;
       } catch (error) {
-        // Check if the request was cancelled
         if (context.signal && context.signal.aborted) {
-          return {} as TProductDetail; // Return empty object to prevent errors
+          return {} as TProductDetail;
         }
         console.error("API Error:", error);
         throw error;
       }
     },
     staleTime: 5 * 60 * 1000,
-    gcTime: 5 * 60 * 1000, // Reduce garbage collection time to prevent stale data issues
+    gcTime: 5 * 60 * 1000,
     enabled: !!productId,
     retry: (failureCount, error) => {
-      // Don't retry aborted requests
       if (error && error.name === "AbortError") return false;
       return failureCount < 3;
     },
-    // Prevent refetching on window focus to avoid issues when switching components
     refetchOnWindowFocus: false,
   });
 };
