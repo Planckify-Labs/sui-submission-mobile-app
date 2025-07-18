@@ -64,3 +64,15 @@ export type TProductDetail = TProduct & {
   category: TProductCategory;
   variants: TProductVariant[];
 };
+
+export type TProductInputField = {
+  key: string;
+  type: string;
+  alias: string;
+};
+
+export type TProductInputFields = {
+  productId: string;
+  productName: string;
+  forms: TProductInputField[];
+};

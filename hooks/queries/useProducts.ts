@@ -3,6 +3,7 @@ import type {
   TProduct,
   TProductCategory,
   TProductDetail,
+  TProductInputFields,
   TProductVariant,
   TProductWithCategory,
 } from "@/api/types/product";
@@ -145,6 +146,37 @@ export const useProductVariantById = (variantId: string) => {
     staleTime: 5 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
     enabled: !!variantId,
+    retry: (failureCount, error) => {
+      if (error && error.name === "AbortError") return false;
+      return failureCount < 3;
+    },
+    refetchOnWindowFocus: false,
+  });
+};
+
+export const useProductInputFields = (productId: string) => {
+  return useQuery<TProductInputFields>({
+    queryKey: productsQueryKeys.inputFields(productId),
+    queryFn: async () => {
+      if (!productId) {
+        return {
+          productId: "",
+          productName: "",
+          forms: [],
+        } as TProductInputFields;
+      }
+
+      try {
+        const response = await productApi.getProductInputFields(productId);
+        return response;
+      } catch (error) {
+        console.error("API Error:", error);
+        throw error;
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    enabled: !!productId,
     retry: (failureCount, error) => {
       if (error && error.name === "AbortError") return false;
       return failureCount < 3;

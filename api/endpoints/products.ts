@@ -3,6 +3,7 @@ import type {
   TProduct,
   TProductCategory,
   TProductDetail,
+  TProductInputFields,
   TProductVariant,
   TProductWithCategory,
 } from "../types/product";
@@ -51,6 +52,13 @@ export const productApi = {
     variantId: string,
   ): Promise<TProductVariant> => {
     const response = await api.get(`products/variants/${variantId}`);
+    return response.json();
+  },
+
+  getProductInputFields: async (
+    productId: string,
+  ): Promise<TProductInputFields> => {
+    const response = await api.get(`products/${productId}/input-fields`);
     return response.json();
   },
 };

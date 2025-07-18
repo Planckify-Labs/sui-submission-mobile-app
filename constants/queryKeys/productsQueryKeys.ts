@@ -15,4 +15,6 @@ export const productsQueryKeys = {
     all: () => [...productsQueryKeys.all, "variants"] as const,
     byId: (id: string) => [...productsQueryKeys.variants.all(), id] as const,
   },
+  inputFields: (productId: string) =>
+    [...productsQueryKeys.all, "input-fields", productId] as const,
 } as const;
