@@ -26,7 +26,6 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  useWindowDimensions,
 } from "react-native";
 import ItemVariantWithInputSkeleton from "./ItemVariantWithInputSkeleton";
 
@@ -64,9 +63,6 @@ export default function ItemWithInput({
   const isLoading = isProductLoading || isInputFieldsLoading;
   const error = productError;
 
-  const [selectedItemVariant, setSelectedItemVariant] = useState<string | null>(
-    null,
-  );
   const { data: inputValues, setNewData: setInputValues } = useRQGlobalState<
     Record<string, string>
   >({
@@ -81,11 +77,7 @@ export default function ItemWithInput({
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollButtonOpacity = useRef(new Animated.Value(0)).current;
 
-  const { width } = useWindowDimensions();
   const ITEM_MARGIN = 8;
-  // Remove NUM_COLUMNS as we're using a vertical list now
-  // const NUM_COLUMNS = 2;
-  const ITEM_WIDTH = width - 40 - ITEM_MARGIN * 2; // Full width with margins
 
   useEffect(() => {
     return () => {
@@ -208,18 +200,32 @@ export default function ItemWithInput({
     );
   };
 
+  const areAllInputsFilled = () => {
+    if (!inputValues) return false;
+    return Object.values(inputValues).every((value) => !!value);
+  };
+
   const renderVariantItem = ({ item: variant }: { item: ProductVariant }) => {
     const price = variant.ProductPrice[0]?.sellPrice || "N/A";
     return (
       <TouchableOpacity
         key={variant.id}
         style={{ marginVertical: ITEM_MARGIN }}
-        className={`bg-light-main-container border ${
-          selectedItemVariant === variant.id
-            ? "border-light-primary-red bg-light-primary-red/5"
-            : "border-light-matte-black/10"
-        } rounded-xl p-4`}
-        onPress={() => setSelectedItemVariant(variant.id)}
+        className="bg-light-main-container border border-light-matte-black/10 rounded-xl p-4"
+        onPress={() => {
+          if (
+            inputValues &&
+            Object.values(inputValues).every((value) => !!value)
+          ) {
+            router.push({
+              pathname: "/payment",
+              params: {
+                variantId: variant.id,
+                ...inputValues,
+              },
+            });
+          }
+        }}
         activeOpacity={0.7}
       >
         <View className="flex-row justify-between items-center">
@@ -255,7 +261,6 @@ export default function ItemWithInput({
         useNativeDriver: true,
       }).start();
 
-      // Hide button after 3 seconds of no scrolling
       setTimeout(() => {
         setIsScrolling(false);
         Animated.timing(scrollButtonOpacity, {
@@ -270,10 +275,8 @@ export default function ItemWithInput({
   const scrollToPosition = () => {
     if (scrollViewRef.current) {
       if (isAtTop) {
-        // Scroll to bottom
         scrollViewRef.current.scrollToEnd({ animated: true });
       } else {
-        // Scroll to top
         scrollViewRef.current.scrollTo({ y: 0, animated: true });
       }
     }
@@ -375,51 +378,34 @@ export default function ItemWithInput({
             )}
           </View>
 
-          <View className="bg-light rounded-xl p-5 mb-6 shadow-sm">
-            <Text className="text-light-matte-black font-bold text-lg mb-4">
-              Options
-            </Text>
+          {areAllInputsFilled() ? (
+            <View className="bg-light rounded-xl p-5 mb-6 shadow-sm">
+              <Text className="text-light-matte-black font-bold text-lg mb-4">
+                Options
+              </Text>
 
-            <View>
-              <FlashList
-                data={product.variants}
-                renderItem={renderVariantItem}
-                keyExtractor={(item) => item.id}
-                estimatedItemSize={70}
-                showsVerticalScrollIndicator={false}
-              />
+              <View>
+                <FlashList
+                  data={product.variants}
+                  renderItem={renderVariantItem}
+                  keyExtractor={(item) => item.id}
+                  estimatedItemSize={70}
+                  showsVerticalScrollIndicator={false}
+                />
+              </View>
             </View>
-          </View>
-          <TouchableOpacity
-            className={`bg-light-primary-red py-4 rounded-full items-center ${
-              !selectedItemVariant ||
-              !inputValues ||
-              Object.values(inputValues).some((value) => !value)
-                ? "opacity-50"
-                : ""
-            }`}
-            disabled={
-              !selectedItemVariant ||
-              !inputValues ||
-              Object.values(inputValues).some((value) => !value)
-            }
-            onPress={() =>
-              selectedItemVariant &&
-              inputValues &&
-              router.push({
-                pathname: "/payment",
-                params: {
-                  variantId: selectedItemVariant,
-                  ...inputValues,
-                },
-              })
-            }
-            activeOpacity={0.7}
-          >
-            <Text className="text-light font-bold text-lg">
-              Continue to Payment
-            </Text>
-          </TouchableOpacity>
+          ) : (
+            <View className="bg-light rounded-xl p-5 mb-6 shadow-sm">
+              <View className="bg-light-primary-red/10 p-4 rounded-xl">
+                <View className="flex-row items-center gap-2">
+                  <Info size={18} color="#c71c4b" className="mr-2" />
+                  <Text className="text-light-matte-black/80 text-sm flex-1">
+                    Please fill in all required fields to view available options
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
       </ScrollView>
 
