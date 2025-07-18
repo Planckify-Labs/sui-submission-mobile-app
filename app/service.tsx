@@ -3,9 +3,7 @@ import PromotionBanner from "@/components/service/PromotionBanner";
 import ServiceHeader from "@/components/service/ServiceHeader";
 import ServiceScreenSkeleton from "@/components/service/ServiceScreenSkeleton";
 import ServiceSectionContainer from "@/components/service/ServiceSectionContainer";
-import {
-  type ListItemData as ListItem,
-} from "@/constants/dummyData/paymentScreen";
+import { type ListItemData as ListItem } from "@/constants/dummyData/paymentScreen";
 import { useProductsByCategories } from "@/hooks/queries/useProducts";
 import React, { useRef, useState } from "react";
 import {
@@ -13,14 +11,18 @@ import {
   FlatList,
   ListRenderItemInfo,
   StatusBar,
-  Text
+  Text,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ServiceScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const scrollY = useRef(new Animated.Value(0)).current;
-  const { data: productsByCategories, isLoading, error } = useProductsByCategories();
+  const {
+    data: productsByCategories,
+    isLoading,
+    error,
+  } = useProductsByCategories();
 
   const searchBarOpacity = scrollY.interpolate({
     inputRange: [50, 150],
@@ -57,13 +59,16 @@ export default function ServiceScreen() {
 
   if (productsByCategories) {
     productsByCategories.forEach((categoryData) => {
-      const filteredProducts = searchQuery 
-        ? categoryData.products.filter(product => 
-            product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            product.description.toLowerCase().includes(searchQuery.toLowerCase())
+      const filteredProducts = searchQuery
+        ? categoryData.products.filter(
+            (product) =>
+              product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              product.description
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase()),
           )
         : categoryData.products;
-      
+
       if (filteredProducts.length > 0) {
         serviceList.push({
           type: "section",
@@ -71,11 +76,11 @@ export default function ServiceScreen() {
             id: categoryData.category.id,
             title: categoryData.category.name,
             viewAllPath: "/asset-explorer",
-            items: filteredProducts.map(product => ({
+            items: filteredProducts.map((product) => ({
               id: product.id,
               name: product.name,
               description: product.description,
-              icon: product.imageUrl
+              icon: product.imageUrl,
             })),
           },
         });
@@ -83,7 +88,7 @@ export default function ServiceScreen() {
     });
   }
 
-  const renderListItem = ({ item }: ListRenderItemInfo<ListItem>) => {
+  const renderServiceScreenItem = ({ item }: ListRenderItemInfo<ListItem>) => {
     if (item.type === "header") {
       return <ServiceHeader title="Payments" />;
     } else if (item.type === "searchBar") {
@@ -135,7 +140,7 @@ export default function ServiceScreen() {
       <SafeAreaView className="flex-1 bg-light-main-container" edges={["top"]}>
         <FlatList
           data={serviceList}
-          renderItem={renderListItem}
+          renderItem={renderServiceScreenItem}
           keyExtractor={(item, index) =>
             item.type === "section" ? item.data.id : `${item.type}-${index}`
           }
