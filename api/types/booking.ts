@@ -32,6 +32,11 @@ export type TBooking = {
   expiresAt: string;
 };
 
+export type CustomerInfoItem = {
+  key: string;
+  value: string;
+};
+
 export type TBookingCreateRequest = {
   walletAddress: string;
   productVariantId: string;
@@ -41,6 +46,7 @@ export type TBookingCreateRequest = {
     blockchainId: string;
     exchangeRateId: number;
   };
+  customerInfo?: CustomerInfoItem[];
 };
 
 export type TBookingListResponse = TBooking[];

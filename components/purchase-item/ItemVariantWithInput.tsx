@@ -229,6 +229,13 @@ export default function ItemWithInput({
     return Object.values(inputValues).every((value) => !!value);
   };
 
+  const formatCustomerInfo = (inputValues: Record<string, string>) => {
+    return Object.entries(inputValues).map(([key, value]) => ({
+      key,
+      value,
+    }));
+  };
+
   const renderVariantItem = ({ item: variant }: { item: ProductVariant }) => {
     const price = variant.ProductPrice[0]?.sellPrice || "N/A";
     return (
@@ -241,9 +248,10 @@ export default function ItemWithInput({
             inputValues &&
             Object.values(inputValues).every((value) => !!value)
           ) {
+            const customerInfo = formatCustomerInfo(inputValues);
             const params = {
               variantId: variant.id,
-              ...inputValues,
+              customerInfo: JSON.stringify(customerInfo),
             };
 
             router.push({

@@ -59,6 +59,7 @@ export const useCreateBooking = () => {
             blockchainId: data.payment.blockchainId,
             exchangeRateId: data.payment.exchangeRateId,
           },
+          customerInfo: data.customerInfo,
         });
         console.log("Raw API Response (Create):", response);
         return response;

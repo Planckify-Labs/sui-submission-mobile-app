@@ -1,4 +1,5 @@
 import { exchangeRateApi } from "@/api/endpoints/exchange-rates";
+import { CustomerInfoItem } from "@/api/types/booking";
 import { TExchangeRate } from "@/api/types/exchange-rate";
 import type { TToken } from "@/api/types/token";
 import ChainSelector from "@/components/common/ChainSelector";
@@ -55,9 +56,20 @@ export default function PaymentScreen() {
   const [exchangeRate, setExchangeRate] = useState<TExchangeRate | null>(null);
   const [isLoadingRate, setIsLoadingRate] = useState(true);
 
-  const { variantId } = useLocalSearchParams<{
+  const { variantId, customerInfo } = useLocalSearchParams<{
     variantId: string;
+    customerInfo: string;
   }>();
+
+  const parsedCustomerInfo = useMemo<CustomerInfoItem[]>(() => {
+    if (!customerInfo) return [];
+    try {
+      return JSON.parse(customerInfo);
+    } catch (error) {
+      console.error("Error parsing customer info:", error);
+      return [];
+    }
+  }, [customerInfo]);
 
   const { data: variantData, isLoading: isLoadingVariant } =
     useProductVariantById(variantId);
@@ -216,6 +228,7 @@ export default function PaymentScreen() {
           blockchainId: activeBlockchain.id,
           exchangeRateId: exchangeRate?.id ?? 0,
         },
+        customerInfo: parsedCustomerInfo,
       });
 
       setTransactionStatus("Processing payment request...");
@@ -250,6 +263,7 @@ export default function PaymentScreen() {
     selectedToken,
     createBooking,
     activeBlockchain,
+    parsedCustomerInfo,
   ]);
 
   const handlePaymentConfirmation = () => {
