@@ -1,22 +1,35 @@
 import { TTransaction } from "@/api/types/transaction";
+import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 import { useTransactionSearch } from "@/hooks/queries/useTransactions";
 import { useWallet } from "@/hooks/useWallet";
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
-import { MoveRight, Send } from "lucide-react-native";
+import { MoveRight, Send, Wallet2 } from "lucide-react-native";
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 
 export default function ActivitySection() {
   const { activeWallet } = useWallet();
-  const { data: transferHistory } = useTransactionSearch({
-    type: "TRANSFER",
-    senderAddress: activeWallet?.address,
-  });
-  const { data: paymentHistory } = useTransactionSearch({
-    type: "PAYMENT",
-    senderAddress: activeWallet?.address,
-  });
+  const { isAuthenticated, isLoading: isAuthLoading } = useIsAuthenticated();
+
+  const shouldFetchTransactions = Boolean(
+    isAuthenticated && !isAuthLoading && activeWallet?.address,
+  );
+
+  const { data: transferHistory } = useTransactionSearch(
+    {
+      type: "TRANSFER",
+      senderAddress: activeWallet?.address,
+    },
+    { enabled: shouldFetchTransactions },
+  );
+  const { data: paymentHistory } = useTransactionSearch(
+    {
+      type: "PAYMENT",
+      senderAddress: activeWallet?.address,
+    },
+    { enabled: shouldFetchTransactions },
+  );
 
   const purchaseHistoryButton = (payment: TTransaction) => (
     <TouchableOpacity
@@ -47,6 +60,89 @@ export default function ActivitySection() {
       </Text>
     </TouchableOpacity>
   );
+
+  if (isAuthLoading) {
+    return (
+      <View className="px-4">
+        <View className="bg-light rounded-[14px] w-full p-[22px] gap-4">
+          <View className="flex-row">
+            <Text className="text-light-matte-black text-sm">Activities</Text>
+          </View>
+          <View className="items-center py-8">
+            <View className="bg-light-primary-red/10 p-4 rounded-full mb-4">
+              <Wallet2 color="#c71c4b" size={32} />
+            </View>
+            <Text className="text-light-matte-black/70 text-center">
+              Loading...
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <View className="px-4">
+        <View className="bg-light rounded-[14px] w-full p-[22px] gap-4">
+          <View className="flex-row">
+            <Text className="text-light-matte-black text-sm">Activities</Text>
+          </View>
+
+          <View className="items-center py-12">
+            <View className="relative mb-6">
+              <View className="bg-light-primary-red/5 w-24 h-24 rounded-full items-center justify-center">
+                <View className="bg-light-primary-red/10 w-20 h-20 rounded-full items-center justify-center">
+                  <View className="bg-light-primary-red/20 w-16 h-16 rounded-full items-center justify-center">
+                    <Wallet2 color="#c71c4b" size={28} strokeWidth={1.5} />
+                  </View>
+                </View>
+              </View>
+              <View className="absolute -top-1 -right-1 w-3 h-3 bg-light-primary-red rounded-full" />
+            </View>
+
+            <View className="items-center max-w-72">
+              <Text className="text-light-matte-black font-bold text-xl mb-3 text-center">
+                Welcome to TakumiPay! 🎉
+              </Text>
+              <Text className="text-light-matte-black/60 text-center text-base leading-6 mb-8">
+                Connect your wallet to see all your amazing transactions and
+                activities in one place
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => router.push("/auth")}
+              className="bg-light-primary-red py-4 px-8 rounded-2xl flex-row items-center gap-3 shadow-sm"
+              style={{
+                shadowColor: "#c71c4b",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.15,
+                shadowRadius: 12,
+                elevation: 8,
+              }}
+            >
+              <Wallet2 color="#ffffff" size={20} strokeWidth={2} />
+              <Text className="text-white font-bold text-base">
+                Sign In With Ethereum
+              </Text>
+            </TouchableOpacity>
+
+            <View className="flex-row items-center mt-6 px-4 py-3 bg-light-main-container rounded-xl">
+              <View className="bg-light-primary-red/10 p-2 rounded-full mr-3">
+                <Wallet2 color="#c71c4b" size={14} />
+              </View>
+              <Text className="text-light-matte-black/50 text-xs flex-1">
+                Secure authentication • No gas fees required
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View className="px-4">
       <View className="bg-light rounded-[14px] w-full p-[22px] gap-4">

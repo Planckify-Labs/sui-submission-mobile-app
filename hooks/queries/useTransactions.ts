@@ -6,7 +6,10 @@ import type {
 import { transactionsQueryKeys } from "@/constants/queryKeys/transactionsQueryKeys";
 import { useQuery } from "@tanstack/react-query";
 
-export const useTransactionSearch = (params: TTransactionSearchParams = {}) => {
+export const useTransactionSearch = (
+  params: TTransactionSearchParams = {},
+  options?: { enabled?: boolean },
+) => {
   return useQuery({
     queryKey: transactionsQueryKeys.search(params),
     queryFn: async () => {
@@ -20,6 +23,7 @@ export const useTransactionSearch = (params: TTransactionSearchParams = {}) => {
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
+    enabled: options?.enabled !== false && !!params.senderAddress,
   });
 };
 

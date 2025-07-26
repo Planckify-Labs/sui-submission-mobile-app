@@ -8,9 +8,16 @@ import { useWallet } from "@/hooks/useWallet";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft, Shield, Wallet2 } from "lucide-react-native";
 import React, { useCallback, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, Text, View } from "react-native";
+import {
+  Alert,
+  Image,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 interface NonceData {
@@ -67,84 +74,81 @@ export default function AuthScreen() {
     });
   }, []);
 
-  const handleSignMessage = useCallback(
-    async (pin: string) => {
-      if (!nonceData?.message) {
-        Alert.alert("Error", "Failed to get authentication message");
-        return;
-      }
+  const handleSignMessage = useCallback(async () => {
+    if (!nonceData?.message) {
+      Alert.alert("Error", "Failed to get authentication message");
+      return;
+    }
 
-      setIsPinModalVisible(false);
-      setIsLoading(true);
+    setIsPinModalVisible(false);
+    setIsLoading(true);
 
-      await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
-      try {
-        updateLoadingStep(0, true);
-        await createDelay(800);
+    try {
+      updateLoadingStep(0, true);
+      await createDelay(800);
 
-        const walletClient = await deferredTask(() => {
-          const client = getClientForActiveWallet();
-          if (!client) {
-            throw new Error("Unable to initialize wallet client");
-          }
-          return client;
-        }, "Initializing wallet client");
+      const walletClient = await deferredTask(() => {
+        const client = getClientForActiveWallet();
+        if (!client) {
+          throw new Error("Unable to initialize wallet client");
+        }
+        return client;
+      }, "Initializing wallet client");
 
-        const account = await deferredTask(async () => {
-          const acc = await getWalletAccount(activeWalletIndex);
-          if (!acc) {
-            throw new Error("Wallet account not properly configured");
-          }
-          return acc;
-        }, "Getting wallet account");
+      const account = await deferredTask(async () => {
+        const acc = await getWalletAccount(activeWalletIndex);
+        if (!acc) {
+          throw new Error("Wallet account not properly configured");
+        }
+        return acc;
+      }, "Getting wallet account");
 
-        updateLoadingStep(1, true);
+      updateLoadingStep(1, true);
 
-        const signature = await deferredTask(async () => {
-          return await walletClient.signMessage({
-            account,
-            message: nonceData.message,
-          });
-        }, "Signing message");
+      const signature = await deferredTask(async () => {
+        return await walletClient.signMessage({
+          account,
+          message: nonceData.message,
+        });
+      }, "Signing message");
 
-        updateLoadingStep(2, true);
-        await createDelay(800);
+      updateLoadingStep(2, true);
+      await createDelay(800);
 
-        await deferredTask(async () => {
-          await verifySignature({
-            message: nonceData.message,
-            signature,
-          });
+      await deferredTask(async () => {
+        await verifySignature({
+          message: nonceData.message,
+          signature,
+        });
 
-          queryClient.invalidateQueries({ queryKey: ["auth"] });
-        }, "Verifying signature");
+        queryClient.invalidateQueries({ queryKey: ["auth"] });
+      }, "Verifying signature");
 
-        updateLoadingStep(3, true);
-        await createDelay(1000);
+      updateLoadingStep(3, true);
+      await createDelay(1000);
 
-        router.replace("/");
-      } catch (error: any) {
-        console.error("Authentication error:", error);
-        setIsLoading(false);
-        Alert.alert(
-          "Authentication Failed",
-          error?.message || "Failed to authenticate with wallet",
-        );
-      }
-    },
-    [
-      nonceData,
-      getClientForActiveWallet,
-      getWalletAccount,
-      activeWalletIndex,
-      verifySignature,
-      queryClient,
-      deferredTask,
-      updateLoadingStep,
-      createDelay,
-    ],
-  );
+      router.replace("/");
+    } catch (error: any) {
+      console.error("Authentication error:", error);
+      setIsLoading(false);
+      Alert.alert(
+        "Authentication Failed",
+        error?.message || "Failed to authenticate with wallet",
+      );
+    }
+  }, [
+    nonceData,
+    getClientForActiveWallet,
+    getWalletAccount,
+    activeWalletIndex,
+    verifySignature,
+    queryClient,
+    deferredTask,
+    updateLoadingStep,
+    createDelay,
+  ]);
 
   const startAuthentication = useCallback(() => {
     if (!activeWallet?.address) {
@@ -183,85 +187,134 @@ export default function AuthScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-light-main-container">
-      <View className="flex-row items-center p-4">
-        <Pressable
+      <View className="flex-row items-center justify-between p-4 pb-2">
+        <TouchableOpacity
           onPress={() => router.back()}
-          className="w-10 h-10 items-center justify-center rounded-full bg-light-main-container"
+          className="w-11 h-11 items-center justify-center rounded-2xl bg-light shadow-sm"
+          activeOpacity={0.7}
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}
         >
-          <ArrowLeft size={24} color="#20222c" />
-        </Pressable>
-        <Text className="text-xl font-bold text-light-matte-black ml-2">
-          Sign In With Ethereum
-        </Text>
+          <ArrowLeft size={22} color="#20222c" strokeWidth={2} />
+        </TouchableOpacity>
+
+        <View className="flex-1 items-center">
+          <Text className="text-lg font-bold text-light-matte-black">
+            Almost There! 🎉
+          </Text>
+          <Text className="text-light-matte-black/60 text-sm">
+            One quick step to secure your account
+          </Text>
+        </View>
+
+        <View className="w-11" />
       </View>
 
       <ScrollView
         className="flex-1 px-4"
         contentContainerStyle={{ paddingBottom: 20 }}
+        showsVerticalScrollIndicator={false}
       >
-        <View className="bg-white rounded-2xl p-6 shadow-sm mb-4">
-          <View className="items-center mb-6">
-            <Image
-              source={require("@/assets/images/takumipay-logo.png")}
-              style={{ width: 80, height: 80 }}
-              resizeMode="contain"
-            />
+        <View className="items-center py-8 mb-6">
+          <View className="relative mb-6">
+            <View className="bg-light-primary-red/5 w-28 h-28 rounded-3xl items-center justify-center">
+              <View className="bg-light-primary-red/10 w-24 h-24 rounded-2xl items-center justify-center">
+                <View className="bg-light w-20 h-20 rounded-xl items-center justify-center shadow-sm">
+                  <Image
+                    source={require("@/assets/images/takumipay-logo.png")}
+                    style={{ width: 50, height: 50 }}
+                    resizeMode="contain"
+                  />
+                </View>
+              </View>
+            </View>
+            <View className="absolute -top-2 -right-2 w-4 h-4 bg-light-primary-red rounded-full" />
+            <View className="absolute -bottom-1 -left-1 w-3 h-3 bg-light-primary-red/60 rounded-full" />
           </View>
 
-          <Text className="text-light-matte-black text-lg font-bold mb-2 text-center">
-            Secure Authentication
+          <Text className="text-light-matte-black text-2xl font-bold mb-3 text-center">
+            Secure Your Access
           </Text>
 
-          <Text className="text-light-matte-black/70 text-center mb-6">
-            Sign a message with your Ethereum wallet to securely authenticate
-            with TakumiPay
+          <Text className="text-light-matte-black/60 text-center text-base leading-6 max-w-80">
+            Sign a quick message to unlock your wallet safely and securely ✨
           </Text>
+        </View>
 
-          <View className="bg-light-main-container p-4 rounded-xl mb-6">
-            <Text className="text-light-matte-black/70 mb-2">
-              Active Wallet
-            </Text>
-            <Text className="text-light-matte-black font-medium">
-              {activeWallet?.name || "My Wallet"}
-            </Text>
-            <Text className="text-light-matte-black/60 text-xs">
+        <View className="bg-light rounded-3xl p-6 mb-6 shadow-sm">
+          <View className="flex-row items-center mb-4">
+            <View className="bg-light-primary-red/10 p-3 rounded-2xl mr-4">
+              <Wallet2 color="#c71c4b" size={24} strokeWidth={2} />
+            </View>
+            <View className="flex-1">
+              <Text className="text-light-matte-black font-bold text-lg">
+                {activeWallet?.name || "My Wallet"}
+              </Text>
+              <Text className="text-light-matte-black/50 text-sm">
+                Connected and ready
+              </Text>
+            </View>
+          </View>
+
+          <View className="bg-light-main-container p-4 rounded-2xl mb-6">
+            <View className="flex-row items-center justify-between mb-3">
+              <Text className="text-light-matte-black/70 text-sm">
+                Wallet Address
+              </Text>
+              <View className="bg-light-primary-red/10 px-2 py-1 rounded-full">
+                <Text className="text-light-primary-red text-xs font-medium">
+                  Active
+                </Text>
+              </View>
+            </View>
+            <Text className="text-light-matte-black font-mono text-sm mb-3">
               {activeWallet?.address
-                ? `${activeWallet.address.substring(0, 8)}...${activeWallet.address.substring(
-                    activeWallet.address.length - 6,
+                ? `${activeWallet.address.substring(0, 12)}...${activeWallet.address.substring(
+                    activeWallet.address.length - 8,
                   )}`
                 : "No wallet selected"}
             </Text>
-            <Text className="text-light-matte-black/60 text-xs mt-2">
-              Network: {activeChain?.chain?.name || "Unknown"}
-            </Text>
+            <View className="flex-row items-center">
+              <View className="w-2 h-2 bg-green-500 rounded-full mr-2" />
+              <Text className="text-light-matte-black/60 text-xs">
+                {activeChain?.chain?.name || "Unknown Network"}
+              </Text>
+            </View>
           </View>
 
           {!isLoading ? (
-            <Pressable
-              className="bg-light-primary-red py-4 rounded-xl items-center"
+            <TouchableOpacity
+              className="bg-light-primary-red py-4 rounded-2xl items-center flex-row justify-center gap-3"
               onPress={startAuthentication}
+              activeOpacity={0.8}
+              style={{
+                shadowColor: "#c71c4b",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.15,
+                shadowRadius: 12,
+                elevation: 8,
+              }}
             >
-              <Text className="text-white font-bold">Sign In With Wallet</Text>
-            </Pressable>
+              <Shield color="#ffffff" size={20} strokeWidth={2} />
+              <Text className="text-white font-bold text-base">
+                Sign & Continue
+              </Text>
+            </TouchableOpacity>
           ) : null}
         </View>
 
-        <View className="bg-white rounded-2xl p-6 shadow-sm">
-          <Text className="text-light-matte-black font-bold mb-2">
-            How it works
-          </Text>
-          <Text className="text-light-matte-black/70 mb-2">
-            1. Confirm your identity with your PIN
-          </Text>
-          <Text className="text-light-matte-black/70 mb-2">
-            2. Sign a unique message with your wallet (no gas fees)
-          </Text>
-          <Text className="text-light-matte-black/70 mb-2">
-            3. Our server verifies your signature
-          </Text>
-          <Text className="text-light-matte-black/70">
-            4. You're securely authenticated!
-          </Text>
+        <View className="bg-light rounded-3xl p-4 shadow-sm">
+          <View className="flex-row items-center justify-center">
+            <Shield color="#059669" size={16} strokeWidth={2} />
+            <Text className="text-light-matte-black/60 text-sm ml-2">
+              Secure • No gas fees • Your keys stay safe
+            </Text>
+          </View>
         </View>
       </ScrollView>
 

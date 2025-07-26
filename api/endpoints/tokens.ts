@@ -1,40 +1,56 @@
-import type { TTokenSearchParams, TokenListResponse } from "@/api/types/token";
-import { api } from "@/constants/configs/ky";
+import type {
+  TToken,
+  TTokenSearchParams,
+  TokenListResponse,
+} from "@/api/types/token";
+import { publicApi } from "@/constants/configs/ky";
+import {
+  apiCall,
+  fetchById,
+  fetchList,
+  searchItems,
+} from "../utils/api-helpers";
+
+const logTokenOperation = (operation: string, data?: any) => {
+  console.log(`Token API: ${operation}`, data || "");
+};
 
 export const tokenApi = {
-  getTokenList: async () => {
-    try {
-      console.log("Fetching all tokens...");
-      const response = await api.get("tokens").json<TokenListResponse>();
-      console.log("Token list response:", response);
-      return response;
-    } catch (error) {
-      console.error("Failed to fetch token list:", error);
-      throw error;
-    }
-  },
-  searchTokens: async (params?: TTokenSearchParams) => {
-    try {
-      const searchParams = new URLSearchParams();
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) {
-            searchParams.append(key, value.toString());
-          }
-        });
-      }
-      console.log(
-        "Searching tokens with params:",
-        Object.fromEntries(searchParams.entries()),
+  getTokenList: () =>
+    apiCall(async () => {
+      logTokenOperation("Fetching all tokens");
+      const response = await fetchList<TokenListResponse>(
+        publicApi,
+        "tokens",
+        "Failed to fetch token list",
       );
-      const response = await api
-        .get("tokens/search", { searchParams })
-        .json<TokenListResponse>();
-      console.log("Token search response:", response);
+      logTokenOperation("Token list response", response);
       return response;
-    } catch (error) {
-      console.error("Failed to search tokens:", error);
-      throw error;
-    }
-  },
+    }, "Failed to fetch token list"),
+
+  searchTokens: (params?: TTokenSearchParams) =>
+    apiCall(async () => {
+      logTokenOperation("Searching tokens with params", params);
+      const response = await searchItems<TokenListResponse>(
+        publicApi,
+        "tokens/search",
+        params || {},
+        "Failed to search tokens",
+      );
+      logTokenOperation("Token search response", response);
+      return response;
+    }, "Failed to search tokens"),
+
+  getTokenById: (id: string) =>
+    apiCall(async () => {
+      logTokenOperation("Fetching token by id", id);
+      const response = await fetchById<TToken>(
+        publicApi,
+        "tokens",
+        id,
+        "Failed to fetch token by id",
+      );
+      logTokenOperation("Token by id response", response);
+      return response;
+    }, "Failed to fetch token by id"),
 };

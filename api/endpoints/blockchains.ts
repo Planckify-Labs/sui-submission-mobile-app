@@ -1,7 +1,8 @@
-import { api } from "@/constants/configs/ky";
-import type { TBlockchainListResponse } from "../types/blockchain";
+import { publicApi } from "@/constants/configs/ky";
+import type { TBlockchain, TBlockchainListResponse } from "../types/blockchain";
+import { fetchById, fetchList, searchItems } from "../utils/api-helpers";
 
-interface TBlockchainSearchParams {
+export interface TBlockchainSearchParams {
   name?: string;
   chainId?: number;
   isEVM?: boolean;
@@ -11,44 +12,28 @@ interface TBlockchainSearchParams {
 }
 
 export const blockchainApi = {
-  getBlockchainList: async () => {
-    try {
-      const response = await api
-        .get("blockchains")
-        .json<TBlockchainListResponse>();
-      return response;
-    } catch (error) {
-      console.error("Failed to fetch blockchain list:", error);
-      throw error;
-    }
-  },
-  searchBlockchains: async ({
-    name,
-    chainId,
-    isEVM,
-    isActive,
-    take = 10,
-    cursor,
-  }: TBlockchainSearchParams = {}) => {
-    try {
-      const searchParams = new URLSearchParams();
+  getBlockchainList: () =>
+    fetchList<TBlockchainListResponse>(
+      publicApi,
+      "blockchains",
+      "Failed to fetch blockchain list",
+    ),
 
-      if (name) searchParams.append("name", name);
-      if (chainId !== undefined)
-        searchParams.append("chainId", chainId.toString());
-      if (isEVM !== undefined) searchParams.append("isEVM", isEVM.toString());
-      if (isActive !== undefined)
-        searchParams.append("isActive", isActive.toString());
-      if (take) searchParams.append("take", take.toString());
-      if (cursor) searchParams.append("cursor", cursor);
-
-      const response = await api
-        .get("blockchains/search", { searchParams })
-        .json<TBlockchainListResponse>();
-      return response;
-    } catch (error) {
-      console.error("Failed to search blockchains:", error);
-      throw error;
-    }
+  searchBlockchains: (params: TBlockchainSearchParams = {}) => {
+    const searchParams = { take: 10, ...params };
+    return searchItems<TBlockchainListResponse>(
+      publicApi,
+      "blockchains/search",
+      searchParams,
+      "Failed to search blockchains",
+    );
   },
+
+  getBlockchainById: (id: string) =>
+    fetchById<TBlockchain>(
+      publicApi,
+      "blockchains",
+      id,
+      "Failed to fetch blockchain by id",
+    ),
 };

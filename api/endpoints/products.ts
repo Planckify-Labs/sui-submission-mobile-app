@@ -1,4 +1,4 @@
-import { api } from "@/constants/configs/ky";
+import { api, publicApi } from "@/constants/configs/ky";
 import type {
   TProduct,
   TProductCategory,
@@ -7,24 +7,40 @@ import type {
   TProductVariant,
   TProductWithCategory,
 } from "../types/product";
+import { fetchList, searchItems } from "../utils/api-helpers";
+
+export interface TProductSearchParams {
+  name?: string;
+  categoryId?: string;
+  isActive?: boolean;
+  take?: number;
+  cursor?: string;
+}
 
 export const productApi = {
-  getAllProducts: async (): Promise<TProduct[]> => {
-    const response = await api.get("products");
-    return response.json();
-  },
+  getAllProducts: (): Promise<TProduct[]> =>
+    fetchList<TProduct[]>(publicApi, "products", "Failed to fetch products"),
 
-  getProductsByCategories: async (): Promise<TProductWithCategory[]> => {
-    const response = await api.get("products/grouped-by-categories");
-    return response.json();
-  },
+  getProductsByCategories: (): Promise<TProductWithCategory[]> =>
+    fetchList<TProductWithCategory[]>(
+      publicApi,
+      "products/grouped-by-categories",
+      "Failed to fetch products by categories",
+    ),
+
+  searchProducts: (params?: TProductSearchParams): Promise<TProduct[]> =>
+    searchItems<TProduct[]>(
+      publicApi,
+      "products/search",
+      params || {},
+      "Failed to search products",
+    ),
 
   getProductById: async (id: string): Promise<TProductDetail> => {
     try {
       const response = await api.get(`products/${id}`);
       return response.json();
     } catch (error: any) {
-      // Handle aborted requests gracefully
       if (error && error.name === "AbortError") {
         console.log("Request was aborted");
         return {} as TProductDetail;
