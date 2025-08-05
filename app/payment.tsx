@@ -17,6 +17,7 @@ import { ArrowLeft, ChevronDown } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Image,
   ScrollView,
   StatusBar,
   Text,
@@ -339,8 +340,16 @@ export default function PaymentScreen() {
 
               <View className="bg-light-main-container/50 rounded-xl p-3 mb-4">
                 <View className="flex-row items-center mb-2">
-                  <View className="w-12 h-12 bg-light-primary-red/10 rounded-lg mr-3 items-center justify-center">
-                    <Text className="text-2xl">📦</Text>
+                  <View className="w-12 h-12 bg-light-primary-red/10 rounded-lg mr-3 items-center justify-center overflow-hidden">
+                    {variantData?.product?.imageUrl ? (
+                      <Image
+                        source={{ uri: variantData.product.imageUrl }}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text className="text-2xl">📦</Text>
+                    )}
                   </View>
                   <View className="flex-1">
                     <Text
