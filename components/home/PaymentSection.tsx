@@ -2,20 +2,47 @@ import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import { MoveRight } from "lucide-react-native";
 import React from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Image, Text, TouchableOpacity, View } from "react-native";
 
 const paymentItems = [
-  { name: "Pulsa" },
-  { name: "Data Package" },
-  { name: "PLN" },
-  { name: "Games Top Up" },
-  { name: "Top Up e-money" },
+  {
+    name: "Pulsa & Data Package",
+    icon: (
+      <Image
+        source={require("@/assets/icons/pulsa_data_package.png")}
+        style={{ width: 40, height: 40 }}
+        resizeMode="contain"
+      />
+    ),
+  },
+  {
+    name: "Gaming",
+    icon: (
+      <Image
+        source={require("@/assets/icons/gaming_topup.png")}
+        style={{ width: 40, height: 40 }}
+        resizeMode="contain"
+      />
+    ),
+  },
+  {
+    name: "PLN",
+    icon: (
+      <Image
+        source={require("@/assets/icons/pln.png")}
+        style={{ width: 40, height: 40 }}
+        resizeMode="contain"
+      />
+    ),
+  },
 ];
 
 export default function PaymentSection() {
-  const renderPaymentItem = ({ item }: { item: { name: string } }) => (
+  const renderPaymentItem = ({ item }: { item: (typeof paymentItems)[0] }) => (
     <TouchableOpacity activeOpacity={0.7} className="items-center">
-      <View className="rounded-2xl border-2 border-light-matte-black w-16 aspect-square bg-light-primary-red/40" />
+      <View className="rounded-2xl border-2 border-light-matte-black w-16 aspect-square bg-light-main-container items-center justify-center">
+        {item.icon}
+      </View>
       <Text className="text-[10px] text-center text-wrap max-w-16 mt-1">
         {item.name}
       </Text>
