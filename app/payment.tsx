@@ -7,6 +7,7 @@ import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import PinConfirmationModal from "@/components/common/PinConfirmationModal";
 import TokenSelectorModal from "@/components/wallet/TokenSelectorModal";
 import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
+import { useTakumiPayContract } from "@/contracts/hooks/useTakumiPayContract";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 import { useBlockchains } from "@/hooks/queries/useBlockchains";
 import { useCreateBooking } from "@/hooks/queries/useBookings";
@@ -26,7 +27,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { erc20Abi, formatUnits } from "viem";
+import { Address, erc20Abi, formatUnits } from "viem";
 
 export default function PaymentScreen() {
   const {
@@ -37,6 +38,7 @@ export default function PaymentScreen() {
     getPublicClientForActiveChain,
     activeChain,
   } = useWallet();
+  const { purchase, createPurchaseInput } = useTakumiPayContract();
 
   const { data: blockchains } = useBlockchains();
   const activeBlockchain = useMemo(() => {
@@ -88,7 +90,7 @@ export default function PaymentScreen() {
       console.log("Setting default token:", tokens[0].symbol);
       setSelectedToken(tokens[0]);
     }
-  }, [tokens]);
+  }, [tokens, selectedToken]);
 
   const fetchExchangeRate = useCallback(async () => {
     if (!selectedToken) return;
@@ -160,7 +162,7 @@ export default function PaymentScreen() {
         setSelectedToken(tokens[0]);
       }
     }
-  }, [activeBlockchain?.id, selectedToken?.blockchainId, tokens]);
+  }, [activeBlockchain, selectedToken, tokens]);
 
   const fetchTokenBalance = useCallback(async () => {
     if (!selectedToken || !activeWallet.address) return;
@@ -202,7 +204,6 @@ export default function PaymentScreen() {
   const handleSelectToken = (token: TToken) => {
     setSelectedToken(token);
     setTokenModalVisible(false);
-    // Exchange rate will be refetched automatically due to the useEffect dependency on selectedToken
   };
 
   const formatBalance = (rawBalance: bigint) => {
@@ -222,7 +223,7 @@ export default function PaymentScreen() {
     }
 
     setIsLoading(true);
-    setTransactionStatus("Creating booking...");
+    setTransactionStatus("Submittingg your purchase...");
 
     try {
       const booking = await createBooking({
@@ -238,17 +239,32 @@ export default function PaymentScreen() {
       });
 
       setTransactionStatus("Processing payment request...");
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      const purchaseInput = createPurchaseInput({
+        bookingId: booking.id.toString(),
+        tokenAddress: selectedToken.contractAddress as Address,
+        amount: tokenAmountNeeded,
+        decimals: selectedToken.decimals,
+      });
+
+      setTransactionStatus("Sending transaction...");
+      const result = await purchase(purchaseInput);
+
+      if (!result.success) {
+        throw new Error("Transaction failed");
+      }
 
       setTransactionStatus("Confirming transaction...");
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
       setTransactionStatus("Finalizing purchase...");
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      const txHash = result.txHash;
+      const txHashDisplay = txHash
+        ? `${txHash.substring(0, 6)}...${txHash.substring(txHash.length - 4)}`
+        : "";
 
       Alert.alert(
         "Payment Successful",
-        `You have successfully purchased ${variantData.name} for ${tokenAmountNeeded} ${selectedToken.symbol}. Booking ID: ${booking.id}`,
+        `You have successfully purchased ${variantData.name} for ${tokenAmountNeeded} ${selectedToken.symbol}.\n\nBooking ID: ${booking.id}\nTransaction: ${txHashDisplay}`,
         [{ text: "OK", onPress: () => router.back() }],
       );
     } catch (error) {
@@ -271,6 +287,8 @@ export default function PaymentScreen() {
     activeBlockchain,
     parsedCustomerInfo,
     exchangeRate,
+    purchase,
+    createPurchaseInput,
   ]);
 
   const { isAuthenticated } = useIsAuthenticated();
@@ -327,11 +345,13 @@ export default function PaymentScreen() {
     isLoading,
     isLoadingVariant,
     isLoadingRate,
+    isLoadingTokens,
     activeWallet.address,
     selectedToken,
     activeBlockchain,
     variantData,
     exchangeRate,
+    tokens,
   ]);
 
   return (
