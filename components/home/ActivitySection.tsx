@@ -4,9 +4,9 @@ import { useTransactionSearch } from "@/hooks/queries/useTransactions";
 import { useWallet } from "@/hooks/useWallet";
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
-import { MoveRight, Send, Wallet2 } from "lucide-react-native";
+import { MoveRight, Wallet2 } from "lucide-react-native";
 import React from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Image, Text, TouchableOpacity, View } from "react-native";
 
 export default function ActivitySection() {
   const { activeWallet } = useWallet();
@@ -32,16 +32,16 @@ export default function ActivitySection() {
   );
 
   const purchaseHistoryButton = (payment: TTransaction) => (
-    <TouchableOpacity
-      key={payment.id}
-      activeOpacity={0.7}
-      className="items-center justify-center"
-    >
-      <View className="bg-light-primary-red/10 rounded-xl aspect-square w-20 items-center justify-center">
-        <Send color="#c71c4b" size={35} />
+    <TouchableOpacity activeOpacity={0.7} className="items-center">
+      <View className="rounded-2xl border-2 border-light-matte-black w-16 aspect-square bg-light-main-container items-center justify-center">
+        <Image
+          source={{ uri: payment.purchase?.productVariant.product.imageUrl }}
+          style={{ width: 40, height: 40 }}
+          resizeMode="contain"
+        />
       </View>
-      <Text className="text-light-matte-black text-center text-sm font-bold">
-        Product Name
+      <Text className="text-[10px] text-center text-wrap max-w-16 mt-1">
+        {payment.purchase?.productVariant.name}
       </Text>
     </TouchableOpacity>
   );
