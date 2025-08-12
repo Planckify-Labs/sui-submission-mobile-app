@@ -47,7 +47,7 @@ export default function Home() {
               className="bg-light-primary-red/40 px-10 py-4 rounded-full flex-row items-center gap-2"
             >
               <QrCode size={22} color="#fff" />
-              <Text className="text-light font-bold text-2xl">Scan To Pay</Text>
+              <Text className="text-light font-bold text-xl">Scan To Pay</Text>
             </TouchableOpacity>
           </BlurView>
         </View>
