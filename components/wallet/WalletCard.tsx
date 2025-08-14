@@ -1,9 +1,8 @@
 import Chip from "@/components/common/Chip";
 import type { TWallet } from "@/constants/types/walletTypes";
-import { useWallet } from "@/hooks/useWallet";
 import { Check, Edit3, Wallet as WalletIcon } from "lucide-react-native";
 import React, { memo, useMemo, useState } from "react";
-import { Pressable, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, Text, useWindowDimensions, View } from "react-native";
 import WalletRenameModal from "./WalletRenameModal";
 
 type WalletCardProps = {
@@ -22,15 +21,8 @@ const WalletCard = memo(function WalletCard({
   allowRename = false,
 }: WalletCardProps) {
   const { width } = useWindowDimensions();
-  const { activeChain } = useWallet();
   const isSmallScreen = width < 360;
-  const isVerySmallScreen = width < 320;
   const [showRenameModal, setShowRenameModal] = useState(false);
-
-  const tokenSymbol = useMemo(
-    () => activeChain?.chain.nativeCurrency?.symbol || "ETH",
-    [activeChain],
-  );
 
   const formattedAddress = useMemo(() => {
     if (!wallet.address) return "...";
@@ -85,26 +77,6 @@ const WalletCard = memo(function WalletCard({
         </View>
 
         <View className="items-end">
-          {isVerySmallScreen ? (
-            <>
-              <Text className="text-light-matte-black font-medium text-sm">
-                {wallet.balance}
-              </Text>
-              <Text className="text-light-matte-black/70 text-xs">
-                {tokenSymbol}
-              </Text>
-            </>
-          ) : (
-            <View className="flex-row items-center">
-              <Text className="text-light-matte-black font-medium text-sm">
-                {wallet.balance}
-              </Text>
-              <Text className="text-light-matte-black/70 text-xs ml-1">
-                {tokenSymbol}
-              </Text>
-            </View>
-          )}
-
           {isActive && (
             <View className="mt-1 w-5 h-5 rounded-full bg-light-primary-red/10 items-center justify-center self-end">
               <Check size={12} color="#c71c4b" strokeWidth={3} />
