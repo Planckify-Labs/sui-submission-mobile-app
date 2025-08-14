@@ -152,10 +152,11 @@ export default function ActivitySection() {
       </View>
     );
   }
-  const isTransferHistory = transferHistory?.[0] && paymentHistory?.[0];
+  const isNoTransactionHistory =
+    transferHistory?.[0] === undefined && paymentHistory?.[0] === undefined;
   return (
     <View className="px-4">
-      {isTransferHistory ? (
+      {!isNoTransactionHistory ? (
         <View className="bg-light rounded-[14px] w-full p-[22px] gap-4">
           <View className="flex-row">
             <Text className="text-light-matte-black text-sm">Activities</Text>
@@ -171,7 +172,7 @@ export default function ActivitySection() {
               <MoveRight size={20} color="#c71c4b" />
             </TouchableOpacity>
           </View>
-          {paymentHistory?.[0] && (
+          {paymentHistory?.[0] !== undefined && (
             <View>
               <FlashList
                 data={paymentHistory?.slice(0, 4) || []}
@@ -184,7 +185,7 @@ export default function ActivitySection() {
               />
             </View>
           )}
-          {transferHistory?.[0] && (
+          {transferHistory?.[0] !== undefined && (
             <View>
               <FlashList
                 data={transferHistory?.slice(0, 4) || []}
