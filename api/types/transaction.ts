@@ -11,6 +11,7 @@ export interface TToken {
   contractAddress: string;
   name: string;
   symbol: string;
+  decimals: number;
 }
 
 export interface TProductVariantInPurchase {
