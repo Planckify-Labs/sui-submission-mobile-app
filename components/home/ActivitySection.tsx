@@ -62,7 +62,7 @@ export default function ActivitySection() {
         <View className="bg-light-main-container aspect-square w-6 rounded-full absolute bottom-0 right-0 items-center justify-center">
           <OptimizedImage
             source={{ uri: transfer.token.logoUrl }}
-            style={{ width: 40, height: 40 }}
+            style={{ width: 20, height: 20 }}
             contentFit="contain"
           />
         </View>
