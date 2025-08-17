@@ -59,7 +59,13 @@ export default function ActivitySection() {
           {formatUnits(BigInt(transfer.amount), transfer.token.decimals)}{" "}
           {transfer.token.symbol}
         </Text>
-        <View className="bg-light-main-container aspect-square w-6 rounded-full absolute bottom-0 right-0 items-center justify-center" />
+        <View className="bg-light-main-container aspect-square w-6 rounded-full absolute bottom-0 right-0 items-center justify-center">
+          <OptimizedImage
+            source={{ uri: transfer.token.logoUrl }}
+            style={{ width: 40, height: 40 }}
+            contentFit="contain"
+          />
+        </View>
       </View>
       <Text className="text-light-matte-black text-center text-xs font-bold mt-1">
         {truncateAddress(transfer.recipientAddress)}

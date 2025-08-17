@@ -16,8 +16,10 @@ const TransferCard = React.memo(
     }, []);
 
     const openBlockExplorer = useCallback(() => {
-      openBrowserAsync(`https://sepolia.etherscan.io/tx/${transaction.txHash}`);
-    }, [transaction.txHash]);
+      openBrowserAsync(
+        `${transaction.token.blockchain.blockExplorer}/tx/${transaction.txHash}`,
+      );
+    }, [transaction.txHash, transaction.token.blockchain.blockExplorer]);
 
     return (
       <View className="bg-white rounded-xl shadow-sm w-full p-5 gap-3">

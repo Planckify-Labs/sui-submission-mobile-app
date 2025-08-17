@@ -4,6 +4,7 @@ export type TTransactionStatus = "PENDING" | "COMPLETED" | "FAILED";
 
 export interface TBlockchainInToken {
   name: string;
+  blockExplorer: string;
 }
 
 export interface TToken {
@@ -12,6 +13,7 @@ export interface TToken {
   name: string;
   symbol: string;
   decimals: number;
+  logoUrl: string;
 }
 
 export interface TProductVariantInPurchase {
