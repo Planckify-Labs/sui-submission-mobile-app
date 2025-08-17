@@ -5,6 +5,7 @@ import {
   useProductInputFields,
 } from "@/hooks/queries/useProducts";
 import useRQGlobalState from "@/hooks/useRQGlobalState";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import {
@@ -15,7 +16,7 @@ import {
   ChevronRight,
   Info,
 } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Image,
@@ -78,6 +79,54 @@ export default function ItemWithInput({
   const scrollButtonOpacity = useRef(new Animated.Value(0)).current;
 
   const ITEM_MARGIN = 8;
+
+  const RECENT_NUMBERS_KEY = "recent_numbers";
+  const [recentNumbers, setRecentNumbers] = useState<string[]>([]);
+
+  const loadRecentNumbers = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(RECENT_NUMBERS_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw) as string[];
+        if (Array.isArray(arr)) {
+          setRecentNumbers(arr);
+        }
+      }
+    } catch (_e) {
+      console.error(_e);
+    }
+  }, []);
+
+  const persistRecentNumbers = async (arr: string[]) => {
+    try {
+      await AsyncStorage.setItem(RECENT_NUMBERS_KEY, JSON.stringify(arr));
+    } catch (_e) {
+      console.error(_e);
+    }
+  };
+
+  const upsertRecentNumber = async (value: string) => {
+    const val = (value || "").trim();
+    if (!val) return;
+    const map = new Map<string, true>();
+    [...recentNumbers].reverse().forEach((n) => map.set(n, true));
+    if (map.has(val)) {
+      map.delete(val);
+    }
+    map.set(val, true);
+    while (map.size > 3) {
+      const oldest = map.keys().next().value as string | undefined;
+      if (oldest !== undefined) map.delete(oldest);
+      else break;
+    }
+    const newestFirst = Array.from(map.keys()).reverse();
+    setRecentNumbers(newestFirst);
+    await persistRecentNumbers(newestFirst);
+  };
+
+  useEffect(() => {
+    loadRecentNumbers();
+  }, [loadRecentNumbers]);
 
   useEffect(() => {
     return () => {
@@ -201,6 +250,7 @@ export default function ItemWithInput({
         <View className="bg-light-main-container p-4 rounded-xl flex-row items-center justify-between">
           <View className="flex-1">
             <TextInput
+              value={inputValues[field.key]}
               onChangeText={(value) => handleInputChange(field.key, value)}
               placeholder={`${field.alias.toLowerCase()}`}
               keyboardType={getKeyboardType(field.type)}
@@ -224,8 +274,14 @@ export default function ItemWithInput({
   };
 
   const areAllInputsFilled = () => {
-    if (!inputValues) return false;
-    return Object.values(inputValues).every((value) => !!value);
+    if (!inputFields?.forms || !inputValues) return false;
+
+    if (inputFields.forms.length === 0) return false;
+
+    return inputFields.forms.every((field) => {
+      const val = inputValues[field.key];
+      return typeof val === "string" && val.trim().length > 0;
+    });
   };
 
   const formatCustomerInfo = (inputValues: Record<string, string>) => {
@@ -242,11 +298,17 @@ export default function ItemWithInput({
         key={variant.id}
         style={{ marginVertical: ITEM_MARGIN }}
         className="bg-light-main-container border border-light-matte-black/10 rounded-xl p-4"
-        onPress={() => {
+        onPress={async () => {
           if (
             inputValues &&
             Object.values(inputValues).every((value) => !!value)
           ) {
+            const textField = inputFields?.forms.find(
+              (f) => f.type.toLowerCase() !== "option",
+            );
+            if (textField) {
+              await upsertRecentNumber(inputValues[textField.key]);
+            }
             const customerInfo = formatCustomerInfo(inputValues);
             const params = {
               variantId: variant.id,
@@ -402,28 +464,28 @@ export default function ItemWithInput({
               (field) => field.type.toLowerCase() !== "option",
             ) && (
               <>
-                <View className="bg-light-primary-red/10 p-4 mx-5 rounded-xl mb-6">
+                <View className="bg-light-primary-red/10 p-4 mx-5 rounded-xl mb-6 hidden">
                   <View className="flex-row items-center gap-2">
                     <Info size={18} color="#c71c4b" className="mr-2" />
                     <Text className="text-light-matte-black/80 text-sm flex-1">
-                      Have a postpaid number? Click here
+                      Need help? Click here
                     </Text>
                     <ChevronRight size={16} color="#c71c4b" />
                   </View>
                 </View>
 
-                <View>
-                  <Text className="text-light-matte-black/70 mx-5 mb-3">
-                    Recently used numbers
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    className="mb-2"
-                  >
-                    <View className="mx-5 flex-row gap-2">
-                      {["085930970697", "088975163714", "081234567890"].map(
-                        (number) => (
+                {product?.category?.name === "Pulsa & Data Package" && (
+                  <View>
+                    <Text className="text-light-matte-black/70 mx-5 mb-3">
+                      Recently used numbers
+                    </Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      className="mb-2"
+                    >
+                      <View className="mx-5 flex-row gap-2">
+                        {recentNumbers.map((number) => (
                           <TouchableOpacity
                             key={number}
                             className="bg-light-main-container border border-light-matte-black/10 rounded-xl p-3 mr-3"
@@ -441,11 +503,11 @@ export default function ItemWithInput({
                               {number}
                             </Text>
                           </TouchableOpacity>
-                        ),
-                      )}
-                    </View>
-                  </ScrollView>
-                </View>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </View>
+                )}
               </>
             )}
           </View>
