@@ -11,13 +11,16 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "jsEngine": "hermes"
+      "jsEngine": "hermes",
+      "icon": {
+        "light": "./assets/icons/light.png",
+        "dark": "./assets/icons/dark.png"
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/takumipay-logo.png",
-        "backgroundColor": "#ffffff",
-        "roundIconImage": "./assets/images/takumipay-logo.png"
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
       },
       "jsEngine": "hermes",
       "edgeToEdgeEnabled": true,
@@ -41,6 +44,22 @@
           "imageWidth": 100,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#ffffff",
+          "image": "./assets/images/splash-icon-light.png",
+          "dark": {
+            "image": "./assets/images/splash-icon-dark.png",
+            "backgroundColor": "#000000"
+          },
+          "light": {
+            "image": "./assets/images/splash-icon-light.png",
+            "backgroundColor": "#ffffff"
+          },
+          "imageWidth": 200
         }
       ],
       "expo-secure-store"
