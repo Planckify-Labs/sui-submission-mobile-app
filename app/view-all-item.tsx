@@ -16,22 +16,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type THeaderItem = {
-  type: "header";
-  title: string;
-};
-
-type TSearchBarItem = {
-  type: "searchBar";
-  searchQuery: string;
-  setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
-};
-
-type TItemsItem = {
-  type: "items";
-  products: TProduct[];
-};
-
 const SkeletonItem = () => (
   <View className="items-center justify-center p-1">
     <SingleLoadingSekeleton
