@@ -1,13 +1,14 @@
 import { useNonce } from "@/hooks/queries/useAuth";
 import useRQGlobalState from "@/hooks/useRQGlobalState";
 import { useWallet } from "@/hooks/useWallet";
-import { Check, Clock } from "lucide-react-native";
+import { Check, Clock, ShieldAlert } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Modal,
   PanResponder,
   Pressable,
+  ScrollView,
   Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
@@ -19,6 +20,8 @@ interface TSignMessageModalProps {
   onClose: () => void;
   onConfirm: (rememberChoice: boolean) => void;
   message?: string;
+  isDappRequest?: boolean;
+  dappDomain?: string;
 }
 
 interface TNonceData {
@@ -30,6 +33,8 @@ const SignMessageModal: React.FC<TSignMessageModalProps> = ({
   onClose,
   onConfirm,
   message: propMessage,
+  isDappRequest = false,
+  dappDomain,
 }) => {
   const [rememberChoice, setRememberChoice] = useState(false);
   const [timeLeft, setTimeLeft] = useState(300);
@@ -231,27 +236,29 @@ const SignMessageModal: React.FC<TSignMessageModalProps> = ({
               <Text className="text-light-matte-black text-xl font-bold">
                 Signing Statement
               </Text>
-              <View className="flex-row items-center">
-                <View
-                  className={`flex-row items-center mr-3 px-3 py-1 rounded-full ${timeLeft < 60 ? "bg-light-primary-red/10" : "bg-light-main-container"}`}
-                >
-                  <Clock
-                    size={16}
-                    color={timeLeft < 60 ? "#c71c4b" : "#20222c"}
-                  />
-                  <Text
-                    className={`ml-1 ${timeLeft < 60 ? "text-light-primary-red" : "text-light-matte-black"}`}
+              {!isDappRequest && (
+                <View className="flex-row items-center">
+                  <View
+                    className={`flex-row items-center mr-3 px-3 py-1 rounded-full ${timeLeft < 60 ? "bg-light-primary-red/10" : "bg-light-main-container"}`}
                   >
-                    {formatTime(timeLeft)}
-                  </Text>
+                    <Clock
+                      size={16}
+                      color={timeLeft < 60 ? "#c71c4b" : "#20222c"}
+                    />
+                    <Text
+                      className={`ml-1 ${timeLeft < 60 ? "text-light-primary-red" : "text-light-matte-black"}`}
+                    >
+                      {formatTime(timeLeft)}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={animateCloseModal}
+                    className="bg-light-main-container p-2 rounded-full"
+                  >
+                    <Text className="text-light-primary-red font-bold">✕</Text>
+                  </Pressable>
                 </View>
-                <Pressable
-                  onPress={animateCloseModal}
-                  className="bg-light-main-container p-2 rounded-full"
-                >
-                  <Text className="text-light-primary-red font-bold">✕</Text>
-                </Pressable>
-              </View>
+              )}
             </View>
 
             <View className="bg-white rounded-3xl p-6 shadow-sm mb-5">
@@ -260,25 +267,32 @@ const SignMessageModal: React.FC<TSignMessageModalProps> = ({
               </Text>
 
               <View className="bg-light-main-container p-4 rounded-xl mb-6">
-                <Text className="text-light-matte-black font-medium">
-                  {displayMessage}
-                </Text>
-              </View>
-
-              <Text className="text-light-matte-black/70 mb-6">
-                Signing this message proves ownership of your wallet address.
-                This is a secure operation that does not cost any gas fees.
-              </Text>
-
-              {timeLeft < 60 && (
-                <View className="bg-light-primary-red/10 p-3 rounded-lg mb-6">
-                  <Text className="text-light-primary-red text-center">
-                    This authentication request will expire soon. Please
-                    complete the process quickly.
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  className="max-h-96"
+                >
+                  <Text className="text-light-matte-black font-medium">
+                    {displayMessage}
                   </Text>
-                </View>
+                </ScrollView>
+              </View>
+              {!isDappRequest && (
+                <>
+                  <Text className="text-light-matte-black/70 mb-6">
+                    Signing this message proves ownership of your wallet
+                    address. This is a secure operation that does not cost any
+                    gas fees.
+                  </Text>
+                  {timeLeft < 60 && (
+                    <View className="bg-light-primary-red/10 p-3 rounded-lg mb-6">
+                      <Text className="text-light-primary-red text-center">
+                        This authentication request will expire soon. Please
+                        complete the process quickly.
+                      </Text>
+                    </View>
+                  )}
+                </>
               )}
-
               <TouchableOpacity
                 className="flex-row items-center mb-4 hidden"
                 onPress={() => setRememberChoice(!rememberChoice)}
@@ -294,6 +308,31 @@ const SignMessageModal: React.FC<TSignMessageModalProps> = ({
               </TouchableOpacity>
             </View>
 
+            {isDappRequest && (
+              <View className="mb-4">
+                <View className="flex-row items-start gap-4">
+                  <View className="mt-0.5 w-11 h-11 bg-gradient-to-br from-amber-100 to-orange-100 border border-amber-200/30 justify-center items-center rounded-xl shadow-sm">
+                    <ShieldAlert size={20} color="#d97706" strokeWidth={2.5} />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-amber-800/90 text-sm font-medium">
+                      Only sign messages from trusted domains. Malicious
+                      signatures can compromise your wallet security and funds.
+                    </Text>
+                    {dappDomain && (
+                      <View className="mt-3 bg-white/60 border hidden- border-amber-200/40 rounded-lg flex-row items-center justify-center px-3 py-2">
+                        <Text className="text-amber-700 text-xs font-semibold uppercase tracking-wider mb-1">
+                          Requesting Domain:{" "}
+                        </Text>
+                        <Text className="text-amber-900 text-sm font-mono font-semibold">
+                          {dappDomain}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+            )}
             <View className="flex-row gap-4">
               <Pressable
                 className="flex-1 bg-light-main-container py-4 rounded-xl items-center"

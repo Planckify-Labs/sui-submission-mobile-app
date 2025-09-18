@@ -1,5 +1,5 @@
 import { TWallet } from "@/constants/types/walletTypes";
-import { Check } from "lucide-react-native";
+import { Check, Wallet } from "lucide-react-native";
 import React, { memo, useCallback, useEffect, useRef } from "react";
 import {
   Animated,
@@ -25,6 +25,10 @@ type WalletSelectorModalProps = {
   title?: string;
   disabledWalletIndex?: number;
   disabledLabel?: string;
+  dappUrl?: string;
+  isDappConnection?: boolean;
+  onSelectWalletForDapp?: (wallet: TWallet, index: number) => void;
+  onDeclineConnection?: () => void;
 };
 
 const WalletSelectorModal = memo(function WalletSelectorModal({
@@ -36,6 +40,10 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
   title = "Select Wallet",
   disabledWalletIndex,
   disabledLabel = "Current wallet",
+  dappUrl,
+  isDappConnection = false,
+  onSelectWalletForDapp,
+  onDeclineConnection,
 }: WalletSelectorModalProps) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
@@ -70,9 +78,12 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
         useNativeDriver: true,
       }),
     ]).start(() => {
+      if (isDappConnection && onDeclineConnection) {
+        onDeclineConnection();
+      }
       onClose();
     });
-  }, [fadeAnim, translateY, onClose]);
+  }, [fadeAnim, translateY, onClose, isDappConnection, onDeclineConnection]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -91,7 +102,12 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
             toValue: MODAL_HEIGHT,
             duration: 200,
             useNativeDriver: true,
-          }).start(() => closeModal());
+          }).start(() => {
+            if (isDappConnection && onDeclineConnection) {
+              onDeclineConnection();
+            }
+            closeModal();
+          });
         } else {
           Animated.spring(translateY, {
             toValue: 0,
@@ -102,6 +118,29 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
       },
     }),
   ).current;
+
+  const getDomainFromUrl = useCallback((url: string) => {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return url;
+    }
+  }, []);
+
+  const formatAddress = useCallback((address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  }, []);
+
+  const handleWalletSelection = useCallback(
+    (wallet: TWallet, index: number) => {
+      if (isDappConnection && onSelectWalletForDapp) {
+        onSelectWalletForDapp(wallet, index);
+      } else {
+        onSelectWallet(index);
+      }
+    },
+    [isDappConnection, onSelectWalletForDapp, onSelectWallet],
+  );
 
   const renderWalletItem = useCallback(
     (wallet: TWallet, index: number) => {
@@ -114,7 +153,7 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
           className={`flex-row items-center p-4 mb-2 rounded-xl ${
             isActive ? "bg-light-primary-red/10" : "bg-light-main-container"
           }`}
-          onPress={() => onSelectWallet(index)}
+          onPress={() => handleWalletSelection(wallet, index)}
           disabled={isDisabled}
         >
           <View className="flex-1">
@@ -134,8 +173,9 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
                   : "text-light-matte-black/70"
               }`}
             >
-              {wallet.address.substring(0, 6)}...
-              {wallet.address.substring(wallet.address.length - 4)}
+              {isDappConnection
+                ? formatAddress(wallet.address)
+                : `${wallet.address.substring(0, 6)}...${wallet.address.substring(wallet.address.length - 4)}`}
             </Text>
           </View>
 
@@ -153,7 +193,14 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
         </Pressable>
       );
     },
-    [activeWalletIndex, disabledWalletIndex, disabledLabel, onSelectWallet],
+    [
+      activeWalletIndex,
+      disabledWalletIndex,
+      disabledLabel,
+      handleWalletSelection,
+      isDappConnection,
+      formatAddress,
+    ],
   );
 
   if (!visible) return null;
@@ -192,22 +239,69 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
           </View>
 
           <View className="px-6 flex-1">
-            <Text className="text-light-matte-black text-xl font-bold mb-4">
-              {title}
-            </Text>
+            {isDappConnection && dappUrl ? (
+              <View className="mb-4">
+                <View className="flex-row items-center gap-3 mb-2">
+                  <View className="w-8 h-8 bg-light-primary-red/10 rounded-full items-center justify-center">
+                    <Wallet size={16} color="#c71c4b" />
+                  </View>
+                  <Text className="text-light-matte-black text-xl font-bold">
+                    Connect Wallet
+                  </Text>
+                </View>
+                <Text className="text-light-matte-black/70 text-sm mb-1">
+                  {getDomainFromUrl(dappUrl)} wants to connect
+                </Text>
+                <Text className="text-light-matte-black/60 text-xs">
+                  Select a wallet to connect to this DApp
+                </Text>
+              </View>
+            ) : (
+              <Text className="text-light-matte-black text-xl font-bold mb-4">
+                {title}
+              </Text>
+            )}
 
             <ScrollView className="flex-1">
-              {wallets.map((wallet, index) => renderWalletItem(wallet, index))}
+              {wallets.length === 0 ? (
+                <View className="py-8 items-center">
+                  <Text className="text-light-matte-black/60 text-center">
+                    No wallets available. Please create or import a wallet
+                    first.
+                  </Text>
+                </View>
+              ) : (
+                wallets.map((wallet, index) => renderWalletItem(wallet, index))
+              )}
             </ScrollView>
 
-            <Pressable
-              className="bg-light-main-container p-4 rounded-xl my-4"
-              onPress={closeModal}
-            >
-              <Text className="text-light-matte-black font-bold text-center">
-                Close
-              </Text>
-            </Pressable>
+            {isDappConnection ? (
+              <View className="my-4">
+                <View className="bg-light-main-container/50 p-3 rounded-xl mb-4">
+                  <Text className="text-light-matte-black/60 text-xs text-center">
+                    Only connect to websites you trust. TakumiPay will never ask
+                    for your private keys or seed phrase.
+                  </Text>
+                </View>
+                <Pressable
+                  className="bg-light-main-container p-4 rounded-xl"
+                  onPress={closeModal}
+                >
+                  <Text className="text-light-matte-black font-bold text-center">
+                    Cancel
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                className="bg-light-main-container p-4 rounded-xl my-4"
+                onPress={closeModal}
+              >
+                <Text className="text-light-matte-black font-bold text-center">
+                  Close
+                </Text>
+              </Pressable>
+            )}
           </View>
         </Animated.View>
       </View>

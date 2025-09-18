@@ -285,7 +285,7 @@ export default function BalanceSection() {
                 <TouchableOpacity
                   activeOpacity={0.7}
                   className="items-center"
-                  onPress={() => alert("will navigate to dApps browser")}
+                  onPress={() => router.push("/dapps-browser")}
                 >
                   <View className="bg-light-matte-black- rounded-full items-center justify-center w-12 h-12 mb-1">
                     <Image
