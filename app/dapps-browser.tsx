@@ -389,14 +389,13 @@ export default function DappsBrowser() {
   }, [isAddressBarAutoFocus]);
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <StatusBar barStyle="dark-content" backgroundColor="white" />
+      <StatusBar barStyle="dark-content" backgroundColor="#f5f6f9" />
 
       <View className="flex-1">
         <BrowserAddressBar
           addressBarText={addressBarText}
           onChangeText={setAddressBarText}
           onSubmitEditing={handleAddressSubmit}
-          onGoBack={handleGoBack}
           addressBarRef={addressBarRef}
         />
 

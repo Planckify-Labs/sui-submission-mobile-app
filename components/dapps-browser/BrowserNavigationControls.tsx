@@ -1,4 +1,3 @@
-import { BlurView } from "expo-blur";
 import {
   ArrowLeft,
   ArrowRight,
@@ -32,63 +31,60 @@ export default function BrowserNavigationControls({
   onHome,
 }: BrowserNavigationControlsProps) {
   return (
-    <View className="justify-center">
-      <BlurView
-        intensity={20}
-        experimentalBlurMethod="dimezisBlurView"
-        className="px-2"
+    <View className="flex-row gap-3 px-4 py-2 bg-light-main-container items-center justify-center">
+      <TouchableOpacity
+        onPress={onGoBack}
+        disabled={!browserState.canGoBack}
+        activeOpacity={0.7}
+        className={`w-12 h-12 rounded-2xl items-center justify-center ${
+          browserState.canGoBack ? "bg-light" : "bg-light opacity-50"
+        }`}
       >
-        <View className="p-2">
-          <View className="flex-row items-center justify-between gap-2">
-            <TouchableOpacity
-              onPress={onGoBack}
-              disabled={!browserState.canGoBack}
-              className={`p-3 rounded-full ${
-                browserState.canGoBack ? "bg-white/20" : "bg-gray-500/10"
-              }`}
-            >
-              <ArrowLeft
-                size={20}
-                color={browserState.canGoBack ? "#374151" : "#9CA3AF"}
-              />
-            </TouchableOpacity>
+        <ArrowLeft
+          size={20}
+          color={browserState.canGoBack ? "#c71c4b" : "#9CA3AF"}
+          strokeWidth={2}
+        />
+      </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={onGoForward}
-              disabled={!browserState.canGoForward}
-              className={`p-3 rounded-full ${
-                browserState.canGoForward ? "bg-white/20" : "bg-gray-500/10"
-              }`}
-            >
-              <ArrowRight
-                size={20}
-                color={browserState.canGoForward ? "#374151" : "#9CA3AF"}
-              />
-            </TouchableOpacity>
+      <TouchableOpacity
+        onPress={onGoForward}
+        disabled={!browserState.canGoForward}
+        activeOpacity={0.7}
+        className={`w-12 h-12 rounded-2xl items-center justify-center ${
+          browserState.canGoForward ? "bg-light" : "bg-light opacity-50"
+        }`}
+      >
+        <ArrowRight
+          size={20}
+          color={browserState.canGoForward ? "#c71c4b" : "#9CA3AF"}
+          strokeWidth={2}
+        />
+      </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={onSearch}
-              className="p-3 rounded-full bg-white/20"
-            >
-              <Search size={20} color="#374151" />
-            </TouchableOpacity>
+      <TouchableOpacity
+        onPress={onRefresh}
+        activeOpacity={0.7}
+        className="w-12 h-12 bg-light rounded-2xl items-center justify-center"
+      >
+        <RotateCcw size={20} color="#c71c4b" strokeWidth={2} />
+      </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={onRefresh}
-              className="p-3 rounded-full bg-white/20"
-            >
-              <RotateCcw size={20} color="#374151" />
-            </TouchableOpacity>
+      <TouchableOpacity
+        onPress={onSearch}
+        activeOpacity={0.7}
+        className="w-12 h-12 bg-light rounded-2xl items-center justify-center"
+      >
+        <Search size={20} color="#c71c4b" strokeWidth={2} />
+      </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={onHome}
-              className="p-3 rounded-full bg-white/20"
-            >
-              <Home size={20} color="#374151" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </BlurView>
+      <TouchableOpacity
+        onPress={onHome}
+        activeOpacity={0.7}
+        className="w-12 h-12 bg-light rounded-2xl items-center justify-center"
+      >
+        <Home size={20} color="#c71c4b" strokeWidth={2} />
+      </TouchableOpacity>
     </View>
   );
 }
