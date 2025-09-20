@@ -35,7 +35,14 @@ export default function ActivitySection() {
   );
 
   const purchaseHistoryButton = (payment: TTransaction) => (
-    <TouchableOpacity activeOpacity={0.7} className="items-center">
+    <TouchableOpacity activeOpacity={0.7} className="items-center"
+    onPress={() => router.push({
+      pathname:"/activity-detail",
+      params:{
+        purchaseId: payment.purchase?.id
+      }
+    })}
+    >
       <View className="rounded-2xl border-2 p-0 border-light-matte-black w-16 aspect-square overflow-hidden bg-light-main-container">
         <OptimizedImage
           source={{ uri: payment.purchase?.productVariant.product.imageUrl }}
@@ -53,6 +60,12 @@ export default function ActivitySection() {
     <TouchableOpacity
       activeOpacity={0.7}
       className="justify-center items-center"
+      onPress={() => router.push({
+        pathname:"/activity-detail",
+        params:{
+          transferId: transfer.id
+        }
+      })}
     >
       <View className="aspect-square w-full max-w-[70px] relative bg-light-primary-red/10 rounded-full items-center justify-center p-3">
         <Text className="text-light-matte-black font-bold text-xs">
