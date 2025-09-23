@@ -1,10 +1,10 @@
 import { ArrowUpRight } from "lucide-react-native";
 import React from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
-import { TDApp } from "@/constants/dummyData/ecosystemList";
+import { TDapp } from "@/api/types/dapp";
 
 interface DAppCardProps {
-  dapp: TDApp;
+  dapp: TDapp;
   isCompact?: boolean;
   onPress: (url: string) => void;
 }
@@ -17,8 +17,8 @@ export default function DAppCard({
   return (
     <TouchableOpacity
       activeOpacity={0.7}
-      onPress={() => onPress(dapp.url)}
-      className={`bg-white rounded-2xl p-4 border border-gray-100 min-w-[170px]`}
+      onPress={() => onPress(dapp.websiteUrl)}
+      className={`bg-white rounded-2xl p-4 border border-gray-100 flex-1`}
     >
       <View className="flex-row items-center mb-2">
         <View className="w-10 h-10 rounded-full bg-light-main-container items-center justify-center mr-3">
@@ -44,7 +44,7 @@ export default function DAppCard({
       </View>
       <Text
         className="text-light-matte-black/60 text-xs leading-4 text-ellipsis"
-        numberOfLines={isCompact ? 2 : 3}
+        numberOfLines={isCompact ? 1 : 3}
       >
         {dapp.description}
       </Text>

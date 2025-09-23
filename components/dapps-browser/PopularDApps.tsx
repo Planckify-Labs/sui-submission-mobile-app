@@ -1,23 +1,58 @@
 import React from "react";
-import { ScrollView, Text, View } from "react-native";
-import { getWeb3EcosystemCategories } from "@/constants/dummyData/ecosystemList";
+import { FlatList, Text, View } from "react-native";
+import { usePopularDapps } from "@/hooks/queries/useDapps";
 import DAppCard from "./DAppCard";
+import DAppCardSkeleton from "./DAppCardSkeleton";
+import DappsErrorMessage from "./DappsErrorMessage";
 
 interface PopularDAppsProps {
   onNavigateToDapp: (url: string) => void;
 }
 
 export default function PopularDApps({ onNavigateToDapp }: PopularDAppsProps) {
-  const allCategories = getWeb3EcosystemCategories();
+  const { data: popularDapps, isLoading, error, refetch } = usePopularDapps();
 
-  const mainCategories = allCategories.filter((category) =>
-    ["defi", "dex", "gaming"].includes(category.id),
-  );
+  const cardWidth = 200;
 
-  const popularDapps = mainCategories
-    .flatMap((category) => category.dapps)
-    .filter((dapp) => dapp.isPopular)
-    .slice(0, 6);
+  const renderLoadingSkeletons = () =>
+    Array.from({ length: 6 }, (_, index) => ({ id: `skeleton-${index}` }));
+
+  const renderItem = ({ item }: { item: any }) => {
+    if (item.id?.startsWith("skeleton-")) {
+      return (
+        <View style={{ width: cardWidth }}>
+          <DAppCardSkeleton />
+        </View>
+      );
+    }
+
+    return (
+      <View style={{ width: cardWidth }}>
+        <View style={{ width: "100%" }}>
+          <DAppCard dapp={item} isCompact={true} onPress={onNavigateToDapp} />
+        </View>
+      </View>
+    );
+  };
+
+  if (error) {
+    return (
+      <View className="mb-6">
+        <View className="px-4 mb-4">
+          <Text className="text-light-matte-black font-bold text-lg">
+            🔥 Popular DApps
+          </Text>
+          <Text className="text-light-matte-black/60 text-sm">
+            Most loved applications across all categories
+          </Text>
+        </View>
+        <DappsErrorMessage
+          onRetry={refetch}
+          message="Can't load popular DApps right now"
+        />
+      </View>
+    );
+  }
 
   return (
     <View className="mb-6">
@@ -29,23 +64,16 @@ export default function PopularDApps({ onNavigateToDapp }: PopularDAppsProps) {
           Most loved applications across all categories
         </Text>
       </View>
-      <ScrollView
+      <FlatList
+        data={isLoading ? renderLoadingSkeletons() : popularDapps}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16 }}
-      >
-        <View className="flex-row gap-4">
-          {popularDapps.map((dapp) => (
-            <View key={dapp.id}>
-              <DAppCard
-                dapp={dapp}
-                isCompact={true}
-                onPress={onNavigateToDapp}
-              />
-            </View>
-          ))}
-        </View>
-      </ScrollView>
+        ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
+        numColumns={1}
+      />
     </View>
   );
 }
