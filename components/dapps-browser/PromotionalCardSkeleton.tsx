@@ -1,6 +1,6 @@
 import React from "react";
 import { Dimensions, View } from "react-native";
-import SingleLoadingSekeleton from "@/components/common/SingleLoadingSekeleton";
+import SingleLoadingSekeleton from "../common/SingleLoadingSekeleton";
 
 const { width: screenWidth } = Dimensions.get("window");
 const PROMO_CARD_WIDTH = screenWidth * 0.85;
