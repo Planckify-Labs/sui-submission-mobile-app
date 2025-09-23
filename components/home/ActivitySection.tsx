@@ -69,7 +69,17 @@ export default function ActivitySection() {
     >
       <View className="aspect-square w-full max-w-[70px] relative bg-light-primary-red/10 rounded-full items-center justify-center p-3">
         <Text className="text-light-matte-black font-bold text-xs">
-          {formatUnits(BigInt(transfer.amount), transfer.token.decimals)}{" "}
+          {(() => {
+            try {
+              // Clean the amount string and convert to BigInt
+              const cleanAmount = transfer.amount.replace(/[^0-9]/g, '');
+              if (!cleanAmount || cleanAmount === '0') return '0';
+              return formatUnits(BigInt(cleanAmount), transfer.token.decimals);
+            } catch (error) {
+              console.warn('Error formatting transfer amount:', error);
+              return '0';
+            }
+          })()}{" "}
           {transfer.token.symbol}
         </Text>
         <View className="bg-light-main-container aspect-square w-6 rounded-full absolute bottom-0 right-0 items-center justify-center">
