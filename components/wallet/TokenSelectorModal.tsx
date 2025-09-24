@@ -8,7 +8,6 @@ import React, {
   useState,
 } from "react";
 import {
-  ActivityIndicator,
   Animated,
   Image,
   Modal,
@@ -23,7 +22,6 @@ import {
   ViewStyle,
 } from "react-native";
 import { TToken } from "@/api/types/token";
-import { useTokens } from "@/hooks/queries/useTokens";
 
 interface TokenSelectorModalProps {
   visible: boolean;
@@ -32,8 +30,7 @@ interface TokenSelectorModalProps {
   onSelectToken: (token: TToken) => void;
   title?: string;
   panResponder?: any;
-  stablecoinsOnly?: boolean;
-  blockchainId?: string;
+  tokens: TToken[];
 }
 
 const TokenSelectorModal = memo(function TokenSelectorModal({
@@ -43,22 +40,12 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
   onSelectToken,
   title = "Select Token",
   panResponder: externalPanResponder,
-  stablecoinsOnly = false,
-  blockchainId,
+  tokens,
 }: TokenSelectorModalProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(300)).current;
 
-  const {
-    data: tokens,
-    isLoading,
-    error,
-  } = useTokens({
-    blockchainId,
-    isStablecoin: stablecoinsOnly ? true : undefined,
-    isActive: true,
-  });
 
   const filteredTokens = useMemo(() => {
     if (!tokens) return [];
@@ -311,27 +298,12 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
                 keyboardShouldPersistTaps="handled"
               >
                 <View className="pb-4">
-                  {isLoading ? (
-                    <View className="items-center justify-center py-8">
-                      <ActivityIndicator color="#c71c4b" />
-                      <Text className="text-light-matte-black/60 mt-2">
-                        Loading tokens...
-                      </Text>
-                    </View>
-                  ) : error ? (
-                    <View className="items-center justify-center py-8">
-                      <Text className="text-light-primary-red text-center">
-                        Error loading tokens. Please try again.
-                      </Text>
-                    </View>
-                  ) : filteredTokens.length === 0 ? (
+                  {filteredTokens.length === 0 ? (
                     <View className="items-center justify-center py-8">
                       <Text className="text-light-matte-black/60 text-center">
                         {searchQuery
                           ? "No tokens found matching your search"
-                          : stablecoinsOnly
-                            ? "No stablecoins available for this blockchain"
-                            : "No tokens available"}
+                          : "No tokens available"}
                       </Text>
                     </View>
                   ) : (

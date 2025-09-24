@@ -797,15 +797,14 @@ export default function PaymentScreen() {
           onSelectWallet={handleSelectWallet}
           title="Select Wallet"
         />
-        {selectedToken && (
+        {selectedToken && tokens && (
           <TokenSelectorModal
             visible={tokenModalVisible}
             onClose={() => setTokenModalVisible(false)}
+            tokens={tokens}
             selectedToken={selectedToken}
             onSelectToken={handleSelectToken}
             title="Select Payment Token"
-            stablecoinsOnly={true}
-            blockchainId={activeBlockchain?.id}
           />
         )}
 

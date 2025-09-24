@@ -54,9 +54,8 @@ export default function SendScreen() {
     () => blockchains?.find((b) => b.chainId === activeChain.chain.id) || null,
     [blockchains, activeChain.chain.id],
   );
-  const { data: nativeTokens } = useTokens({
+  const { data: tokenList } = useTokens({
     blockchainId: activeBackendChain?.id,
-    isNativeCurrency: true,
   });
 
   const [recipient, setRecipient] = useState("");
@@ -126,30 +125,30 @@ export default function SendScreen() {
     if (recipientAddress) {
       setRecipient(recipientAddress as string);
     }
-    if (!selectedToken && nativeTokens && nativeTokens.length > 0) {
-      setSelectedToken(nativeTokens[0]);
+    if (!selectedToken && tokenList && tokenList.length > 0) {
+      setSelectedToken(tokenList[0]);
     }
-  }, [fetchBalance, recipientAddress, nativeTokens, selectedToken]);
+  }, [fetchBalance, recipientAddress, tokenList, selectedToken]);
 
   useEffect(() => {
     const backendId = activeBackendChain?.id;
     if (!backendId) return;
 
     if (!selectedToken) {
-      if (nativeTokens && nativeTokens.length > 0) {
-        setSelectedToken(nativeTokens[0]);
+      if (tokenList && tokenList.length > 0) {
+        setSelectedToken(tokenList[0]);
       }
       return;
     }
 
     if (selectedToken.blockchainId !== backendId) {
-      if (nativeTokens && nativeTokens.length > 0) {
-        setSelectedToken(nativeTokens[0]);
+      if (tokenList && tokenList.length > 0) {
+        setSelectedToken(tokenList[0]);
       } else {
         setSelectedToken(undefined);
       }
     }
-  }, [activeBackendChain?.id, selectedToken?.blockchainId, nativeTokens]);
+  }, [activeBackendChain?.id, selectedToken?.blockchainId, tokenList]);
 
   useEffect(() => {
     const fetchTokenBal = async () => {
@@ -345,7 +344,7 @@ export default function SendScreen() {
                 toAddress: recipient,
               } as any);
             } else {
-              const nativeTokenId = nativeTokens?.[0]?.id;
+              const nativeTokenId = tokenList?.[0]?.id;
               if (nativeTokenId) {
                 await createTransaction({
                   tokenId: nativeTokenId,
@@ -635,14 +634,16 @@ export default function SendScreen() {
         title="Confirm Transaction"
       />
 
-      <TokenSelectorModal
-        visible={tokenModalVisible}
-        onClose={() => setTokenModalVisible(false)}
-        selectedToken={selectedToken}
-        onSelectToken={(t) => setSelectedToken(t)}
-        title="Select Token"
-        blockchainId={activeBackendChain?.id}
-      />
+      {tokenList && (
+        <TokenSelectorModal
+          visible={tokenModalVisible}
+          tokens={tokenList}
+          onClose={() => setTokenModalVisible(false)}
+          selectedToken={selectedToken}
+          onSelectToken={(t) => setSelectedToken(t)}
+          title="Select Token"
+        />
+      )}
     </>
   );
 }

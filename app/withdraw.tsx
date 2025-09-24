@@ -12,10 +12,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { formatUnits } from "viem";
+import { TToken } from "@/api/types/token";
 import ChainSelector from "@/components/common/ChainSelector";
 import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import TokenSelectorModal from "@/components/wallet/TokenSelectorModal";
 import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
+import { useBlockchains } from "@/hooks/queries/useBlockchains";
+import { useTokens } from "@/hooks/queries/useTokens";
 import { useWallet } from "@/hooks/useWallet";
 
 const PAYMENT_PLATFORMS = [
@@ -27,14 +30,6 @@ const PAYMENT_PLATFORMS = [
 
 const QUICK_AMOUNTS = ["10", "50", "100", "250", "500"];
 
-const SUPPORTED_TOKENS = [
-  { symbol: "ETH", name: "Ethereum" },
-  { symbol: "USDT", name: "Tether USD" },
-  { symbol: "USDC", name: "USD Coin" },
-  { symbol: "LINK", name: "Chainlink" },
-  { symbol: "DAI", name: "Dai Stablecoin" },
-];
-
 export default function Withdraw() {
   const {
     wallets,
@@ -42,7 +37,20 @@ export default function Withdraw() {
     activeWalletIndex,
     setActiveWallet,
     getPublicClientForActiveChain,
+    activeChain,
   } = useWallet();
+  const { data: blockchains } = useBlockchains();
+
+  const activeBackendChain = React.useMemo(
+    () => blockchains?.find((b) => b.chainId === activeChain.chain.id) || null,
+    [blockchains, activeChain.chain.id],
+  );
+
+  const { data: stablecoinTokens } = useTokens({
+    isStablecoin: true,
+    isActive: true,
+    blockchainId: activeBackendChain?.id,
+  });
 
   const [selectedPlatform, setSelectedPlatform] = useState(
     PAYMENT_PLATFORMS[0],
@@ -54,7 +62,7 @@ export default function Withdraw() {
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [tokenModalVisible, setTokenModalVisible] = useState(false);
   const [isLoadingBalance, setIsLoadingBalance] = useState(true);
-  const [selectedToken, setSelectedToken] = useState(SUPPORTED_TOKENS[0]);
+  const [selectedToken, setSelectedToken] = useState<TToken>();
   const [transactionStatus, setTransactionStatus] = useState("");
 
   useEffect(() => {
@@ -82,12 +90,28 @@ export default function Withdraw() {
     fetchBalance();
   }, [activeWallet, getPublicClientForActiveChain]);
 
+  // Automatically select the first available token when tokens change or chain changes
+  useEffect(() => {
+    if (stablecoinTokens && stablecoinTokens.length > 0) {
+      // Reset selected token when chain changes or when tokens first load
+      if (
+        !selectedToken ||
+        !stablecoinTokens.some((token) => token.id === selectedToken.id)
+      ) {
+        setSelectedToken(stablecoinTokens[0]);
+      }
+    } else {
+      // Clear selected token if no tokens available for current chain
+      setSelectedToken(undefined);
+    }
+  }, [stablecoinTokens, activeChain?.chain?.id]);
+
   const handleSelectWallet = (index: number) => {
     setActiveWallet(index);
     setWalletModalVisible(false);
   };
 
-  const handleSelectToken = (token: (typeof SUPPORTED_TOKENS)[0]) => {
+  const handleSelectToken = (token: TToken) => {
     setSelectedToken(token);
     setTokenModalVisible(false);
   };
@@ -149,7 +173,7 @@ export default function Withdraw() {
 
       Alert.alert(
         "Withdrawal Successful",
-        `You have successfully withdrawn ${amount} ${selectedToken.symbol} to ${selectedPlatform.name} account ${phoneNumber}`,
+        `You have successfully withdrawn ${amount} ${selectedToken?.symbol || "tokens"} to ${selectedPlatform.name} account ${phoneNumber}`,
         [{ text: "OK", onPress: () => router.back() }],
       );
     } catch (error) {
@@ -227,7 +251,9 @@ export default function Withdraw() {
                   onPress={() => setTokenModalVisible(true)}
                 >
                   <Text className="text-light-matte-black font-medium">
-                    {selectedToken.symbol} - {selectedToken.name}
+                    {selectedToken
+                      ? `${selectedToken.symbol} - ${selectedToken.name}`
+                      : "Select Token"}
                   </Text>
                   <ChevronDown size={20} color="#c71c4b" />
                 </TouchableOpacity>
@@ -308,7 +334,7 @@ export default function Withdraw() {
                     keyboardType="decimal-pad"
                   />
                   <Text className="absolute right-4 text-light-matte-black/70">
-                    {selectedToken.symbol}
+                    {selectedToken?.symbol || ""}
                   </Text>
                 </View>
 
@@ -348,7 +374,8 @@ export default function Withdraw() {
                 • Withdrawals are processed within 24 hours
               </Text>
               <Text className="text-light-matte-black/70 text-sm mb-2">
-                • Minimum withdrawal amount: 10 {selectedToken.symbol}
+                • Minimum withdrawal amount: 10{" "}
+                {selectedToken?.symbol || "tokens"}
               </Text>
               <Text className="text-light-matte-black/70 text-sm mb-2">
                 • Withdrawal fee: 1% of the amount
@@ -379,9 +406,9 @@ export default function Withdraw() {
         <TokenSelectorModal
           visible={tokenModalVisible}
           onClose={() => setTokenModalVisible(false)}
-          tokens={SUPPORTED_TOKENS}
           selectedToken={selectedToken}
           onSelectToken={handleSelectToken}
+          tokens={stablecoinTokens || []}
           title="Select Token"
         />
       </SafeAreaView>
