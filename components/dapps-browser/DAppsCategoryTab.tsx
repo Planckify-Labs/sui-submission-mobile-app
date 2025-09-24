@@ -7,29 +7,73 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
-type CategoryTab = "dex" | "defi" | "gaming";
+import SingleLoadingSekeleton from "@/components/common/SingleLoadingSekeleton";
+import { dappQueryKeys } from "@/constants/queryKeys/dappQueryKeys";
+import { useDappCategories } from "@/hooks/queries/useDapps";
+import useRQGlobalState from "@/hooks/useRQGlobalState";
 
 interface FloatingDAppsCategoryTabProps {
-  activeCategory: CategoryTab;
-  onTabChange: (tab: CategoryTab) => void;
   onLayout: (event: LayoutChangeEvent) => void;
   tabWidth: number;
   horizontalScrollX: Animated.Value;
 }
 
 export default function DAppsCategoryTab({
-  activeCategory,
-  onTabChange,
   onLayout,
   tabWidth,
   horizontalScrollX,
 }: FloatingDAppsCategoryTabProps) {
-  const tabs = [
-    { id: "dex" as const, label: "DEX" },
-    { id: "defi" as const, label: "DeFi" },
-    { id: "gaming" as const, label: "Games" },
-  ];
+  const { data: categories, isLoading } = useDappCategories();
+
+  const { data: activeCategoryState, setNewData: setActiveCategoryState } =
+    useRQGlobalState<{ activeCategory: string }>({
+      queryKey: dappQueryKeys.activeCategory,
+      initialData: { activeCategory: "" },
+    });
+
+  const activeCategory = activeCategoryState?.activeCategory || "";
+
+  const handleTabChange = (categoryId: string) => {
+    setActiveCategoryState({ activeCategory: categoryId });
+  };
+
+  const tabs =
+    categories
+      ?.filter((category) => category.isActive)
+      ?.map((category) => ({
+        id: category.id,
+        label: category.name,
+      })) || [];
+
+  if (isLoading) {
+    return (
+      <BlurView
+        intensity={30}
+        experimentalBlurMethod="dimezisBlurView"
+        className="overflow-hidden rounded-full absolute bottom-4 left-0 right-0 mx-4 border-4 border-light-main-container/80"
+      >
+        <View className="bg-mainborder-light-main-container/10 w-full flex-row items-center relative py-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <View
+              key={index}
+              className="flex-1 items-center justify-center px-2"
+            >
+              <SingleLoadingSekeleton
+                width="80%"
+                height={12}
+                borderRadius={6}
+                style={{ backgroundColor: "#E0E0E0" }}
+              />
+            </View>
+          ))}
+        </View>
+      </BlurView>
+    );
+  }
+
+  if (tabs.length === 0) {
+    return null;
+  }
 
   return (
     <BlurView
@@ -41,10 +85,10 @@ export default function DAppsCategoryTab({
         className="bg-mainborder-light-main-container/10 w-full flex-row items-center relative"
         onLayout={onLayout}
       >
-        {tabs.map((tab) => (
+        {tabs.map((tab, index) => (
           <TouchableOpacity
             key={tab.id}
-            onPress={() => onTabChange(tab.id)}
+            onPress={() => handleTabChange(tab.id)}
             activeOpacity={0.7}
             className="flex-1 py-2 items-center justify-center"
           >
@@ -63,12 +107,12 @@ export default function DAppsCategoryTab({
             transform: [
               {
                 translateX: horizontalScrollX.interpolate({
-                  inputRange: [
-                    0,
-                    require("react-native").Dimensions.get("window").width,
-                    require("react-native").Dimensions.get("window").width * 2,
-                  ],
-                  outputRange: [0, tabWidth, tabWidth * 2],
+                  inputRange: tabs.map(
+                    (_, index) =>
+                      index *
+                      require("react-native").Dimensions.get("window").width,
+                  ),
+                  outputRange: tabs.map((_, index) => index * tabWidth),
                   extrapolate: "clamp",
                 }),
               },

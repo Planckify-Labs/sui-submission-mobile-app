@@ -2,6 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { dappApi } from "@/api/endpoints/dapps";
 import type { TDappSearchParams } from "@/api/types/dapp";
 
+export const useDappCategories = () => {
+  return useQuery({
+    queryKey: ["dapp-categories"],
+    queryFn: dappApi.getDappCategories,
+  });
+};
+
 export const useDapps = () => {
   return useQuery({
     queryKey: ["dapps"],

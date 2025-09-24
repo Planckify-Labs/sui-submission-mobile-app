@@ -6,6 +6,9 @@ export interface TDappCategory {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  _count?: {
+    dapps: number;
+  };
 }
 
 export interface TDapp {
@@ -27,6 +30,8 @@ export interface TDapp {
 }
 
 export type DappListResponse = TDapp[];
+
+export type DappCategoryListResponse = TDappCategory[];
 
 export interface TDappSearchParams {
   name?: string;

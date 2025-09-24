@@ -1,4 +1,5 @@
 import type {
+  DappCategoryListResponse,
   DappListResponse,
   TDapp,
   TDappSearchParams,
@@ -16,6 +17,18 @@ const logDappOperation = (operation: string, data?: any) => {
 };
 
 export const dappApi = {
+  getDappCategories: () =>
+    apiCall(async () => {
+      logDappOperation("Fetching dapp categories");
+      const response = await fetchList<DappCategoryListResponse>(
+        publicApi,
+        "dapp-categories",
+        "Failed to fetch dapp categories",
+      );
+      logDappOperation("Dapp categories response", response);
+      return response;
+    }, "Failed to fetch dapp categories"),
+
   getDappList: () =>
     apiCall(async () => {
       logDappOperation("Fetching all dapps");
