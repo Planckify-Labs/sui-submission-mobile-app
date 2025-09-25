@@ -70,6 +70,7 @@ export default function PaymentScreen() {
   const [transactionStatus, setTransactionStatus] = useState("");
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [approvalModalVisible, setApprovalModalVisible] = useState(false);
+  const [shouldShowApprovalModal, setShouldShowApprovalModal] = useState(false);
   const [isApprovingSpending, setIsApprovingSpending] = useState(false);
   const [exchangeRate, setExchangeRate] = useState<TExchangeRate | null>(null);
   const [isLoadingRate, setIsLoadingRate] = useState(false);
@@ -300,6 +301,7 @@ export default function PaymentScreen() {
         await publicClient.waitForTransactionReceipt({ hash });
 
         setApprovalModalVisible(false);
+        setShouldShowApprovalModal(false);
         if (isUnlimited) {
           Alert.alert(
             "Unlimited Allowance Approved",
@@ -479,8 +481,12 @@ export default function PaymentScreen() {
           });
 
           const requiredAmount = BigInt(purchaseAmount);
-          if ((allowance as bigint) < requiredAmount) {
+          if (
+            (allowance as bigint) < requiredAmount ||
+            shouldShowApprovalModal
+          ) {
             setApprovalModalVisible(true);
+            setShouldShowApprovalModal(false);
             return;
           }
         }
@@ -496,6 +502,7 @@ export default function PaymentScreen() {
     activeWallet.address,
     contractAddress,
     purchaseAmount,
+    shouldShowApprovalModal,
     getPublicClientForActiveChain,
   ]);
 
@@ -513,7 +520,6 @@ export default function PaymentScreen() {
   );
 
   const buttonDisabled = useMemo(() => {
-    // Debug logging for button disabled conditions
     console.log("=== Button Disabled Debug ===");
     console.log("isLoading:", isLoading);
     console.log("isLoadingVariant:", isLoadingVariant);
@@ -849,9 +855,15 @@ export default function PaymentScreen() {
         {selectedToken && contractAddress && purchaseAmount && (
           <SpendingApprovalModal
             visible={approvalModalVisible}
-            onClose={() => setApprovalModalVisible(false)}
+            onClose={() => {
+              setApprovalModalVisible(false);
+              setShouldShowApprovalModal(true);
+            }}
             onApprove={approveSpending}
-            onCancel={() => setApprovalModalVisible(false)}
+            onCancel={() => {
+              setApprovalModalVisible(false);
+              setShouldShowApprovalModal(true);
+            }}
             token={selectedToken}
             spenderAddress={contractAddress}
             amount={purchaseAmount}
