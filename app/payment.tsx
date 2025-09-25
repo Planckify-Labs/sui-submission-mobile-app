@@ -51,11 +51,12 @@ export default function PaymentScreen() {
     return blockchains.find((b) => b.chainId === activeChain.chain.id);
   }, [blockchains, activeChain]);
 
-  const { contractAddress: takumiWalletAddress, error: contractError } =
-    usePaymentProcessorContract(activeBlockchain?.id);
+  const { contractAddress, error: contractError } = usePaymentProcessorContract(
+    activeBlockchain?.id,
+  );
 
   const { createTransaction, waitForTransaction } = useTakumiWalletContract({
-    contractAddress: takumiWalletAddress as `0x${string}`,
+    contractAddress: contractAddress as `0x${string}`,
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -266,7 +267,7 @@ export default function PaymentScreen() {
       if (
         !selectedToken ||
         !activeWallet.address ||
-        !takumiWalletAddress ||
+        !contractAddress ||
         !purchaseAmount
       ) {
         Alert.alert("Error", "Missing required data for approval");
@@ -291,7 +292,7 @@ export default function PaymentScreen() {
           address: selectedToken.contractAddress as `0x${string}`,
           abi: erc20Abi,
           functionName: "approve",
-          args: [takumiWalletAddress as `0x${string}`, approvalAmount],
+          args: [contractAddress as `0x${string}`, approvalAmount],
           chain: walletClient.chain,
           account: walletClient.account!,
         });
@@ -322,7 +323,7 @@ export default function PaymentScreen() {
     [
       selectedToken,
       activeWallet.address,
-      takumiWalletAddress,
+      contractAddress,
       purchaseAmount,
       getPublicClientForActiveChain,
       getClientForActiveWallet,
@@ -337,7 +338,7 @@ export default function PaymentScreen() {
         !variantData.ProductPrice?.[0]?.id ||
         !selectedToken ||
         !activeBlockchain ||
-        !takumiWalletAddress
+        !contractAddress
       ) {
         Alert.alert("Error", "Missing required data for payment");
         return;
@@ -385,7 +386,7 @@ export default function PaymentScreen() {
             refId,
             walletAddress: activeWallet.address,
             bookingId: booking.id.toString(),
-            contractAddress: takumiWalletAddress,
+            contractAddress: contractAddress,
             networkId: activeBlockchain.id.toString(),
             transactionHash: txHash,
           };
@@ -437,7 +438,7 @@ export default function PaymentScreen() {
       activeBlockchain,
       parsedCustomerInfo,
       exchangeRate,
-      takumiWalletAddress,
+      contractAddress,
       createTransaction,
       waitForTransaction,
     ],
@@ -461,7 +462,7 @@ export default function PaymentScreen() {
     if (
       selectedToken &&
       activeWallet.address &&
-      takumiWalletAddress &&
+      contractAddress &&
       purchaseAmount
     ) {
       try {
@@ -473,7 +474,7 @@ export default function PaymentScreen() {
             functionName: "allowance",
             args: [
               activeWallet.address as `0x${string}`,
-              takumiWalletAddress as `0x${string}`,
+              contractAddress as `0x${string}`,
             ],
           });
 
@@ -493,7 +494,7 @@ export default function PaymentScreen() {
     isAuthenticated,
     selectedToken,
     activeWallet.address,
-    takumiWalletAddress,
+    contractAddress,
     purchaseAmount,
     getPublicClientForActiveChain,
   ]);
@@ -512,7 +513,38 @@ export default function PaymentScreen() {
   );
 
   const buttonDisabled = useMemo(() => {
-    return (
+    // Debug logging for button disabled conditions
+    console.log("=== Button Disabled Debug ===");
+    console.log("isLoading:", isLoading);
+    console.log("isLoadingVariant:", isLoadingVariant);
+    console.log("activeWallet.address:", activeWallet.address);
+    console.log("selectedToken:", selectedToken);
+    console.log("activeBlockchain:", activeBlockchain);
+    console.log("variantData?.id:", variantData?.id);
+    console.log(
+      "variantData.ProductPrice?.[0]?.id:",
+      variantData?.ProductPrice?.[0]?.id,
+    );
+    console.log("exchangeRate?.rate:", exchangeRate?.rate);
+    console.log("contractAddress:", contractAddress);
+    console.log("contractError:", contractError);
+
+    const conditions = {
+      isLoading,
+      isLoadingVariant,
+      noWalletAddress: !activeWallet.address,
+      noSelectedToken: !selectedToken,
+      noActiveBlockchain: !activeBlockchain,
+      noVariantId: !variantData?.id,
+      noProductPriceId: !variantData?.ProductPrice?.[0]?.id,
+      noExchangeRate: !exchangeRate?.rate,
+      noContractAddress: !contractAddress,
+      hasContractError: !!contractError,
+    };
+
+    console.log("Individual conditions:", conditions);
+
+    const disabled =
       isLoading ||
       isLoadingVariant ||
       !activeWallet.address ||
@@ -521,9 +553,13 @@ export default function PaymentScreen() {
       !variantData?.id ||
       !variantData.ProductPrice?.[0]?.id ||
       !exchangeRate?.rate ||
-      !takumiWalletAddress ||
-      !!contractError
-    );
+      !contractAddress ||
+      !!contractError;
+
+    console.log("Button disabled result:", disabled);
+    console.log("=== End Debug ===");
+
+    return disabled;
   }, [
     isLoading,
     isLoadingVariant,
@@ -533,7 +569,7 @@ export default function PaymentScreen() {
     variantData?.id,
     variantData?.ProductPrice,
     exchangeRate?.rate,
-    takumiWalletAddress,
+    contractAddress,
     contractError,
   ]);
 
@@ -764,8 +800,10 @@ export default function PaymentScreen() {
               </View>
             </View>
             <TouchableOpacity
-              activeOpacity={0.7}
-              className="p-4 rounded-full shadow-md bg-light-primary-red mb-4"
+              activeOpacity={buttonDisabled ? 1 : 0.7}
+              className={`p-4 rounded-full shadow-md mb-4 ${
+                buttonDisabled ? "bg-gray-400/35" : "bg-light-primary-red"
+              }`}
               onPress={handlePaymentConfirmation}
               disabled={buttonDisabled}
             >
@@ -808,14 +846,14 @@ export default function PaymentScreen() {
           />
         )}
 
-        {selectedToken && takumiWalletAddress && purchaseAmount && (
+        {selectedToken && contractAddress && purchaseAmount && (
           <SpendingApprovalModal
             visible={approvalModalVisible}
             onClose={() => setApprovalModalVisible(false)}
             onApprove={approveSpending}
             onCancel={() => setApprovalModalVisible(false)}
             token={selectedToken}
-            spenderAddress={takumiWalletAddress}
+            spenderAddress={contractAddress}
             amount={purchaseAmount}
             isLoading={isApprovingSpending}
             spenderName="Takumi Wallet"
