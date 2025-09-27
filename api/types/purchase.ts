@@ -89,6 +89,15 @@ export type TTransaction = {
   token: TToken;
 };
 
+export type TBooking = {
+  id: string;
+  createdAt: string;
+  customerInfo: Array<{
+    key: string;
+    value: string;
+  }>;
+};
+
 export type TPurchaseCompleted = {
   id: string;
   status: "PENDING" | "COMPLETED" | "FAILED";
@@ -100,6 +109,7 @@ export type TPurchaseCompleted = {
   transaction: TTransaction;
   productVariant: TProductVariant;
   voucherCode?: string;
+  booking: TBooking;
 };
 
 export type TPurchaseInitialResponse = {

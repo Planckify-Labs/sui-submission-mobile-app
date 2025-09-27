@@ -5,7 +5,7 @@ import { copyToClipboard } from "@/utils/helperUtils";
 import { extractVoucher } from "@/utils/vcGamerUtils";
 
 type TPLNCustomerInfo = {
-  meterNumber?: number;
+  meterNumber: number;
   vcGamerVoucher: string;
 };
 export default function PLNCard({
@@ -60,6 +60,14 @@ export default function PLNCard({
             <Text className="text-light-matte-black/70 text-sm">Name:</Text>
             <Text className="text-light-matte-black text-sm font-medium">
               {voucher?.name}
+            </Text>
+          </View>
+          <View className="flex-row justify-between items-center">
+            <Text className="text-light-matte-black/70 text-sm">
+              Meter Number:
+            </Text>
+            <Text className="text-light-primary-red text-sm font-medium">
+              {plnCustomerInfo.meterNumber}
             </Text>
           </View>
 

@@ -18,7 +18,12 @@ export default function AditionalInformationCard({
 
       <View>
         {purchase?.voucherCode && (
-          <PLNCard plnCustomerInfo={{ vcGamerVoucher: purchase.voucherCode }} />
+          <PLNCard
+            plnCustomerInfo={{
+              vcGamerVoucher: purchase.voucherCode,
+              meterNumber: Number(purchase.booking.customerInfo[0].value),
+            }}
+          />
         )}
       </View>
     </View>
