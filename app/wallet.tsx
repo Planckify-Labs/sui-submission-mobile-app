@@ -20,7 +20,8 @@ import AddressDisplay from "@/components/wallet/AddressDisplay";
 import WalletCard from "@/components/wallet/WalletCard";
 import { TWallet } from "@/constants/types/walletTypes";
 import { useWallet } from "@/hooks/useWallet";
-import { authenticateUser, copyToClipboard } from "@/utils/authUtils";
+import { authenticateUser } from "@/utils/authUtils";
+import { copyToClipboard } from "@/utils/helperUtils";
 
 const LazyWalletInfoDisplay = lazy(
   () => import("@/components/wallet/WalletInfoDisplay"),

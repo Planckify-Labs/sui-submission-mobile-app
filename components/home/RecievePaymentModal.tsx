@@ -12,7 +12,7 @@ import {
 import QRCode from "react-native-qrcode-svg";
 import { takumipayLogoBase64 } from "@/constants/takumipay";
 import { TWallet } from "@/constants/types/walletTypes";
-import { copyToClipboard } from "@/utils/authUtils";
+import { copyToClipboard } from "@/utils/helperUtils";
 import Chip from "../common/Chip";
 
 type ReceivePaymentModalProps = {

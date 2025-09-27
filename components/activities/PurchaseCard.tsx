@@ -5,20 +5,12 @@ import { Copy, ExternalLink, ShoppingBag } from "lucide-react-native";
 import React, { useCallback } from "react";
 import { Alert, Image, Text, TouchableOpacity, View } from "react-native";
 import { TTransaction } from "@/api/types/transaction";
+import { copyToClipboard } from "@/utils/helperUtils";
 import Chip from "../common/Chip";
 
 const PurchaseCard = React.memo(
   ({ transaction }: { transaction: TTransaction }) => {
     const router = useRouter();
-
-    const copyToClipboard = useCallback(
-      (event: any) => {
-        event.stopPropagation();
-        ExpoClipboard.setStringAsync(transaction?.txHash || "");
-        Alert.alert("Copied!", "Transaction hash copied to clipboard.");
-      },
-      [transaction?.txHash],
-    );
 
     const openBlockExplorer = useCallback(
       (event: any) => {
@@ -86,9 +78,16 @@ const PurchaseCard = React.memo(
               >
                 {transaction?.txHash || "N/A"}
               </Text>
-              <TouchableOpacity activeOpacity={0.7} onPress={copyToClipboard}>
-                <Copy size={14} color="#c71c4b" />
-              </TouchableOpacity>
+              {transaction?.txHash && (
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() =>
+                    copyToClipboard(transaction.txHash!, "Transaction hash")
+                  }
+                >
+                  <Copy size={14} color="#c71c4b" />
+                </TouchableOpacity>
+              )}
               <TouchableOpacity activeOpacity={0.7} onPress={openBlockExplorer}>
                 <ExternalLink size={14} color="#c71c4b" />
               </TouchableOpacity>

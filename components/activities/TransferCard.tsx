@@ -1,20 +1,15 @@
-import * as ExpoClipboard from "expo-clipboard";
 import { openBrowserAsync } from "expo-web-browser";
 import { Copy, ExternalLink, Send } from "lucide-react-native";
 import React, { useCallback } from "react";
-import { Alert, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 import { formatUnits } from "viem/utils";
 import { TTransaction } from "@/api/types/transaction";
+import { copyToClipboard } from "@/utils/helperUtils";
 import { truncateAddress } from "@/utils/walletUtils";
 import Chip from "../common/Chip";
 
 const TransferCard = React.memo(
   ({ transaction }: { transaction: TTransaction }) => {
-    const copyToClipboard = useCallback((label: string, value: string) => {
-      ExpoClipboard.setStringAsync(value);
-      Alert.alert("Copied!", `${label} copied to clipboard.`);
-    }, []);
-
     const openBlockExplorer = useCallback(() => {
       openBrowserAsync(
         `${transaction.token.blockchain.blockExplorer}/tx/${transaction.txHash}`,
