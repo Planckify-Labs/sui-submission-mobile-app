@@ -6,7 +6,7 @@ interface PurchasedProductCardProps {
   purchase: TPurchaseCompleted;
 }
 
-export default function PurchasedProductCard({
+export default function PurchasedProductHeading({
   purchase,
 }: PurchasedProductCardProps) {
   const product = purchase?.productVariant?.product;
