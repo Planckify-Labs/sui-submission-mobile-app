@@ -7,7 +7,7 @@ export type TBooking = {
     variant: {
       id: string;
       name: string;
-      sku: string;
+      variantCode: string;
     };
     price: {
       amount: number;

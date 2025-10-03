@@ -32,7 +32,8 @@ export type TProductVariant = {
   id: string;
   name: string;
   description: string;
-  sku: string;
+  variantCode: string;
+  isVoucher: boolean;
   productId: string;
   isActive: boolean;
   createdAt: string;
