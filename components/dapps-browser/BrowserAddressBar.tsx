@@ -44,7 +44,7 @@ export default function BrowserAddressBar({
         <Image
           source={require("@/assets/images/takumipay-no-bg.png")}
           style={{ width: 20, height: 20 }}
-          resizeMode="contain"
+          contentFit="contain"
         />
       </TouchableOpacity>
     </View>

@@ -136,7 +136,7 @@ export default function DappsBrowser() {
     }));
   };
 
-  const handleTabChange = (tab: TCategoryTab) => {
+  const _handleTabChange = (tab: TCategoryTab) => {
     setActiveCategory(tab);
     if (tabWidth > 0) {
       const tabIndex = tab === "dex" ? 0 : tab === "defi" ? 1 : 2;

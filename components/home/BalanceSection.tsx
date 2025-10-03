@@ -45,7 +45,7 @@ export default function BalanceSection() {
   // Keep selectedToken in sync with activeChain changes
   useEffect(() => {
     setSelectedToken(activeChain?.chain.nativeCurrency?.symbol || "ETH");
-  }, [activeChain?.chain?.id, activeChain?.chain?.nativeCurrency?.symbol]);
+  }, [activeChain?.chain?.nativeCurrency?.symbol]);
   const [modalVisible, setModalVisible] = useState(false);
   const [isModalAnimationComplete, setIsModalAnimationComplete] =
     useState(false);

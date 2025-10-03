@@ -1,2 +1,2 @@
-import 'fastestsmallesttextencoderdecoder';
-import 'react-native-get-random-values';
+import "fastestsmallesttextencoderdecoder";
+import "react-native-get-random-values";

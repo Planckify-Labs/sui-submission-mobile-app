@@ -74,7 +74,7 @@ const SignMessageModal: React.FC<TSignMessageModalProps> = ({
     if (activeWallet?.address && visible) {
       refetchNonce();
     }
-  }, [activeWallet?.address, activeChain?.chain?.id, refetchNonce, visible]);
+  }, [activeWallet?.address, refetchNonce, visible]);
 
   const animateOpenModal = useCallback(() => {
     fadeAnim.setValue(0);
@@ -181,7 +181,13 @@ const SignMessageModal: React.FC<TSignMessageModalProps> = ({
         clearInterval(timerRef.current);
       }
     };
-  }, [visible, animateOpenModal, animateCloseModal]);
+  }, [
+    visible,
+    animateOpenModal,
+    animateCloseModal,
+    fadeAnim.setValue,
+    translateY.setValue,
+  ]);
 
   const displayMessage =
     propMessage || nonceData?.message || "Loading authentication message...";

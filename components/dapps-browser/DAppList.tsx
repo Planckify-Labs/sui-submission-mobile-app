@@ -117,7 +117,6 @@ export default function DAppList({
     );
     const isLoadingThisCategory = categoryQuery?.isLoading || false;
 
-    // Get category icon based on name
     const getCategoryIcon = (categoryName: string) => {
       const name = categoryName.toLowerCase();
       const iconProps = { size: 24, strokeWidth: 2 };
@@ -147,10 +146,10 @@ export default function DAppList({
     return (
       <View key={category.id} style={{ width: screenWidth }} className="pb-16">
         <View className="mx-4 mb-6">
-          <View className="bg-gradient-to-r from-light-main-container to-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <View className="bg-gradient-to-r from-light-main-container to-white rounded-2xl p-5 border border-gray-100">
             <View className="flex-row items-center mb-3">
               <View
-                className={`${getCategoryColor(category.name)} p-3 rounded-2xl mr-4 shadow-sm`}
+                className={`${getCategoryColor(category.name)} p-3 rounded-2xl mr-4`}
               >
                 {getCategoryIcon(category.name)}
               </View>

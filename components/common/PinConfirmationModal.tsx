@@ -66,6 +66,21 @@ const PinConfirmationModal: React.FC<PinConfirmationModalProps> = ({
     });
   }, [fadeAnim, translateY]);
 
+  const animateCloseModal = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 300,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(onClose);
+  }, [fadeAnim, translateY, onClose]);
+
   const panResponderConfig = useMemo(
     () => ({
       onStartShouldSetPanResponder: () => true,
@@ -85,7 +100,7 @@ const PinConfirmationModal: React.FC<PinConfirmationModalProps> = ({
         }
       },
     }),
-    [],
+    [animateCloseModal, translateY],
   );
 
   const internalPanResponder = useRef(
@@ -93,21 +108,6 @@ const PinConfirmationModal: React.FC<PinConfirmationModalProps> = ({
   ).current;
 
   const activePanResponder = externalPanResponder || internalPanResponder;
-
-  const animateCloseModal = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 300,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start(onClose);
-  }, [fadeAnim, translateY, onClose]);
 
   useEffect(() => {
     if (visible && !hasAnimatedIn.current) {
@@ -123,7 +123,14 @@ const PinConfirmationModal: React.FC<PinConfirmationModalProps> = ({
       translateY.setValue(300);
       hasAnimatedIn.current = false;
     }
-  }, [visible, isLoading, hasPin, animateOpenModal]);
+  }, [
+    visible,
+    isLoading,
+    hasPin,
+    animateOpenModal,
+    fadeAnim.setValue,
+    translateY.setValue,
+  ]);
 
   const handlePinDigit = (digit: string) => {
     if (pin.length < pinLength) {

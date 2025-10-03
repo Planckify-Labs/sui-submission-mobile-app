@@ -52,7 +52,7 @@ export async function saveWalletsToStorage(
     );
 
     const savePromises = wallets.map(async (wallet) => {
-      const { account, ...walletWithoutAccount } = wallet;
+      const { account: _account, ...walletWithoutAccount } = wallet;
       const walletForStorage = {
         ...walletWithoutAccount,
         account: { address: wallet.address },

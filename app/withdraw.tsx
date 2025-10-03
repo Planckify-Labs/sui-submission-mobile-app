@@ -104,7 +104,7 @@ export default function Withdraw() {
       // Clear selected token if no tokens available for current chain
       setSelectedToken(undefined);
     }
-  }, [stablecoinTokens, activeChain?.chain?.id]);
+  }, [stablecoinTokens, selectedToken]);
 
   const handleSelectWallet = (index: number) => {
     setActiveWallet(index);

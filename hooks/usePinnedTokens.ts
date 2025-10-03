@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { TToken } from "@/api/types/token";
 import QKEY_PinnedTokens from "@/constants/queryKeys/pinnedTokensQueryKeys";
 import useRQGlobalState from "./useRQGlobalState";
@@ -28,68 +28,39 @@ const getPersistentPinnedTokens = async (): Promise<TToken[]> => {
   }
 };
 
-const defaultPinnedTokens: TToken[] = [
-  {
-    id: "01JX6X26CW02H42DHF7X0XRFRN",
-    symbol: "USDT",
-    name: "Tether USD",
-    decimals: 0,
-    blockchainId: "",
-    contractAddress: "",
-    logoUrl: "",
-    isStablecoin: false,
-    isActive: false,
-    createdAt: "",
-    updatedAt: "",
-    isNativeCurrency: false,
-  },
-  {
-    id: "01JX6X26CYKFH2AWWKYKVNGSB7",
-    symbol: "ETH",
-    name: "Ethereum",
-    decimals: 0,
-    blockchainId: "",
-    contractAddress: "",
-    logoUrl: "",
-    isStablecoin: false,
-    isActive: false,
-    createdAt: "",
-    updatedAt: "",
-    isNativeCurrency: false,
-  },
-];
-
 export function usePinnedTokens() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const { data: pinnedTokens = [], setNewData } = useRQGlobalState<TToken[]>({
     queryKey: [QKEY_PinnedTokens.pinned],
-    initialData: defaultPinnedTokens,
+    initialData: [],
   });
 
-  const initWithExistingPinnedTokens = async (): Promise<
+  const initWithExistingPinnedTokens = useCallback(async (): Promise<
     TToken[] | undefined
   > => {
     setIsLoading(true);
     try {
       const storedPinnedTokens = await getPersistentPinnedTokens();
-      storedPinnedTokens[0] !== undefined
-        ? setNewData(storedPinnedTokens)
-        : setNewData(defaultPinnedTokens);
+      setNewData(storedPinnedTokens);
       setIsLoading(false);
     } catch (error) {
       console.error("Error checking for existing pinned tokens:", error);
       return undefined;
     }
-  };
+  }, [setNewData]);
 
   useEffect(() => {
     initWithExistingPinnedTokens();
-  }, []);
-  const setPinnedTokens = async (tokens: TToken[]) => {
-    await storePinnedTokens(tokens);
-    setNewData(tokens);
-  };
+  }, [initWithExistingPinnedTokens]);
+
+  const setPinnedTokens = useCallback(
+    async (tokens: TToken[]) => {
+      await storePinnedTokens(tokens);
+      setNewData(tokens);
+    },
+    [setNewData],
+  );
 
   return {
     isLoading,

@@ -67,7 +67,7 @@ export default function SingleLoadingSekeleton({
         animationRef.current = null;
       }
     };
-  }, []);
+  }, [animatedValue]);
 
   return (
     <View style={[styles.container, containerStyle, style]}>

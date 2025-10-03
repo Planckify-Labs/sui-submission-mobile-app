@@ -19,7 +19,7 @@ const extractPLNVoucher = (voucherCode: string): TVCGamerPLNVoucher => {
     };
   }
 
-  const [tokenCode, meterNumber, name, power, voltageCapacity, kwhCapacity] =
+  const [tokenCode, _meterNumber, name, power, voltageCapacity, kwhCapacity] =
     parts;
   return {
     tokenCode,

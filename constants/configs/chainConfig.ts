@@ -1,10 +1,10 @@
 import {
-  type Chain as TChain,
   bsc,
   goerli,
   mainnet,
   polygon,
   polygonMumbai,
+  type Chain as TChain,
 } from "viem/chains";
 
 export interface ChainConfig {

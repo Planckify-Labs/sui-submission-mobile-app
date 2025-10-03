@@ -12,8 +12,6 @@ import {
   View,
 } from "react-native";
 
-const { height } = Dimensions.get("window");
-
 type WalletRenameModalProps = {
   visible: boolean;
   onClose: () => void;
@@ -65,7 +63,7 @@ export default function WalletRenameModal({
         }),
       ]).start();
     }
-  }, [visible]);
+  }, [visible, currentName, fadeAnim, scaleAnim]);
 
   const handleSave = async () => {
     const trimmedName = name.trim();
@@ -89,7 +87,7 @@ export default function WalletRenameModal({
     try {
       await onRename?.(trimmedName);
       onClose();
-    } catch (error) {
+    } catch (_error) {
       Alert.alert("Error", "Failed to rename wallet");
     } finally {
       setLoading(false);

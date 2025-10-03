@@ -194,7 +194,7 @@ export default function PurchasedProductDetailCard({
                   <Image
                     source={{ uri: purchase.transaction.token.logoUrl }}
                     className="w-full h-full"
-                    resizeMode="cover"
+                    contentFit="cover"
                   />
                 </View>
                 <Text className="text-light-primary-red font-bold text-sm">

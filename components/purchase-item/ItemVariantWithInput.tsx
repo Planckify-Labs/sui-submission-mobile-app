@@ -514,7 +514,6 @@ export default function ItemWithInput({
                   data={product.variants}
                   renderItem={renderVariantItem}
                   keyExtractor={(item) => item.id}
-                  estimatedItemSize={70}
                   showsVerticalScrollIndicator={false}
                 />
               </View>

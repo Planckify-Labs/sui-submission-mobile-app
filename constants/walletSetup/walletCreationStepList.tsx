@@ -1,4 +1,3 @@
-import SeedPhraseGrid from "@/components/common/SeedPhraseGrid";
 import { router } from "expo-router";
 import {
   ArrowLeftRight,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react-native";
 import React from "react";
 import { Alert, Pressable, Text, View } from "react-native";
+import SeedPhraseGrid from "@/components/common/SeedPhraseGrid";
 
 export type WalletCreationStep = {
   title: string;

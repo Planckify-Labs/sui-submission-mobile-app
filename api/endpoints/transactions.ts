@@ -1,3 +1,4 @@
+import * as SecureStore from "expo-secure-store";
 import { api } from "@/constants/configs/ky";
 import {
   getAccessToken,
@@ -5,12 +6,11 @@ import {
   getAuthenticatedWalletAddress,
 } from "@/hooks/queries/useAuth";
 import * as walletService from "@/services/walletService";
-import * as SecureStore from "expo-secure-store";
 import type {
+  TCreateTransactionRequest,
   TTransaction,
   TTransactionListResponse,
   TTransactionSearchParams,
-  TCreateTransactionRequest,
 } from "../types/transaction";
 import { createItem, fetchById, searchItems } from "../utils/api-helpers";
 

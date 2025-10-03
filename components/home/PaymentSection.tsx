@@ -99,7 +99,6 @@ export default function PaymentSection() {
             renderItem={renderPaymentItem}
             keyExtractor={(item) => item.name}
             numColumns={4}
-            estimatedItemSize={4}
             showsVerticalScrollIndicator={false}
             showsHorizontalScrollIndicator={false}
           />

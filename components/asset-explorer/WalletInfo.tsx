@@ -32,7 +32,7 @@ const WalletInfo = ({ activeWallet }: TWalletInfoProps) => {
     };
 
     fetchBalance();
-  }, [activeWallet?.address, activeChain, getPublicClientForActiveChain]);
+  }, [activeWallet?.address, getPublicClientForActiveChain]);
 
   const formatBalance = (value: bigint): string => {
     const formatted = parseFloat(formatUnits(value, 18)).toFixed(4);

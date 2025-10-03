@@ -61,12 +61,29 @@ const ChainSelector = memo(() => {
     });
   }, [blockchains, nativeTokens]);
 
+  const closeModal = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: MODAL_HEIGHT,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setModalVisible(false);
+    });
+  }, [fadeAnim, translateY]);
+
   const handleChainSelect = useCallback(
     async (chainId: number) => {
       await changeActiveChain(chainId);
       closeModal();
     },
-    [changeActiveChain],
+    [changeActiveChain, closeModal],
   );
 
   const openModal = useCallback(() => {
@@ -83,23 +100,6 @@ const ChainSelector = memo(() => {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [fadeAnim, translateY]);
-
-  const closeModal = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: MODAL_HEIGHT,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setModalVisible(false);
-    });
   }, [fadeAnim, translateY]);
 
   const panResponder = useRef(
@@ -192,7 +192,7 @@ const ChainSelector = memo(() => {
         </Pressable>
       );
     },
-    [activeChain, handleChainSelect, iconErrors],
+    [activeChain, handleChainSelect, iconErrors, handleIconError],
   );
 
   return (

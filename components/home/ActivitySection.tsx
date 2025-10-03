@@ -214,7 +214,6 @@ export default function ActivitySection() {
                 renderItem={({ item }) => purchaseHistoryButton(item)}
                 keyExtractor={(item) => item.id}
                 numColumns={4}
-                estimatedItemSize={4}
                 showsVerticalScrollIndicator={false}
                 showsHorizontalScrollIndicator={false}
               />
@@ -227,7 +226,6 @@ export default function ActivitySection() {
                 renderItem={({ item }) => transferHistoryButton(item)}
                 keyExtractor={(item) => item.id}
                 numColumns={4}
-                estimatedItemSize={4}
                 showsVerticalScrollIndicator={false}
                 showsHorizontalScrollIndicator={false}
               />

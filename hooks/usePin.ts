@@ -1,5 +1,5 @@
 import * as SecureStore from "expo-secure-store";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const PIN_KEY = "takumipay_user_pin";
 
@@ -15,11 +15,7 @@ export function usePin(): UsePinReturn {
   const [hasPin, setHasPin] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  useEffect(() => {
-    checkForExistingPin();
-  }, []);
-
-  const checkForExistingPin = async () => {
+  const checkForExistingPin = useCallback(async () => {
     try {
       setIsLoading(true);
       const storedPin = await SecureStore.getItemAsync(PIN_KEY);
@@ -29,7 +25,11 @@ export function usePin(): UsePinReturn {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    checkForExistingPin();
+  }, [checkForExistingPin]);
 
   const verifyPin = async (pin: string): Promise<boolean> => {
     try {

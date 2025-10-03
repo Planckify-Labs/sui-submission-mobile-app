@@ -45,7 +45,6 @@ const LoadingSkeletons = () => {
           data={skeletonItems}
           renderItem={() => <SkeletonItem />}
           keyExtractor={(item) => item}
-          estimatedItemSize={20}
           numColumns={4}
           showsHorizontalScrollIndicator={false}
           showsVerticalScrollIndicator={false}
@@ -213,16 +212,12 @@ export default function ViewAllItemScreen() {
             data={filteredProducts}
             renderItem={renderProductItem}
             keyExtractor={keyExtractor}
-            estimatedItemSize={120}
             numColumns={4}
             className="pt-16 min-h-[300px]"
             showsHorizontalScrollIndicator={false}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{
               paddingVertical: 18,
-            }}
-            overrideItemLayout={(layout) => {
-              layout.size = 120;
             }}
             onScroll={Animated.event(
               [{ nativeEvent: { contentOffset: { y: scrollY } } }],

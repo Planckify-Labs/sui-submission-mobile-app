@@ -36,9 +36,7 @@ export default function EcosystemHub({
       <PromotionalSlider onNavigateToDapp={onNavigateToDapp} />
       <PopularDApps onNavigateToDapp={onNavigateToDapp} />
       <DAppList
-        activeCategory={activeCategory}
         onNavigateToDapp={onNavigateToDapp}
-        onCategoryChange={onCategoryChange}
         horizontalScrollX={horizontalScrollX}
       />
     </ScrollView>

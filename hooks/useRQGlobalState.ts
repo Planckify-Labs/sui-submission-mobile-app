@@ -1,9 +1,5 @@
-import {
-  type MutationFunction,
-  type QueryKey,
-  useMutation,
-  useQuery,
-} from "@tanstack/react-query";
+import { type QueryKey, useMutation, useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
 import { queryClient } from "@/app/_layout";
 
 type TUseRQGlobalState<T> = {
@@ -28,16 +24,20 @@ export default function useRQGlobalState<T>({
   });
 
   const { mutate } = useMutation({
-    mutationFn: async (newData) => {
+    mutationFn: async (newData: T) => {
       return newData;
     },
     onSuccess: (newData) => {
       queryClient.setQueryData(queryKey, newData);
     },
   });
-  const setNewData = (newData: T) => {
-    const executeMutation = mutate as MutationFunction<typeof newData, unknown>;
-    executeMutation(newData);
-  };
+
+  const setNewData = useCallback(
+    (newData: T) => {
+      mutate(newData);
+    },
+    [mutate],
+  );
+
   return { data, setNewData };
 }

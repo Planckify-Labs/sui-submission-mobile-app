@@ -79,7 +79,7 @@ const PinSetupModal: React.FC<PinSetupModalProps> = ({
       translateY.setValue(300);
       hasAnimatedIn.current = false;
     }
-  }, [visible, animateOpenModal]);
+  }, [visible, animateOpenModal, fadeAnim.setValue, translateY.setValue]);
 
   const handlePinDigit = (digit: string) => {
     if (step === "create") {

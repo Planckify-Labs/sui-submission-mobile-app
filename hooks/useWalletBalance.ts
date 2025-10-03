@@ -46,7 +46,7 @@ export function useWalletBalance(
       if (!enabled) return undefined;
       refetchRef.current();
       return undefined;
-    }, [enabled, queryKey]),
+    }, [enabled]),
   );
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export function useWalletBalance(
     };
     const subscription = AppState.addEventListener("change", handler);
     return () => subscription.remove();
-  }, [enabled, queryKey]);
+  }, [enabled]);
 
   const balanceFormatted = useMemo(() => {
     const decimals = chain?.chain.nativeCurrency?.decimals ?? 18;

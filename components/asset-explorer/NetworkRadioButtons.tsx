@@ -1,5 +1,5 @@
 import { MoveDiagonal } from "lucide-react-native";
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useBlockchains } from "@/hooks/queries/useBlockchains";
 import { useWallet } from "@/hooks/useWallet";
@@ -61,15 +61,18 @@ const NetworkRadioButtons = ({
     return "text-white";
   };
 
-  const getNetworkIdFromChainId = (chainId: number): string => {
-    const blockchain = blockchains?.find((b) => b.chainId === chainId);
+  const getNetworkIdFromChainId = useCallback(
+    (chainId: number): string => {
+      const blockchain = blockchains?.find((b) => b.chainId === chainId);
 
-    if (blockchain) {
-      return blockchain.chainId.toString();
-    }
+      if (blockchain) {
+        return blockchain.chainId.toString();
+      }
 
-    return "ethereum";
-  };
+      return "ethereum";
+    },
+    [blockchains],
+  );
 
   useEffect(() => {
     if (activeChain?.chain?.id) {
@@ -85,7 +88,13 @@ const NetworkRadioButtons = ({
         selectNetwork(networkId);
       }
     }
-  }, [activeChain?.chain?.id, blockchains]);
+  }, [
+    activeChain?.chain?.id,
+    blockchains,
+    networks,
+    selectNetwork,
+    getNetworkIdFromChainId,
+  ]);
 
   const accentColor = getAccentColor();
   const borderColor = getBorderColor();

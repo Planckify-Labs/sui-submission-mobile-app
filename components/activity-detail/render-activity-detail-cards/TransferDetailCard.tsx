@@ -1,7 +1,7 @@
 import { openBrowserAsync } from "expo-web-browser";
 import { Clock, Copy, ExternalLink, Send } from "lucide-react-native";
 import React, { useCallback } from "react";
-import { Image, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 import { formatUnits } from "viem/utils";
 import { TTransaction } from "@/api/types/transaction";
 import { copyToClipboard } from "@/utils/helperUtils";
@@ -21,7 +21,7 @@ const TransferDetailCard = React.memo(
       }
     }, [transfer.txHash, transfer.token?.blockchain?.blockExplorer]);
 
-    const formatAmount = useCallback(() => {
+    const _formatAmount = useCallback(() => {
       if (!transfer.amount) return "0";
 
       try {
@@ -53,11 +53,11 @@ const TransferDetailCard = React.memo(
 
     return (
       <View className="mt-4">
-        <View className="bg-gradient-to-r from-light-main-container to-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <View className="bg-gradient-to-r from-light-main-container to-white rounded-2xl p-5 border border-gray-100">
+          <View className="bg-white rounded-2xl p-5 border border-gray-100">
             <View className="flex-row items-center justify-between mb-4">
               <View className="flex-row items-center gap-3">
-                <View className="bg-light-primary-red/10 p-3 pr-[13.5px] pt-[14px] rounded-2xl shadow-sm">
+                <View className="bg-light-primary-red/10 p-3 pr-[13.5px] pt-[14px] rounded-2xl">
                   <Send size={24} color="#c71c4b" fill="#c71c4b" />
                 </View>
                 <View className="flex-1">

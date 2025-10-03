@@ -83,18 +83,6 @@ export default function AssetExplorer() {
     isActive: true,
   });
 
-  useEffect(() => {
-    if (activeWallet?.address) {
-      loadUserAssets();
-    }
-  }, [activeWallet?.address, activeNetwork]);
-
-  useEffect(() => {
-    if (activeWallet?.address) {
-      saveUserAssets();
-    }
-  }, [userAssets, activeWallet?.address, activeNetwork]);
-
   const getStorageKey = useCallback(() => {
     return `wallet_assets_${activeWallet?.address}_${activeNetwork}`;
   }, [activeWallet?.address, activeNetwork]);
@@ -122,6 +110,18 @@ export default function AssetExplorer() {
       console.error("Failed to save assets:", error);
     }
   }, [userAssets, getStorageKey]);
+
+  useEffect(() => {
+    if (activeWallet?.address) {
+      loadUserAssets();
+    }
+  }, [activeWallet?.address, loadUserAssets]);
+
+  useEffect(() => {
+    if (activeWallet?.address) {
+      saveUserAssets();
+    }
+  }, [activeWallet?.address, saveUserAssets]);
 
   useEffect(() => {
     if (tokens) {

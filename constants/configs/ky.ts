@@ -1,11 +1,11 @@
+import * as SecureStore from "expo-secure-store";
+import ky from "ky";
 import {
   getAccessToken,
   getAccessTokenForWallet,
   getAuthenticatedWalletAddress,
 } from "@/hooks/queries/useAuth";
 import * as walletService from "@/services/walletService";
-import * as SecureStore from "expo-secure-store";
-import ky from "ky";
 
 interface ApiError {
   message?: string;
@@ -47,7 +47,7 @@ const createBaseConfig = () => ({
       init?.signal &&
       typeof (init.signal as any).throwIfAborted !== "function"
     ) {
-      const { signal, ...restInit } = init;
+      const { signal: _signal, ...restInit } = init;
       return fetch(input, restInit);
     }
     return fetch(input, init);

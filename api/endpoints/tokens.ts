@@ -1,7 +1,7 @@
 import type {
+  TokenListResponse,
   TToken,
   TTokenSearchParams,
-  TokenListResponse,
 } from "@/api/types/token";
 import { publicApi } from "@/constants/configs/ky";
 import {

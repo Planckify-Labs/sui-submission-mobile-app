@@ -4,7 +4,20 @@ import { MoveRight } from "lucide-react-native";
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import OptimizedImage from "@/components/common/OptimizedImage";
-import { ProductItem, SectionData } from "@/constants/dummyData/paymentScreen";
+
+interface ProductItem {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+}
+
+interface SectionData {
+  id: string;
+  title: string;
+  viewAllPath: string;
+  items: ProductItem[];
+}
 
 interface PaymentSectionContainerProps {
   section: SectionData;
@@ -79,7 +92,6 @@ export default function ServiceSectionContainer({
             data={section.items}
             renderItem={renderItem}
             keyExtractor={(item) => item.id}
-            estimatedItemSize={8}
             numColumns={4}
             showsHorizontalScrollIndicator={false}
             showsVerticalScrollIndicator={false}

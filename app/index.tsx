@@ -1,8 +1,3 @@
-import ActivitySection from "@/components/home/ActivitySection";
-import BalanceSection from "@/components/home/BalanceSection";
-import Header from "@/components/home/Header";
-import PaymentSection from "@/components/home/PaymentSection";
-import PinnedTokens from "@/components/home/PinnedTokens";
 import { BlurView } from "expo-blur";
 import { router } from "expo-router";
 import { QrCode } from "lucide-react-native";
@@ -16,6 +11,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import ActivitySection from "@/components/home/ActivitySection";
+import BalanceSection from "@/components/home/BalanceSection";
+import Header from "@/components/home/Header";
+import PaymentSection from "@/components/home/PaymentSection";
+import PinnedTokens from "@/components/home/PinnedTokens";
 
 export default function Home() {
   return (

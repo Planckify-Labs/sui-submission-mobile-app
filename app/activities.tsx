@@ -178,7 +178,6 @@ export default function ActivitiesScreen() {
     return (
       <FlashList<ListItem>
         data={data}
-        estimatedItemSize={200}
         keyExtractor={keyExtractor}
         renderItem={renderPurchaseItem}
         ItemSeparatorComponent={SeparatorComponent}
@@ -209,6 +208,7 @@ export default function ActivitiesScreen() {
     renderPurchaseItem,
     shouldShowEmptyState,
     refetch,
+    scrollY,
   ]);
 
   const TransferList = useMemo(() => {
@@ -224,7 +224,6 @@ export default function ActivitiesScreen() {
     return (
       <FlashList<ListItem>
         data={data}
-        estimatedItemSize={200}
         keyExtractor={keyExtractor}
         renderItem={renderTransferItem}
         ItemSeparatorComponent={SeparatorComponent}
@@ -255,6 +254,7 @@ export default function ActivitiesScreen() {
     renderTransferItem,
     shouldShowEmptyState,
     refetch,
+    scrollY,
   ]);
 
   const renderTabContent = useCallback(

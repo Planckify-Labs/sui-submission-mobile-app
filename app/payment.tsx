@@ -264,75 +264,6 @@ export default function PaymentScreen() {
     return parseFloat(formatUnits(rawBalance, 18)).toFixed(4);
   }, []);
 
-  const approveSpending = useCallback(
-    async (isUnlimited = false) => {
-      if (
-        !selectedToken ||
-        !activeWallet.address ||
-        !contractAddress ||
-        !purchaseAmount
-      ) {
-        Alert.alert("Error", "Missing required data for approval");
-        return;
-      }
-
-      setIsApprovingSpending(true);
-      try {
-        const publicClient = getPublicClientForActiveChain();
-        if (!publicClient) throw new Error("No public client available");
-
-        const walletClient = getClientForActiveWallet();
-        if (!walletClient) throw new Error("No wallet client available");
-
-        const approvalAmount = isUnlimited
-          ? BigInt(
-              "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-            )
-          : BigInt(purchaseAmount);
-
-        const hash = await walletClient.writeContract({
-          address: selectedToken.contractAddress as `0x${string}`,
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [contractAddress as `0x${string}`, approvalAmount],
-          chain: walletClient.chain,
-          account: walletClient.account!,
-        });
-
-        await publicClient.waitForTransactionReceipt({ hash });
-
-        setApprovalModalVisible(false);
-        setShouldShowApprovalModal(false);
-        if (isUnlimited) {
-          Alert.alert(
-            "Unlimited Allowance Approved",
-            `You've granted unlimited spending permission to ${selectedToken.symbol}. Future transactions won't require approval.`,
-          );
-        }
-
-        setTimeout(() => {
-          executePayment();
-        }, 100);
-      } catch (error) {
-        console.error("Error approving spending:", error);
-        Alert.alert(
-          "Approval Failed",
-          `Failed to approve token spending: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
-      } finally {
-        setIsApprovingSpending(false);
-      }
-    },
-    [
-      selectedToken,
-      activeWallet.address,
-      contractAddress,
-      purchaseAmount,
-      getPublicClientForActiveChain,
-      getClientForActiveWallet,
-    ],
-  );
-
   const executePayment = useCallback(
     async (pin?: string) => {
       if (
@@ -444,6 +375,76 @@ export default function PaymentScreen() {
       contractAddress,
       createTransaction,
       waitForTransaction,
+    ],
+  );
+
+  const approveSpending = useCallback(
+    async (isUnlimited = false) => {
+      if (
+        !selectedToken ||
+        !activeWallet.address ||
+        !contractAddress ||
+        !purchaseAmount
+      ) {
+        Alert.alert("Error", "Missing required data for approval");
+        return;
+      }
+
+      setIsApprovingSpending(true);
+      try {
+        const publicClient = getPublicClientForActiveChain();
+        if (!publicClient) throw new Error("No public client available");
+
+        const walletClient = getClientForActiveWallet();
+        if (!walletClient) throw new Error("No wallet client available");
+
+        const approvalAmount = isUnlimited
+          ? BigInt(
+              "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            )
+          : BigInt(purchaseAmount);
+
+        const hash = await walletClient.writeContract({
+          address: selectedToken.contractAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [contractAddress as `0x${string}`, approvalAmount],
+          chain: walletClient.chain,
+          account: walletClient.account!,
+        });
+
+        await publicClient.waitForTransactionReceipt({ hash });
+
+        setApprovalModalVisible(false);
+        setShouldShowApprovalModal(false);
+        if (isUnlimited) {
+          Alert.alert(
+            "Unlimited Allowance Approved",
+            `You've granted unlimited spending permission to ${selectedToken.symbol}. Future transactions won't require approval.`,
+          );
+        }
+
+        setTimeout(() => {
+          executePayment();
+        }, 100);
+      } catch (error) {
+        console.error("Error approving spending:", error);
+        Alert.alert(
+          "Approval Failed",
+          `Failed to approve token spending: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
+      } finally {
+        setIsApprovingSpending(false);
+      }
+    },
+    [
+      selectedToken,
+      activeWallet.address,
+      contractAddress,
+      purchaseAmount,
+      getPublicClientForActiveChain,
+      getClientForActiveWallet,
+      executePayment,
     ],
   );
 

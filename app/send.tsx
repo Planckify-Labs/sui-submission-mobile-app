@@ -148,7 +148,12 @@ export default function SendScreen() {
         setSelectedToken(undefined);
       }
     }
-  }, [activeBackendChain?.id, selectedToken?.blockchainId, tokenList]);
+  }, [
+    activeBackendChain?.id,
+    selectedToken?.blockchainId,
+    tokenList,
+    selectedToken,
+  ]);
 
   useEffect(() => {
     const fetchTokenBal = async () => {

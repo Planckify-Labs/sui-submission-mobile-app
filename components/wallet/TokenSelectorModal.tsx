@@ -1,4 +1,3 @@
-import { Image } from "expo-image";
 import { Search } from "lucide-react-native";
 import React, {
   memo,
@@ -62,7 +61,7 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
   const resetAnimation = useCallback(() => {
     fadeAnim.setValue(0);
     translateY.setValue(300);
-  }, []);
+  }, [fadeAnim.setValue, translateY.setValue]);
 
   const animateIn = useCallback(() => {
     Animated.parallel([
@@ -77,7 +76,7 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
         bounciness: 0,
       }),
     ]).start();
-  }, []);
+  }, [fadeAnim, translateY]);
 
   const animateOut = useCallback(() => {
     return new Promise<void>((resolve) => {
@@ -97,7 +96,7 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
         resolve();
       });
     });
-  }, [resetAnimation]);
+  }, [resetAnimation, fadeAnim, translateY]);
 
   useEffect(() => {
     if (visible) {
@@ -116,7 +115,7 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
 
       onSelectToken(tokens[0]);
     }
-  }, [visible, tokens, selectedToken?.id, onSelectToken]);
+  }, [visible, tokens, selectedToken?.id, onSelectToken, selectedToken]);
 
   const handleClose = useCallback(async () => {
     await animateOut();
@@ -150,7 +149,7 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
           }
         },
       }),
-    [handleClose],
+    [handleClose, translateY],
   );
 
   const activePanResponder = externalPanResponder || panResponderConfig;
@@ -161,7 +160,7 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
       backgroundColor: "rgba(0, 0, 0, 0.5)",
       opacity: fadeAnim,
     }),
-    [],
+    [fadeAnim],
   );
 
   const modalContainerStyle = useMemo(
@@ -183,7 +182,7 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
       elevation: 10,
       opacity: fadeAnim,
     }),
-    [],
+    [fadeAnim, translateY],
   );
 
   const SearchInput = useMemo(
@@ -199,7 +198,7 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
         />
       </View>
     ),
-    [searchQuery, setSearchQuery],
+    [searchQuery],
   );
 
   const renderTokenItem = useCallback(

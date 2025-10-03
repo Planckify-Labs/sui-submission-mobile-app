@@ -13,7 +13,7 @@ export default function PurchasedProductHeading({
   const variant = purchase?.productVariant;
 
   return (
-    <View className="bg-light- rounded-3xl p-6 mx-4 mb-6 shadow-sm">
+    <View className="bg-light- rounded-3xl p-6 mx-4 mb-6">
       <View className="items-center">
         <View className="w-24 h-24 rounded-3xl mb-4 overflow-hidden bg-light-main-container border-4 border-light-matte-black">
           {product.imageUrl ? (

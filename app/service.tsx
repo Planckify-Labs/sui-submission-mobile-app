@@ -12,8 +12,37 @@ import PromotionBanner from "@/components/service/PromotionBanner";
 import ServiceHeader from "@/components/service/ServiceHeader";
 import ServiceScreenSkeleton from "@/components/service/ServiceScreenSkeleton";
 import ServiceSectionContainer from "@/components/service/ServiceSectionContainer";
-import { type ListItemData as ListItem } from "@/constants/dummyData/paymentScreen";
 import { useProductsByCategories } from "@/hooks/queries/useProducts";
+
+type ListItem =
+  | { type: "header"; data: { title: string } }
+  | {
+      type: "searchBar";
+      data: { searchQuery: string; setSearchQuery: (query: string) => void };
+    }
+  | {
+      type: "banner";
+      data: {
+        title: string;
+        description: string;
+        buttonText: string;
+        onPress: () => void;
+      };
+    }
+  | {
+      type: "section";
+      data: {
+        id: string;
+        title: string;
+        viewAllPath: string;
+        items: Array<{
+          id: string;
+          name: string;
+          description: string;
+          icon: string;
+        }>;
+      };
+    };
 
 export default function ServiceScreen() {
   const [searchQuery, setSearchQuery] = useState("");

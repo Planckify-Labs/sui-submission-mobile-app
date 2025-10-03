@@ -38,6 +38,46 @@ const AssetWalletSelectorModal = ({
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
 
+  const checkExistingAssets = useCallback(async () => {
+    if (!visible) return;
+
+    setIsLoading(true);
+    const existingAssetMap: Record<number, string[]> = {};
+
+    const assetsToCheck =
+      assets && assets.length > 0 ? assets : asset ? [asset] : [];
+
+    if (assetsToCheck.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
+    for (let i = 0; i < wallets.length; i++) {
+      const wallet = wallets[i];
+      if (wallet?.address) {
+        try {
+          const currentAssets = await loadWalletAssets(
+            wallet.address,
+            activeNetwork,
+          );
+
+          const existingAssets = assetsToCheck.filter((assetToCheck) =>
+            currentAssets.some((existing) => existing.id === assetToCheck.id),
+          );
+
+          if (existingAssets.length > 0) {
+            existingAssetMap[i] = existingAssets.map((a) => a.symbol);
+          }
+        } catch (error) {
+          console.error("Error checking wallet assets:", error);
+        }
+      }
+    }
+
+    setWalletsWithAsset(existingAssetMap);
+    setIsLoading(false);
+  }, [visible, asset, assets, wallets, activeNetwork]);
+
   useEffect(() => {
     if (visible) {
       setSelectedWallets([0]);
@@ -56,7 +96,7 @@ const AssetWalletSelectorModal = ({
         }),
       ]).start();
     }
-  }, [visible, asset, assets, wallets, activeNetwork, fadeAnim, translateY]);
+  }, [visible, fadeAnim, translateY, checkExistingAssets]);
 
   const closeModal = useCallback(() => {
     Animated.parallel([
@@ -103,46 +143,6 @@ const AssetWalletSelectorModal = ({
       },
     }),
   ).current;
-
-  const checkExistingAssets = useCallback(async () => {
-    if (!visible) return;
-
-    setIsLoading(true);
-    const existingAssetMap: Record<number, string[]> = {};
-
-    const assetsToCheck =
-      assets && assets.length > 0 ? assets : asset ? [asset] : [];
-
-    if (assetsToCheck.length === 0) {
-      setIsLoading(false);
-      return;
-    }
-
-    for (let i = 0; i < wallets.length; i++) {
-      const wallet = wallets[i];
-      if (wallet?.address) {
-        try {
-          const currentAssets = await loadWalletAssets(
-            wallet.address,
-            activeNetwork,
-          );
-
-          const existingAssets = assetsToCheck.filter((assetToCheck) =>
-            currentAssets.some((existing) => existing.id === assetToCheck.id),
-          );
-
-          if (existingAssets.length > 0) {
-            existingAssetMap[i] = existingAssets.map((a) => a.symbol);
-          }
-        } catch (error) {
-          console.error("Error checking wallet assets:", error);
-        }
-      }
-    }
-
-    setWalletsWithAsset(existingAssetMap);
-    setIsLoading(false);
-  }, [visible, asset, assets, wallets, activeNetwork]);
 
   const toggleWalletSelection = useCallback((index: number) => {
     setSelectedWallets((prev) => {
