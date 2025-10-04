@@ -15,7 +15,6 @@ import ActivitySection from "@/components/home/ActivitySection";
 import BalanceSection from "@/components/home/BalanceSection";
 import Header from "@/components/home/Header";
 import PaymentSection from "@/components/home/PaymentSection";
-import PinnedTokens from "@/components/home/PinnedTokens";
 
 export default function Home() {
   return (
@@ -30,7 +29,6 @@ export default function Home() {
           <View className="flex-1 gap-4 py-4 pb-24">
             <Header />
             <BalanceSection />
-            <PinnedTokens />
             <ActivitySection />
             <PaymentSection />
           </View>
