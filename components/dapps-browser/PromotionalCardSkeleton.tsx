@@ -1,11 +1,9 @@
-import React from "react";
-import { Dimensions, View } from "react-native";
+import React, { memo } from "react";
+import { View } from "react-native";
+import { PROMO_CARD_WIDTH } from "../../constants/dapps-browser";
 import SingleLoadingSekeleton from "../common/SingleLoadingSekeleton";
 
-const { width: screenWidth } = Dimensions.get("window");
-const PROMO_CARD_WIDTH = screenWidth * 0.85;
-
-export default function PromotionalCardSkeleton() {
+const PromotionalCardSkeleton = memo(function PromotionalCardSkeleton() {
   return (
     <View
       className="rounded-3xl p-6 mr-4"
@@ -39,4 +37,6 @@ export default function PromotionalCardSkeleton() {
       </View>
     </View>
   );
-}
+});
+
+export default PromotionalCardSkeleton;

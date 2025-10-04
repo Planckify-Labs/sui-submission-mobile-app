@@ -1,8 +1,8 @@
-import React from "react";
+import React, { memo } from "react";
 import { View } from "react-native";
 import SingleLoadingSekeleton from "../common/SingleLoadingSekeleton";
 
-export default function DAppCardSkeleton() {
+const DAppCardSkeleton = memo(function DAppCardSkeleton() {
   return (
     <View className="bg-white rounded-2xl p-4 border border-gray-100 min-w-[170px]">
       <View className="flex-row items-center mb-2">
@@ -26,4 +26,6 @@ export default function DAppCardSkeleton() {
       </View>
     </View>
   );
-}
+});
+
+export default DAppCardSkeleton;

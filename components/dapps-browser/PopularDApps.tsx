@@ -1,40 +1,46 @@
 import { FlashList } from "@shopify/flash-list";
-import React from "react";
-import { FlatList, Text, View } from "react-native";
+import React, { memo, useCallback, useMemo } from "react";
+import { Text, View } from "react-native";
 import { usePopularDapps } from "@/hooks/queries/useDapps";
+import { POPULAR_CARD_WIDTH } from "../../constants/dapps-browser";
+import { TDAppNavigationProps } from "../../types/dapps-browser";
+import { generateSkeletonData } from "../../utils/dappsBrowserUtils";
 import DAppCard from "./DAppCard";
 import DAppCardSkeleton from "./DAppCardSkeleton";
 import DappsErrorMessage from "./DappsErrorMessage";
 
-interface PopularDAppsProps {
-  onNavigateToDapp: (url: string) => void;
-}
+const PopularDApps = memo<TDAppNavigationProps>(function PopularDApps({
+  onNavigateToDapp,
+}) {
+  const { data: popularDapps, error, refetch } = usePopularDapps();
 
-export default function PopularDApps({ onNavigateToDapp }: PopularDAppsProps) {
-  const { data: popularDapps, isLoading, error, refetch } = usePopularDapps();
+  const skeletonData = useMemo(
+    () => generateSkeletonData(6, "popular-skeleton"),
+    [],
+  );
 
-  const cardWidth = 200;
+  const renderItem = useCallback(
+    ({ item }: { item: any }) => {
+      if (item.id?.startsWith("popular-skeleton-")) {
+        return (
+          <View style={{ width: POPULAR_CARD_WIDTH }}>
+            <DAppCardSkeleton />
+          </View>
+        );
+      }
 
-  const renderLoadingSkeletons = () =>
-    Array.from({ length: 6 }, (_, index) => ({ id: `skeleton-${index}` }));
-
-  const renderItem = ({ item }: { item: any }) => {
-    if (item.id?.startsWith("skeleton-")) {
       return (
-        <View style={{ width: cardWidth }}>
-          <DAppCardSkeleton />
+        <View style={{ width: POPULAR_CARD_WIDTH }}>
+          <DAppCard dapp={item} isCompact onPress={onNavigateToDapp} />
         </View>
       );
-    }
+    },
+    [onNavigateToDapp],
+  );
 
-    return (
-      <View style={{ width: cardWidth }}>
-        <View style={{ width: "100%" }}>
-          <DAppCard dapp={item} isCompact={true} onPress={onNavigateToDapp} />
-        </View>
-      </View>
-    );
-  };
+  const keyExtractor = useCallback((item: any) => item.id, []);
+
+  const ItemSeparator = useCallback(() => <View style={{ width: 16 }} />, []);
 
   if (error) {
     return (
@@ -66,16 +72,20 @@ export default function PopularDApps({ onNavigateToDapp }: PopularDAppsProps) {
         </Text>
       </View>
       <FlashList
-        data={isLoading ? renderLoadingSkeletons() : popularDapps}
+        data={
+          popularDapps && popularDapps.length > 0 ? popularDapps : skeletonData
+        }
         renderItem={renderItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={keyExtractor}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16 }}
-        ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
+        ItemSeparatorComponent={ItemSeparator}
         numColumns={1}
         className="min-h-[90px]"
       />
     </View>
   );
-}
+});
+
+export default PopularDApps;

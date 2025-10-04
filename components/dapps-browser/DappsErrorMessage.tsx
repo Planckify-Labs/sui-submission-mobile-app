@@ -1,21 +1,22 @@
 import { AlertCircle, RefreshCw } from "lucide-react-native";
-import React from "react";
+import React, { memo, useCallback } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
+import { COLORS, ICON_SIZES } from "../../constants/dapps-browser";
+import { TErrorMessageProps } from "../../types/dapps-browser";
 
-interface DappsErrorMessageProps {
-  onRetry: () => void;
-  message?: string;
-}
-
-export default function DappsErrorMessage({
+const DappsErrorMessage = memo<TErrorMessageProps>(function DappsErrorMessage({
   onRetry,
   message = "Can't load DApps right now",
-}: DappsErrorMessageProps) {
+}) {
+  const handleRetry = useCallback(() => {
+    onRetry();
+  }, [onRetry]);
+
   return (
     <View className="px-4 justify-center items-center">
       <View className="rounded-2xl p-6 items-center justify-center bg-white w-full border border-gray-100">
         <View className="w-14 h-14 bg-light-primary-red/5 rounded-2xl items-center justify-center mb-4">
-          <AlertCircle size={24} color="#c71c4b" />
+          <AlertCircle size={ICON_SIZES.LARGE} color={COLORS.PRIMARY_RED} />
         </View>
 
         <Text className="text-gray-800 font-semibold text-base mb-1 text-center">
@@ -29,12 +30,18 @@ export default function DappsErrorMessage({
         <TouchableOpacity
           activeOpacity={0.7}
           className="bg-light-primary-red px-5 py-2.5 rounded-xl flex-row items-center shadow-sm"
-          onPress={onRetry}
+          onPress={handleRetry}
         >
-          <RefreshCw size={14} color="white" style={{ marginRight: 6 }} />
+          <RefreshCw
+            size={14}
+            color={COLORS.WHITE}
+            style={{ marginRight: 6 }}
+          />
           <Text className="text-white font-medium text-xs">Retry</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
-}
+});
+
+export default DappsErrorMessage;

@@ -1,24 +1,23 @@
 import { ArrowUpRight } from "lucide-react-native";
-import React from "react";
+import React, { memo, useCallback } from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
-import { TDapp } from "@/api/types/dapp";
+import { COLORS, ICON_SIZES } from "../../constants/dapps-browser";
+import { TDAppCardProps } from "../../types/dapps-browser";
 
-interface DAppCardProps {
-  dapp: TDapp;
-  isCompact?: boolean;
-  onPress: (url: string) => void;
-}
-
-export default function DAppCard({
+const DAppCard = memo<TDAppCardProps>(function DAppCard({
   dapp,
   isCompact = false,
   onPress,
-}: DAppCardProps) {
+}) {
+  const handlePress = useCallback(() => {
+    onPress(dapp.websiteUrl);
+  }, [onPress, dapp.websiteUrl]);
+
   return (
     <TouchableOpacity
       activeOpacity={0.7}
-      onPress={() => onPress(dapp.websiteUrl)}
-      className={`bg-white rounded-2xl p-4 border border-gray-100 flex-1`}
+      onPress={handlePress}
+      className="bg-white rounded-2xl p-4 border border-gray-100 flex-1"
     >
       <View className="flex-row items-center mb-2">
         <View className="w-10 h-10 rounded-full bg-light-main-container items-center justify-center mr-3">
@@ -40,7 +39,7 @@ export default function DAppCard({
             </View>
           )}
         </View>
-        <ArrowUpRight color="#c71c4b" size={16} />
+        <ArrowUpRight color={COLORS.PRIMARY_RED} size={ICON_SIZES.SMALL} />
       </View>
       <Text
         className="text-light-matte-black/60 text-xs leading-4 text-ellipsis"
@@ -50,4 +49,6 @@ export default function DAppCard({
       </Text>
     </TouchableOpacity>
   );
-}
+});
+
+export default DAppCard;
