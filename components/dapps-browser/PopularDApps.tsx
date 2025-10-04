@@ -1,3 +1,4 @@
+import { FlashList } from "@shopify/flash-list";
 import React from "react";
 import { FlatList, Text, View } from "react-native";
 import { usePopularDapps } from "@/hooks/queries/useDapps";
@@ -64,7 +65,7 @@ export default function PopularDApps({ onNavigateToDapp }: PopularDAppsProps) {
           Most loved applications across all categories
         </Text>
       </View>
-      <FlatList
+      <FlashList
         data={isLoading ? renderLoadingSkeletons() : popularDapps}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
@@ -73,6 +74,7 @@ export default function PopularDApps({ onNavigateToDapp }: PopularDAppsProps) {
         contentContainerStyle={{ paddingHorizontal: 16 }}
         ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
         numColumns={1}
+        className="min-h-[90px]"
       />
     </View>
   );
