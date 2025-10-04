@@ -1,5 +1,5 @@
 import { publicApi } from "@/constants/configs/ky";
-import { fetchById, fetchList, searchItems } from "../utils/api-helpers";
+import { fetchList } from "../utils/api-helpers";
 
 export interface TBlockchain {
   id: string;
@@ -14,6 +14,17 @@ export interface TBlockchain {
   updatedAt: string;
 }
 
+export interface TAbi {
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  abi: any[];
+  isVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TSmartContract {
   id: string;
   name: string;
@@ -24,17 +35,7 @@ export interface TSmartContract {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface TSmartContractSearchParams {
-  name?: string;
-  address?: string;
-  blockchainId?: string;
-  contractType?: string;
-  isVerified?: boolean;
-  isActive?: boolean;
-  take?: number;
-  cursor?: string;
+  abi: TAbi;
 }
 
 export type TSmartContractListResponse = TSmartContract[];
@@ -47,19 +48,12 @@ export const smartContractApi = {
       "Failed to fetch smart contract list",
     ),
 
-  searchSmartContracts: (params?: TSmartContractSearchParams) =>
-    searchItems<TSmartContractListResponse>(
-      publicApi,
-      "smart-contracts/search",
-      params || {},
-      "Failed to search smart contracts",
-    ),
-
-  getSmartContractById: (id: string) =>
-    fetchById<TSmartContract>(
-      publicApi,
-      "smart-contracts",
-      id,
-      "Failed to fetch smart contract by id",
-    ),
+  getSmartContractsByChain: (chainId: number) =>
+    publicApi
+      .get(`smart-contracts/chain/${chainId}`)
+      .json<TSmartContract>()
+      .catch((error) => {
+        console.error("Failed to fetch smart contract by chain:", error);
+        throw new Error("Failed to fetch smart contract by chain");
+      }),
 };

@@ -1,28 +1,10 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  smartContractApi,
-  TSmartContractSearchParams,
-} from "@/api/endpoints/smart-contracts";
+import { useQuery } from "@tanstack/react-query";
+import { smartContractApi } from "@/api/endpoints/smart-contracts";
 
-export const useSmartContracts = (params?: {
-  blockchainId?: string;
-  contractType?: string;
-  name?: string;
-  isActive?: boolean;
-}) => {
-  const query = useQuery({
-    queryKey: ["smart-contracts", params],
-    queryFn: () => smartContractApi.searchSmartContracts(params),
-    enabled: !!params?.blockchainId,
+export const useSmartContractByChain = (chainId: number) => {
+  return useQuery({
+    queryKey: ["smart-contracts", "chain", chainId],
+    queryFn: () => smartContractApi.getSmartContractsByChain(chainId),
+    enabled: !!chainId,
   });
-
-  const searchContract = useMutation({
-    mutationFn: (searchParams: TSmartContractSearchParams) =>
-      smartContractApi.searchSmartContracts(searchParams),
-  });
-
-  return {
-    ...query,
-    searchContract,
-  };
 };

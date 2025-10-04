@@ -28,7 +28,7 @@ import type { TCreateTransactionParams } from "@/contracts/types/TTakumiWallet";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 import { useBlockchains } from "@/hooks/queries/useBlockchains";
 import { useCreateBooking } from "@/hooks/queries/useBookings";
-import { usePaymentProcessorContract } from "@/hooks/queries/usePaymentProcessorContract";
+import { useSmartContractByChain } from "@/hooks/queries/useSmartContracts";
 import { useProductVariantById } from "@/hooks/queries/useProducts";
 import { useCreatePurchase } from "@/hooks/queries/usePurchases";
 import { useTokens } from "@/hooks/queries/useTokens";
@@ -52,9 +52,13 @@ export default function PaymentScreen() {
     return blockchains.find((b) => b.chainId === activeChain.chain.id);
   }, [blockchains, activeChain]);
 
-  const { contractAddress, error: contractError } = usePaymentProcessorContract(
-    activeBlockchain?.id,
-  );
+  const { 
+    data: smartContract, 
+    isLoading: isLoadingContract, 
+    error: contractError 
+  } = useSmartContractByChain(activeBlockchain?.chainId || 0);
+
+  const contractAddress = smartContract?.address;
 
   const { createTransaction, waitForTransaction } = useTakumiWalletContract({
     contractAddress: contractAddress as `0x${string}`,
