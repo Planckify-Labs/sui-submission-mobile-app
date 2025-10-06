@@ -9,7 +9,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import QRCode from "react-native-qrcode-svg";
+import QRCodeStyled from "react-native-qrcode-styled";
 import { takumipayLogoBase64 } from "@/constants/takumipay";
 import { TWallet } from "@/constants/types/walletTypes";
 import { copyToClipboard } from "@/utils/helperUtils";
@@ -99,17 +99,49 @@ export default function RecievePaymentModal({
 
             <View className="bg-white rounded-3xl p-6 shadow-sm mb-5">
               <View className="items-center mb-6 h-64">
-                <View className="bg-light-main-container/50 p-6 rounded-2xl">
+                <View className="bg-light-main-container/50 p-4 rounded-2xl aspect-square grow">
                   {isModalAnimationComplete && (
-                    <QRCode
-                      value={activeWallet.address}
-                      size={180}
+                    <QRCodeStyled
+                      data={activeWallet.address}
+                      style={{ backgroundColor: "rgb(245 246 249 / 0.5)" }}
+                      padding={0}
+                      className="w-full h-full"
+                      size={205}
+                      pieceBorderRadius={3.5}
+                      isPiecesGlued={false}
                       color="#20222c"
-                      backgroundColor="#ffffff"
-                      logo={{ uri: takumipayLogoBase64 }}
-                      logoSize={45}
-                      logoBackgroundColor="white"
-                      logoBorderRadius={10}
+                      gradient={{
+                        type: "linear",
+                        options: {
+                          colors: ["#c71c4b", "#20222c"],
+                          start: [0, 0],
+                          end: [1, 1],
+                        },
+                      }}
+                      outerEyesOptions={{
+                        topLeft: {
+                          borderRadius: 8,
+                          color: "#c71c4b",
+                        },
+                        topRight: {
+                          borderRadius: 8,
+                          color: "#c71c4b",
+                        },
+                        bottomLeft: {
+                          borderRadius: 8,
+                          color: "#c71c4b",
+                        },
+                      }}
+                      innerEyesOptions={{
+                        borderRadius: 4,
+                        color: "#20222c",
+                      }}
+                      logo={{
+                        href: takumipayLogoBase64,
+                        scale: 1.4,
+                        hidePieces: true,
+                        padding: 2,
+                      }}
                     />
                   )}
                 </View>
