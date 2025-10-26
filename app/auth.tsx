@@ -16,6 +16,7 @@ import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import PinConfirmationModal from "@/components/common/PinConfirmationModal";
 import SignMessageModal from "@/components/common/SignMessageModal";
 import { usePerformance } from "@/components/providers/PerformanceProvider";
+import { transactionsQueryKeys } from "@/constants/queryKeys/transactionsQueryKeys";
 import { useVerifySignature } from "@/hooks/queries/useAuth";
 import useRQGlobalState from "@/hooks/useRQGlobalState";
 import { useWallet } from "@/hooks/useWallet";
@@ -125,6 +126,7 @@ export default function AuthScreen() {
         console.log("jwt token: ", authResponse.access_token);
 
         queryClient.invalidateQueries({ queryKey: ["auth"] });
+        queryClient.invalidateQueries({ queryKey: transactionsQueryKeys.all });
       }, "Verifying signature");
 
       updateLoadingStep(3, true);
