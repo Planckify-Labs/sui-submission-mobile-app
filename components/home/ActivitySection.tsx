@@ -68,26 +68,26 @@ export default function ActivitySection() {
         })
       }
     >
-      <View  className="relative">
-      <View className="rounded-2xl border-2 p-0 border-light-matte-black w-16 aspect-square overflow-hidden bg-light-main-container">
-        <OptimizedImage
-          source={{ uri: payment.purchase?.productVariant.product.imageUrl }}
-          style={{ width: "100%", height: "100%" }}
-          contentFit="cover"
-        />
-      </View>
+      <View className="relative">
+        <View className="rounded-2xl border-2 p-0 border-light-matte-black w-16 aspect-square overflow-hidden bg-light-main-container">
+          <OptimizedImage
+            source={{ uri: payment.purchase?.productVariant.product.imageUrl }}
+            style={{ width: "100%", height: "100%" }}
+            contentFit="cover"
+          />
+        </View>
 
-      <View className="bg-light-main-container aspect-square w-4 rounded-full absolute -bottom-[5px] right-[10px] items-center justify-center">
+        <View className="bg-light-main-container aspect-square w-4 rounded-full border border-light-matte-black absolute -bottom-[5px] right-[10px] items-center justify-center">
           <OptimizedImage
             source={{ uri: payment.token.blockchain.tokens[0].logoUrl }}
             style={{ width: 14, height: 14 }}
             contentFit="contain"
           />
         </View>
-        <View className="bg-light-main-container aspect-square w-3 rounded-full absolute bottom-[5px] right-0 items-center justify-center">
+        <View className="bg-light-main-container aspect-square w-4 rounded-full border border-light-matte-black absolute bottom-0 -right-[5px] items-center justify-center">
           <OptimizedImage
             source={{ uri: payment.token.logoUrl }}
-            style={{ width: 15, height: 15 }}
+            style={{ width: 14, height: 14 }}
             contentFit="contain"
           />
         </View>
@@ -95,7 +95,6 @@ export default function ActivitySection() {
       <Text className="text-[10px] text-center text-wrap max-w-16 mt-1">
         {payment.purchase?.productVariant.name}
       </Text>
-      
     </TouchableOpacity>
   );
 
@@ -128,19 +127,19 @@ export default function ActivitySection() {
           })()}
         </Text>
         <Text className="text-light-matte-black font-bold text-xs">
-        {transfer.token.symbol}
+          {transfer.token.symbol}
         </Text>
-        <View className="bg-light-main-container aspect-square w-5 rounded-full absolute bottom-0 right-[10px] items-center justify-center">
+        <View className="bg-light-main-container aspect-square w-4 rounded-full border border-light-matte-black absolute bottom-0 right-[10px] items-center justify-center">
           <OptimizedImage
             source={{ uri: transfer.token.blockchain.tokens[0].logoUrl }}
-            style={{ width: 16, height: 16 }}
+            style={{ width: 14, height: 14 }}
             contentFit="contain"
-            />
+          />
         </View>
-        <View className="bg-light-main-container aspect-square w-3 rounded-full absolute bottom-[12px] right-0 items-center justify-center">
+        <View className="bg-light-main-container aspect-square w-3 rounded-full border border-light-matte-black absolute bottom-[12px] right-0 items-center justify-center">
           <OptimizedImage
             source={{ uri: transfer.token.logoUrl }}
-            style={{ width: 15, height: 15 }}
+            style={{ width: 14, height: 14 }}
             contentFit="contain"
           />
         </View>
