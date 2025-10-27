@@ -1,6 +1,11 @@
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
-import { MoveRight, Wallet2 } from "lucide-react-native";
+import {
+  ArrowUpRight,
+  MoveRight,
+  Sparkles,
+  Wallet2,
+} from "lucide-react-native";
 import React, { useEffect, useRef } from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { formatUnits } from "viem/utils";
@@ -303,29 +308,32 @@ export default function ActivitySection() {
             </View>
 
             <Text className="text-light-matte-black font-semibold text-base">
-              No activity yet
+              You're all set to make a move
             </Text>
-            <Text className="text-light-matte-black/60 text-center text-sm mt-1 px-4">
-              Your transfers and purchases will appear here.
+            <Text className="text-light-matte-black/60 text-center text-sm mt-1 px-4 leading-5">
+              Send your first transfer or shop through Takumi and your timeline
+              will populate instantly.
             </Text>
 
             <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => router.push("/send")}
-              className="bg-light-primary-red px-5 py-3 rounded-2xl flex-row items-center gap-2 mt-6 shadow-sm"
-              style={{
-                shadowColor: "#c71c4b",
-                shadowOffset: { width: 0, height: 3 },
-                shadowOpacity: 0.12,
-                shadowRadius: 10,
-                elevation: 6,
-              }}
+              activeOpacity={0.7}
+              onPress={() => router.push("/service")}
+              className="bg-light-primary-red w-full- rounded-full items-center gap-3 mt-6 px-5 py-4 mx-auto-"
             >
-              <MoveRight color="#ffffff" size={18} />
-              <Text className="text-white font-bold text-sm">
-                Make your first transfer
+              <Text className="text-light font-bold text-sm text-center">
+                Make your first purchase
               </Text>
             </TouchableOpacity>
+
+            <View className="flex-row items-start gap-3 mt-5 px-4 py-3 rounded-2xl bg-light-main-container border border-light-primary-red/15">
+              <View className="bg-light-primary-red/10 p-2 rounded-full">
+                <Sparkles color="#c71c4b" size={14} />
+              </View>
+              <Text className="text-light-matte-black/65 text-xs leading-5 flex-1">
+                We'll highlight your latest transfers & purchases here the
+                moment they land on-chain.
+              </Text>
+            </View>
           </View>
         </View>
       )}
