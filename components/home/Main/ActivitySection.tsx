@@ -1,7 +1,6 @@
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import {
-  ArrowUpRight,
   MoveRight,
   Sparkles,
   Wallet2,
@@ -15,7 +14,7 @@ import { useTransactionHistory } from "@/hooks/queries/useTransactions";
 import { useWallet } from "@/hooks/useWallet";
 import { formatTokenAmount } from "@/utils/helperUtils";
 import { truncateAddress } from "@/utils/walletUtils";
-import OptimizedImage from "../common/OptimizedImage";
+import OptimizedImage from "../../common/OptimizedImage";
 
 export default function ActivitySection() {
   const { activeWallet } = useWallet();

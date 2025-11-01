@@ -1,6 +1,6 @@
 import React from "react";
 import { useWindowDimensions, View } from "react-native";
-import SingleLoadingSekelton from "../common/SingleLoadingSekeleton";
+import SingleLoadingSekelton from "../../common/SingleLoadingSekeleton";
 
 export default function BalanceSectionSkeleton() {
   const { width } = useWindowDimensions();

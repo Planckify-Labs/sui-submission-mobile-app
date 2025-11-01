@@ -8,9 +8,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import HomeChatMode from "@/components/home/HomeChatMode";
-import HomeMain from "@/components/home/HomeMain";
-import ScanToPayChatModeFloatingButtons from "@/components/home/ScanToPayChatModeFloatingButtons";
+import HomeMain from "@/components/home/Main/HomeMain";
+import ScanToPayChatModeFloatingButtons from "@/components/home/Main/ScanToPayChatModeFloatingButtons";
+import AgentMode from "@/components/home/TakumiAgent/AgentMode";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -61,7 +61,7 @@ export default function Home() {
             <HomeMain />
           </View>
           <View style={{ width: SCREEN_WIDTH }}>
-            <HomeChatMode />
+            <AgentMode />
           </View>
         </ScrollView>
 

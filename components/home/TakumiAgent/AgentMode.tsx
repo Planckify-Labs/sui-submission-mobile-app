@@ -1,7 +1,6 @@
-import React from "react";
 import { Text, View } from "react-native";
 
-export default function HomeChatMode() {
+export default function AgentMode() {
   return (
     <View className="flex-1 bg-light-main-container justify-center items-center">
       <Text className="text-2xl font-bold text-gray-600">

@@ -13,7 +13,7 @@ import QRCodeStyled from "react-native-qrcode-styled";
 import { takumipayLogoBase64 } from "@/constants/takumipay";
 import { TWallet } from "@/constants/types/walletTypes";
 import { copyToClipboard } from "@/utils/helperUtils";
-import Chip from "../common/Chip";
+import Chip from "../../common/Chip";
 
 type ReceivePaymentModalProps = {
   modalVisible: boolean;
