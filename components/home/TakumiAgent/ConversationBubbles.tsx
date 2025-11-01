@@ -5,19 +5,19 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view
 import ChatMessage, { ChatMessageProps } from "./ChatMessage";
 import QuickPrompts from "./QuickPrompts";
 
-export interface ChatHistoryProps {
+export interface ConversationBubbles {
   messages: ChatMessageProps[];
   isLoading?: boolean;
   emptyMessage?: string;
   onSelectPrompt?: (prompt: string) => void;
 }
 
-export default function ChatHistory({
+export default function ConversationBubbles({
   messages,
   isLoading = false,
   emptyMessage = "Start a conversation with the AI agent",
   onSelectPrompt,
-}: ChatHistoryProps) {
+}: ConversationBubbles) {
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
