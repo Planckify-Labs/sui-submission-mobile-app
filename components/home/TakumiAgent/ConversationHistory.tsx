@@ -216,10 +216,10 @@ export default function ConversationHistory({
           </View>
           <TouchableOpacity className="relative" onPress={onScrollToChat}>
             <View className="absolute top-0 -right-2">
-              <ChevronRight size={40} color="#20222c" strokeWidth={1.3} />
+              <ChevronRight size={40} color="#c71c4b" strokeWidth={1.3} />
             </View>
             <View className="top-0 right-0">
-              <ChevronRight size={40} color="#20222c" strokeWidth={1.3} />
+              <ChevronRight size={40} color="#c71c4b" strokeWidth={1.3} />
             </View>
           </TouchableOpacity>
         </View>
