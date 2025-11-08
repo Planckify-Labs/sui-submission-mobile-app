@@ -30,6 +30,7 @@ const { width: screenWidth } = Dimensions.get("window");
 export default function AgentMode() {
   const scrollViewRef = useRef<ScrollView>(null);
   const [input, setInput] = useState("");
+  const lastSendTimeRef = useRef<number>(0);
 
   const { messages, error, sendMessage, status, clearError } = useChat({
     transport: new DefaultChatTransport({
@@ -81,6 +82,16 @@ export default function AgentMode() {
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
+
+      // Prevent rapid-fire requests (minimum 1 second between messages)
+      const now = Date.now();
+      const timeSinceLastSend = now - lastSendTimeRef.current;
+      if (timeSinceLastSend < 1000) {
+        console.log("Please wait before sending another message");
+        return;
+      }
+
+      lastSendTimeRef.current = now;
 
       try {
         await sendMessage({ text: trimmed });
@@ -191,8 +202,17 @@ export default function AgentMode() {
 
         {error && (
           <View className="mt-2 bg-light-primary-red/10 border border-light-primary-red/40 rounded-3xl px-4 py-3">
-            <Text className="text-xs text-light-primary-red font-semibold">
-              {error.message}
+            <Text className="text-xs text-light-primary-red font-semibold mb-1">
+              {error.message.includes("overloaded") ||
+              error.message.includes("Overloaded")
+                ? "Service is busy right now"
+                : "Something went wrong"}
+            </Text>
+            <Text className="text-xs text-light-matte-black/70">
+              {error.message.includes("overloaded") ||
+              error.message.includes("Overloaded")
+                ? "The AI service is experiencing high demand. Please wait a moment and try again."
+                : "Please try sending your message again."}
             </Text>
           </View>
         )}
