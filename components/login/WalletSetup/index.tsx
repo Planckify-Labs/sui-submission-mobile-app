@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useNavigation } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { BackHandler, StatusBar } from "react-native";
+import { BackHandler, Platform, StatusBar } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -258,7 +258,7 @@ export default function WalletSetup() {
   }
 
   const { bottom } = useSafeAreaInsets();
-  const bottomOffset = bottom > 0 ? bottom : 0;
+  const bottomOffset = Platform.OS === "ios" ? 0 : bottom > 0 ? bottom : 0;
   return (
     <>
       <StatusBar barStyle="dark-content" />
