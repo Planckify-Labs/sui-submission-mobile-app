@@ -108,7 +108,7 @@ export default function RecievePaymentModal({
                       className="w-full h-full"
                       size={205}
                       pieceBorderRadius={3.5}
-                      isPiecesGlued={false}
+                      isPiecesGlued={true}
                       color="#20222c"
                       gradient={{
                         type: "linear",
@@ -138,8 +138,7 @@ export default function RecievePaymentModal({
                       }}
                       logo={{
                         href: takumipayLogoBase64,
-                        scale: 1.4,
-                        hidePieces: true,
+                        scale: 0.9,
                         padding: 2,
                       }}
                     />
