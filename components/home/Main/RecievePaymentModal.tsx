@@ -138,7 +138,7 @@ export default function RecievePaymentModal({
                       }}
                       logo={{
                         href: takumipayLogoBase64,
-                        scale: 0.9,
+                        scale: 1.2,
                         padding: 2,
                       }}
                     />
