@@ -10,12 +10,14 @@ import {
   Animated,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePin } from "@/hooks/usePin";
 import PinSetupModal from "./PinSetupModal";
 
@@ -36,6 +38,9 @@ const PinConfirmationModal: React.FC<PinConfirmationModalProps> = ({
   pinLength = 4,
   panResponder: externalPanResponder,
 }) => {
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
+  
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [setupModalVisible, setSetupModalVisible] = useState(false);
@@ -261,7 +266,7 @@ const PinConfirmationModal: React.FC<PinConfirmationModalProps> = ({
               left: 0,
               right: 0,
               height: "auto",
-              paddingBottom: 20,
+              paddingBottom: bottomOffset,
               backgroundColor: "#f5f6f9",
               borderTopLeftRadius: 28,
               borderTopRightRadius: 28,

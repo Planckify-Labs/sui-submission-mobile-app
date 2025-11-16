@@ -5,12 +5,14 @@ import {
   Dimensions,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   Text,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TWallet } from "@/constants/types/walletTypes";
 
 const { height } = Dimensions.get("window");
@@ -45,6 +47,9 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
   onSelectWalletForDapp,
   onDeclineConnection,
 }: WalletSelectorModalProps) {
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
+  
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
 
@@ -225,6 +230,7 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
             left: 0,
             right: 0,
             height: MODAL_HEIGHT,
+            paddingBottom: bottomOffset,
             backgroundColor: "white",
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,

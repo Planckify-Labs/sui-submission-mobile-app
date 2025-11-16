@@ -7,12 +7,14 @@ import {
   Image,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   Text,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTokens } from "@/hooks/queries/useTokens";
 import { useBlockchainsWithStorage } from "@/hooks/useBlockchainsWithStorage";
 import { useWallet } from "@/hooks/useWallet";
@@ -21,6 +23,9 @@ const { height } = Dimensions.get("window");
 const MODAL_HEIGHT = height * 0.67;
 
 const ChainSelector = memo(() => {
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
+  
   const { activeChain, changeActiveChain } = useWallet();
   const [modalVisible, setModalVisible] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -234,6 +239,7 @@ const ChainSelector = memo(() => {
                 left: 0,
                 right: 0,
                 height: MODAL_HEIGHT,
+                paddingBottom: bottomOffset,
                 borderTopLeftRadius: 24,
                 borderTopRightRadius: 24,
                 transform: [{ translateY: translateY }],

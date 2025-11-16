@@ -3,12 +3,14 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Modal,
+  Platform,
   Pressable,
   Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface PinSetupModalProps {
   visible: boolean;
@@ -23,6 +25,9 @@ const PinSetupModal: React.FC<PinSetupModalProps> = ({
   onSetupComplete,
   pinLength = 4,
 }) => {
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
+  
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [step, setStep] = useState<"intro" | "create" | "confirm">("intro");
@@ -299,7 +304,7 @@ const PinSetupModal: React.FC<PinSetupModalProps> = ({
             left: 0,
             right: 0,
             height: "auto",
-            paddingBottom: 20,
+            paddingBottom: bottomOffset,
             backgroundColor: "#f5f6f9",
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,

@@ -11,6 +11,7 @@ import {
   Animated,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -20,6 +21,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TToken } from "@/api/types/token";
 import OptimizedImage from "../common/OptimizedImage";
 
@@ -42,6 +44,9 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
   panResponder: externalPanResponder,
   tokens,
 }: TokenSelectorModalProps) {
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
+  
   const [searchQuery, setSearchQuery] = useState("");
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(300)).current;
@@ -170,7 +175,7 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
       left: 0,
       right: 0,
       height: "auto",
-      paddingBottom: 20,
+      paddingBottom: bottomOffset,
       backgroundColor: "#f5f6f9",
       borderTopLeftRadius: 28,
       borderTopRightRadius: 28,

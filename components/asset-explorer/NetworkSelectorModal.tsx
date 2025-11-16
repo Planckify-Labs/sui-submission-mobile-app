@@ -6,6 +6,7 @@ import {
   Image,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -13,6 +14,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TNetworkSelectorModalProps } from "@/constants/types/networkTypes";
 import { useBlockchains } from "@/hooks/queries/useBlockchains";
 import NetworkSelectorModalLoadingSkeletons from "./NetworkSelectorModalLoadingSkeletons";
@@ -31,6 +33,9 @@ const NetworkSelectorModal = ({
   fadeAnim,
   translateY,
 }: TNetworkSelectorModalProps) => {
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
+  
   const { data: blockchains, isLoading } = useBlockchains({ isActive: true });
 
   const panResponder = useRef(
@@ -126,6 +131,7 @@ const NetworkSelectorModal = ({
                 left: 0,
                 right: 0,
                 height: MODAL_HEIGHT,
+                paddingBottom: bottomOffset,
                 backgroundColor: "#f5f6f9",
                 borderTopLeftRadius: 24,
                 borderTopRightRadius: 24,

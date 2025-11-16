@@ -4,6 +4,7 @@ import {
   Animated,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -11,6 +12,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNonce } from "@/hooks/queries/useAuth";
 import useRQGlobalState from "@/hooks/useRQGlobalState";
 import { useWallet } from "@/hooks/useWallet";
@@ -42,6 +44,9 @@ const SignMessageModal: React.FC<TSignMessageModalProps> = ({
   const translateY = useRef(new Animated.Value(visible ? 0 : 300)).current;
   const hasAnimatedIn = useRef(visible);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
 
   const { activeWallet, activeChain } = useWallet();
 
@@ -217,7 +222,7 @@ const SignMessageModal: React.FC<TSignMessageModalProps> = ({
             left: 0,
             right: 0,
             height: "auto",
-            paddingBottom: 20,
+            paddingBottom: bottomOffset,
             backgroundColor: "#f5f6f9",
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,

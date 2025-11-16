@@ -6,12 +6,14 @@ import {
   Image,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatUnits } from "viem";
 import type { TToken } from "@/api/types/token";
 import OptimizedImage from "./OptimizedImage";
@@ -45,6 +47,9 @@ const SpendingApprovalModal: React.FC<SpendingApprovalModalProps> = ({
   spenderName = "Contract",
   isInternalContract = false,
 }) => {
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
+  
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
   const [unlimitedAllowance, setUnlimitedAllowance] = useState(false);
@@ -156,6 +161,7 @@ const SpendingApprovalModal: React.FC<SpendingApprovalModalProps> = ({
             left: 0,
             right: 0,
             height: "auto",
+            paddingBottom: bottomOffset,
             backgroundColor: "#f5f6f9",
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,

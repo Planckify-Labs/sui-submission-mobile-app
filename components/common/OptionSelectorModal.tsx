@@ -4,6 +4,7 @@ import {
   Animated,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -11,6 +12,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { queryClient } from "@/app/_layout";
 import useRQGlobalState from "@/hooks/useRQGlobalState";
 
@@ -35,6 +37,9 @@ const OptionSelectorModal: React.FC<OptionSelectorModalProps> = ({
   stateKey,
   clearOnClose = false,
 }) => {
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
+
   const fadeAnim = useRef(new Animated.Value(visible ? 1 : 0)).current;
   const translateY = useRef(new Animated.Value(visible ? 0 : 300)).current;
   const hasAnimatedIn = useRef(visible);
@@ -170,6 +175,7 @@ const OptionSelectorModal: React.FC<OptionSelectorModalProps> = ({
             left: 0,
             right: 0,
             maxHeight: "70%",
+            paddingBottom: bottomOffset,
             backgroundColor: "#f5f6f9",
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,

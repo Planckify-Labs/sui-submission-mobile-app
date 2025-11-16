@@ -6,12 +6,14 @@ import {
   Dimensions,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   Text,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TAssetWalletSelectorModalProps } from "@/constants/types/assetTypes";
 import { TWallet } from "@/constants/types/walletTypes";
 import { loadWalletAssets, saveWalletAssets } from "@/utils/assetUtils";
@@ -29,6 +31,9 @@ const AssetWalletSelectorModal = ({
   onConfirm,
   activeNetwork,
 }: TAssetWalletSelectorModalProps) => {
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
+  
   const [selectedWallets, setSelectedWallets] = useState<number[]>([0]);
   const [walletsWithAsset, setWalletsWithAsset] = useState<
     Record<number, string[]>
@@ -344,6 +349,7 @@ const AssetWalletSelectorModal = ({
             left: 0,
             right: 0,
             height: MODAL_HEIGHT,
+            paddingBottom: bottomOffset,
             backgroundColor: "white",
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
