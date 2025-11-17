@@ -18,7 +18,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import type { TTransaction } from "@/api/types/transaction";
 import ActivityHeader from "@/components/activities/ActivityHeader";
 import PurchaseCard from "@/components/activities/PurchaseCard";
@@ -295,7 +298,8 @@ export default function ActivitiesScreen() {
       <BlurView
         intensity={30}
         experimentalBlurMethod="dimezisBlurView"
-        className="overflow-hidden rounded-full absolute bottom-4 left-0 right-0 mx-4 border-4 border-light-main-container/80"
+        className="overflow-hidden rounded-full absolute left-0 right-0 mx-4 border-4 border-light-main-container/80"
+        style={{ bottom: 16 + bottomOffset }}
       >
         <View className="bg-mainborder-light-main-container/10 w-full flex-row items-center justify-evenly relative">
           <TouchableOpacity
