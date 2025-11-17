@@ -4,6 +4,7 @@ import React, { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -12,7 +13,10 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import Chip from "@/components/common/Chip";
 import SecurityWarning from "@/components/common/SecurityWarning";
 import { usePerformance } from "@/components/providers/PerformanceProvider";
@@ -48,7 +52,8 @@ export default function Wallet() {
   } = useWallet();
   const [showWalletInfo, setShowWalletInfo] = useState(false);
   const { isReady, deferredTask } = usePerformance();
-
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = Platform.OS === "ios" ? 0 : bottom > 0 ? bottom : 0;
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadWallets();
@@ -119,6 +124,7 @@ export default function Wallet() {
       <SafeAreaView
         className="flex-1 bg-light-main-container justify-center items-center"
         edges={["top"]}
+        style={{ paddingBottom: bottomOffset }}
       >
         <ActivityIndicator size="large" color="#c71c4b" />
         <Text className="text-light-matte-black mt-4">Loading wallets...</Text>
@@ -133,7 +139,11 @@ export default function Wallet() {
   return (
     <>
       <StatusBar barStyle="dark-content" />
-      <SafeAreaView className="flex-1 bg-light-main-container" edges={["top"]}>
+      <SafeAreaView
+        className="flex-1 bg-light-main-container"
+        edges={["top"]}
+        style={{ paddingBottom: bottomOffset }}
+      >
         <ScrollView
           className="flex-1"
           contentContainerStyle={{ padding: isSmallScreen ? 12 : 16 }}

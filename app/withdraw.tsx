@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { ArrowLeft, ChevronDown, Wallet } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  Platform,
   ScrollView,
   StatusBar,
   Text,
@@ -9,7 +10,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { formatUnits } from "viem";
 import { TToken } from "@/api/types/token";
 import ChainSelector from "@/components/common/ChainSelector";
@@ -89,10 +93,8 @@ export default function Withdraw() {
     fetchBalance();
   }, [activeWallet, getPublicClientForActiveChain]);
 
-  // Automatically select the first available token when tokens change or chain changes
   useEffect(() => {
     if (stablecoinTokens && stablecoinTokens.length > 0) {
-      // Reset selected token when chain changes or when tokens first load
       if (
         !selectedToken ||
         !stablecoinTokens.some((token) => token.id === selectedToken.id)
@@ -100,7 +102,6 @@ export default function Withdraw() {
         setSelectedToken(stablecoinTokens[0]);
       }
     } else {
-      // Clear selected token if no tokens available for current chain
       setSelectedToken(undefined);
     }
   }, [stablecoinTokens, selectedToken]);
@@ -189,10 +190,16 @@ export default function Withdraw() {
     return parseFloat(formatUnits(rawBalance, 18)).toFixed(4);
   };
 
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = Platform.OS === "ios" ? 0 : bottom > 0 ? bottom : 0;
   return (
     <>
       <StatusBar barStyle="dark-content" />
-      <SafeAreaView className="flex-1 bg-light-main-container" edges={["top"]}>
+      <SafeAreaView
+        className="flex-1 bg-light-main-container"
+        edges={["top"]}
+        style={{ paddingBottom: bottomOffset }}
+      >
         <View className="flex-1 p-6 pb-0">
           <View className="flex-row items-center mb-6">
             <TouchableOpacity

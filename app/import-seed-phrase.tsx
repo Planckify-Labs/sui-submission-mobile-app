@@ -5,6 +5,7 @@ import React, { useRef, useState } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StatusBar,
@@ -12,12 +13,17 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import SeedPhraseGrid from "@/components/common/SeedPhraseGrid";
 import { useWallet } from "@/hooks/useWallet";
 
 export default function ImportWalletScreen() {
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = Platform.OS === "ios" ? 0 : bottom > 0 ? bottom : 0;
   const [seedPhraseArray, setSeedPhraseArray] = useState<string[]>(
     Array(12).fill(""),
   );
@@ -111,7 +117,11 @@ export default function ImportWalletScreen() {
   return (
     <>
       <StatusBar barStyle="dark-content" />
-      <SafeAreaView className="flex-1 bg-light-main-container" edges={["top"]}>
+      <SafeAreaView
+        className="flex-1 bg-light-main-container"
+        edges={["top"]}
+        style={{ paddingBottom: bottomOffset }}
+      >
         <View className="flex-1">
           <ScrollView
             ref={scrollViewRef}
