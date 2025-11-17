@@ -6,7 +6,10 @@ import {
   StatusBar,
   Text,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import SearchBar from "@/components/common/SearchBar";
 import PromotionBanner from "@/components/service/PromotionBanner";
 import ServiceHeader from "@/components/service/ServiceHeader";
@@ -53,6 +56,8 @@ export default function ServiceScreen() {
     error,
   } = useProductsByCategories();
 
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = bottom > 0 ? bottom + 8 : 8;
   const searchBarOpacity = scrollY.interpolate({
     inputRange: [50, 150],
     outputRange: [1, 0.2],
@@ -156,9 +161,6 @@ export default function ServiceScreen() {
     return (
       <SafeAreaView className="flex-1 bg-light-main-container items-center justify-center">
         <Text>Failed to load services.</Text>
-        <Text className="text-light-error mt-2">
-          {error instanceof Error ? error.message : "Unknown error"}
-        </Text>
       </SafeAreaView>
     );
   }
@@ -166,7 +168,11 @@ export default function ServiceScreen() {
   return (
     <>
       <StatusBar barStyle="dark-content" />
-      <SafeAreaView className="flex-1 bg-light-main-container" edges={["top"]}>
+      <SafeAreaView
+        className="flex-1 bg-light-main-container"
+        edges={["top"]}
+        style={{ paddingBottom: bottomOffset }}
+      >
         <FlatList
           data={serviceList}
           renderItem={renderServiceScreenItem}
