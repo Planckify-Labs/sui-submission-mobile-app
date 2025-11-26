@@ -38,7 +38,7 @@ export default function ScanToPayChatModeFloatingButtons({
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={onChatModePress}
-          className="items-center justify-center border-[6px] border-light bg-light-matte-black main rounded-full p-2 aspect-square flex"
+          className="items-center justify-center border-[6px] border-light bg-light-matte-black main rounded-full p-2 aspect-square"
         >
           <AudioLines size={20} color="#fff" stroke="#fff" strokeWidth={3} />
         </TouchableOpacity>
