@@ -22,6 +22,8 @@ import {
   ViewStyle,
 } from "react-native";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import { useAgentOnboarding } from "@/hooks/useAgentOnboarding";
+import AgentOnboarding from "./AgentModeOnboarding/AgentOnboarding";
 import ChatInput from "./ChatInput";
 import ConversationHistory from "./ConversationHistory";
 import MessageContent from "./MessageContent";
@@ -34,6 +36,13 @@ export default function AgentMode() {
   const [input, setInput] = useState("");
   const lastSendTimeRef = useRef<number>(0);
   const scrollY = useRef(new Animated.Value(0)).current;
+
+  // Onboarding state
+  const {
+    shouldShowOnboarding,
+    isLoading: isOnboardingLoading,
+    completeOnboarding,
+  } = useAgentOnboarding();
 
   const { messages, error, sendMessage, status, clearError } = useChat({
     transport: new DefaultChatTransport({
@@ -317,6 +326,13 @@ export default function AgentMode() {
           </View>
         </View>
       </ScrollView>
+
+      {!isOnboardingLoading && (
+        <AgentOnboarding
+          visible={shouldShowOnboarding}
+          onComplete={completeOnboarding}
+        />
+      )}
     </KeyboardProvider>
   );
 }
