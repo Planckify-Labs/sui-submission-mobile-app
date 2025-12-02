@@ -1,5 +1,5 @@
 import React from "react";
-import { Text, View, ViewStyle } from "react-native";
+import { Text, TextStyle, View, ViewStyle } from "react-native";
 
 type ChipProps = {
   label: string;
@@ -7,6 +7,7 @@ type ChipProps = {
   backgroundColor?: string;
   size?: "small" | "medium" | "large";
   style?: ViewStyle;
+  textStyle?: TextStyle;
 };
 
 export default function Chip({
@@ -15,8 +16,8 @@ export default function Chip({
   backgroundColor = "rgba(199, 28, 75, 0.1)",
   size = "medium",
   style,
+  textStyle,
 }: ChipProps) {
-  // Determine padding and font size based on size prop
   const getPadding = () => {
     switch (size) {
       case "small":
@@ -46,18 +47,21 @@ export default function Chip({
       style={[
         {
           backgroundColor,
-          borderRadius: 999, // Very high value for pill shape
+          borderRadius: 999,
           ...getPadding(),
         },
         style,
       ]}
     >
       <Text
-        style={{
-          color,
-          fontSize: getFontSize(),
-          fontWeight: "600",
-        }}
+        style={[
+          {
+            color,
+            fontSize: getFontSize(),
+            fontWeight: "600",
+          },
+          textStyle,
+        ]}
       >
         {label}
       </Text>

@@ -1,8 +1,9 @@
 import { router } from "expo-router";
-import { Plus } from "lucide-react-native";
-import React, { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { ChevronRight, Plus, Wallet as WalletIcon } from "lucide-react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Platform,
   RefreshControl,
@@ -17,30 +18,24 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import Chip from "@/components/common/Chip";
-import SecurityWarning from "@/components/common/SecurityWarning";
 import { usePerformance } from "@/components/providers/PerformanceProvider";
-import AddressDisplay from "@/components/wallet/AddressDisplay";
-import WalletCard from "@/components/wallet/WalletCard";
+import WalletCompactCard from "@/components/wallet/WalletCompactCard";
+import WalletExpandedDetails from "@/components/wallet/WalletExpandedDetails";
+import WalletSwitcherModal from "@/components/wallet/WalletSwitcherModal";
 import { TWallet } from "@/constants/types/walletTypes";
 import { useWallet } from "@/hooks/useWallet";
-import { authenticateUser } from "@/utils/authUtils";
-import { copyToClipboard } from "@/utils/helperUtils";
 
-const LazyWalletInfoDisplay = lazy(
-  () => import("@/components/wallet/WalletInfoDisplay"),
-);
-
-const LazyLoadingPlaceholder = () => (
-  <View className="bg-light-main-container p-4 rounded-xl mb-4">
-    <ActivityIndicator size="small" color="#c71c4b" />
-  </View>
-);
+const CARD_WIDTH = 160;
 
 export default function Wallet() {
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 360;
   const [refreshing, setRefreshing] = useState(false);
+  const [showWalletInfo, setShowWalletInfo] = useState(false);
+  const [showSwitcherModal, setShowSwitcherModal] = useState(false);
+  const flatListRef = useRef<FlatList>(null);
+  const detailsOpacity = useRef(new Animated.Value(1)).current;
+
   const {
     wallets,
     activeWallet,
@@ -50,28 +45,15 @@ export default function Wallet() {
     loadWallets,
     renameWallet,
   } = useWallet();
-  const [showWalletInfo, setShowWalletInfo] = useState(false);
   const { isReady, deferredTask } = usePerformance();
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 0 : bottom > 0 ? bottom : 0;
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadWallets();
     setRefreshing(false);
   }, [loadWallets]);
-
-  const handleToggleWalletInfo = useCallback(async () => {
-    if (!showWalletInfo) {
-      const isAuthenticated = await deferredTask(() =>
-        authenticateUser("Authenticate to view wallet information"),
-      );
-      if (isAuthenticated) {
-        setShowWalletInfo(true);
-      }
-    } else {
-      setShowWalletInfo(false);
-    }
-  }, [showWalletInfo, deferredTask]);
 
   useEffect(() => {
     if (isReady && !isLoading && wallets.length === 0) {
@@ -81,41 +63,59 @@ export default function Wallet() {
 
   const handleWalletSwitch = useCallback(
     async (index: number) => {
+      Animated.sequence([
+        Animated.timing(detailsOpacity, {
+          toValue: 0.5,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(detailsOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
       await deferredTask(async () => {
         setActiveWallet(index);
         setShowWalletInfo(false);
       }, "Switching wallet");
     },
-    [setActiveWallet, deferredTask],
+    [setActiveWallet, deferredTask, detailsOpacity],
   );
 
-  const renderWalletItem = useCallback(
-    ({ item, index }: { item: TWallet; index: number }) => (
-      <WalletCard
-        wallet={item}
-        isActive={index === activeWalletIndex}
-        onPress={() => handleWalletSwitch(index)}
-        allowRename={true}
-        onRename={async (newName: string) => {
-          await renameWallet(index, newName);
-          loadWallets();
-        }}
-      />
-    ),
-    [activeWalletIndex, handleWalletSwitch, renameWallet, loadWallets],
-  );
-
-  const getItemLayout = useCallback(
-    (_: any, index: number) => ({
-      length: 60,
-      offset: 60 * index,
-      index,
-    }),
-    [],
+  const renderCompactWalletItem = useCallback(
+    ({ item }: { item: TWallet }) => {
+      const originalIndex = wallets.findIndex(
+        (w) => w.address === item.address,
+      );
+      return (
+        <WalletCompactCard
+          wallet={item}
+          isActive={originalIndex === activeWalletIndex}
+          onPress={() => handleWalletSwitch(originalIndex)}
+          allowRename={true}
+          onRename={async (newName: string) => {
+            await renameWallet(originalIndex, newName);
+            loadWallets();
+          }}
+        />
+      );
+    },
+    [wallets, activeWalletIndex, handleWalletSwitch, renameWallet, loadWallets],
   );
 
   const keyExtractor = useCallback(
     (item: TWallet, index: number) => item.address || `wallet-${index}`,
+    [],
+  );
+
+  const getItemLayout = useCallback(
+    (_: any, index: number) => ({
+      length: CARD_WIDTH + 12,
+      offset: (CARD_WIDTH + 12) * index,
+      index,
+    }),
     [],
   );
 
@@ -146,7 +146,6 @@ export default function Wallet() {
       >
         <ScrollView
           className="flex-1"
-          contentContainerStyle={{ padding: isSmallScreen ? 12 : 16 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -156,72 +155,104 @@ export default function Wallet() {
             />
           }
         >
-          <Text
-            className={`text-light-matte-black ${isSmallScreen ? "text-xl" : "text-2xl"} font-bold mb-4`}
-          >
-            Wallet
-          </Text>
-
-          <View className="bg-light rounded-xl p-4 mb-4 shadow-sm">
-            <Text className="text-light-matte-black font-medium mb-3">
-              Your Wallets
+          <View className="mb-6 mx-4">
+            <View className="flex-row items-center justify-between mb-2">
+              <Text
+                className={`text-light-matte-black ${isSmallScreen ? "text-2xl" : "text-3xl"} font-bold tracking-tight`}
+              >
+                Wallets
+              </Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                className="bg-light w-10 h-10 rounded-full items-center justify-center shadow-sm"
+                onPress={() => router.push("/login")}
+                style={{
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 2,
+                  elevation: 1,
+                }}
+              >
+                <Plus size={20} color="#c71c4b" />
+              </TouchableOpacity>
+            </View>
+            <Text className="text-light-matte-black/50 text-sm">
+              {wallets.length} wallet{wallets.length !== 1 ? "s" : ""} connected
             </Text>
+          </View>
 
+          <View className="mb-4">
             <FlatList
+              ref={flatListRef}
               data={wallets}
-              renderItem={renderWalletItem}
+              renderItem={renderCompactWalletItem}
               keyExtractor={keyExtractor}
               getItemLayout={getItemLayout}
+              horizontal
+              showsHorizontalScrollIndicator={false}
               removeClippedSubviews={true}
               initialNumToRender={4}
               maxToRenderPerBatch={4}
               windowSize={5}
-              scrollEnabled={false}
-              updateCellsBatchingPeriod={50}
-              ListFooterComponent={
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  className="flex-row items-center justify-center p-3 border border-dashed border-light-matte-black/20 rounded-xl mt-2"
-                  onPress={() => router.push("/login")}
+              contentContainerStyle={{
+                paddingHorizontal: 12,
+              }}
+            />
+          </View>
+
+          <TouchableOpacity
+            activeOpacity={0.7}
+            className="bg-light rounded-2xl p-4 mb-4 flex-row items-center justify-between mx-4"
+            onPress={() => setShowSwitcherModal(true)}
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.04,
+              shadowRadius: 8,
+              elevation: 2,
+            }}
+          >
+            <View className="flex-row items-center flex-1">
+              <View className="w-10 h-10 rounded-full bg-light-primary-red/10 items-center justify-center mr-3">
+                <WalletIcon size={20} color="#c71c4b" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-light-matte-black/50 text-xs mb-0.5">
+                  Active Wallet
+                </Text>
+                <Text
+                  className="text-light-matte-black font-semibold text-base"
+                  numberOfLines={1}
                 >
-                  <Plus
-                    size={isSmallScreen ? 16 : 18}
-                    color="#c71c4b"
-                    className="mr-2"
-                  />
-                  <Text className="text-light-primary-red font-medium">
-                    Add New Wallet
-                  </Text>
-                </TouchableOpacity>
-              }
-            />
-          </View>
-
-          <View className="bg-light rounded-xl p-4 mb-4 shadow-sm">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-light-matte-black font-medium">
-                Wallet Details
-              </Text>
-              <Chip label={activeWallet.source} />
+                  {activeWallet.name}
+                </Text>
+              </View>
             </View>
+            <View className="flex-row items-center">
+              <Text className="text-light-primary-red text-sm font-medium mr-1">
+                View All
+              </Text>
+              <ChevronRight size={18} color="#c71c4b" />
+            </View>
+          </TouchableOpacity>
 
-            <AddressDisplay
-              address={activeWallet.address}
-              onCopy={() => copyToClipboard(activeWallet.address, "Address")}
-            />
-
-            <Suspense fallback={<LazyLoadingPlaceholder />}>
-              <LazyWalletInfoDisplay
-                wallet={activeWallet}
-                showWalletInfo={showWalletInfo}
-                onToggleVisibility={handleToggleWalletInfo}
-                onCopy={copyToClipboard}
-              />
-            </Suspense>
-
-            {activeWallet.type !== "Social" && <SecurityWarning />}
-          </View>
+          <WalletExpandedDetails
+            wallet={activeWallet}
+            showWalletInfo={showWalletInfo}
+            setShowWalletInfo={setShowWalletInfo}
+            animatedStyle={{ opacity: detailsOpacity }}
+          />
         </ScrollView>
+
+        <WalletSwitcherModal
+          visible={showSwitcherModal}
+          onClose={() => setShowSwitcherModal(false)}
+          wallets={wallets}
+          activeWalletIndex={activeWalletIndex}
+          onSelectWallet={handleWalletSwitch}
+          onAddWallet={() => router.push("/login")}
+        />
       </SafeAreaView>
     </>
   );
