@@ -338,11 +338,16 @@ export default function SendScreen() {
         try {
           if (isAuthenticated && activeWallet?.address) {
             if (selectedToken && selectedToken.isNativeCurrency === false) {
+              // Convert to raw token units (e.g., wei for 18 decimals)
+              const rawAmount = parseUnits(
+                amount,
+                selectedToken.decimals,
+              ).toString();
               await createTransaction({
                 contractAddress: selectedToken.contractAddress,
                 blockchainId: activeBackendChain?.id as string,
                 type: "TRANSFER",
-                amount: parseFloat(amount),
+                amount: rawAmount,
                 txHash: hash,
                 fromAddress: activeWallet.address,
                 toAddress: recipient,
@@ -350,10 +355,12 @@ export default function SendScreen() {
             } else {
               const nativeTokenId = tokenList?.[0]?.id;
               if (nativeTokenId) {
+                // Convert to raw token units (e.g., wei for 18 decimals)
+                const rawAmount = parseUnits(amount, nativeDecimals).toString();
                 await createTransaction({
                   tokenId: nativeTokenId,
                   type: "TRANSFER",
-                  amount: parseFloat(amount),
+                  amount: rawAmount,
                   txHash: hash,
                   fromAddress: activeWallet.address,
                   toAddress: recipient,

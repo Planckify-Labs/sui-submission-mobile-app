@@ -31,21 +31,30 @@ export function formatTokenAmount(value: string | number): string {
   const absNum = Math.abs(num);
   const sign = num < 0 ? "-" : "";
 
-  if (absNum < 0.01) {
-    const str = absNum.toFixed(10);
-    const match = str.match(/0\.(0*)([1-9]\d?)/);
+  if (absNum < 0.001) {
+    const str = absNum.toFixed(12);
+    const match = str.match(/0\.(0*)([1-9]\d{0,1})/);
     if (match) {
-      const zeros = match[1].length;
+      const zeroCount = match[1].length;
       const significantDigits = match[2];
-      return `${sign}0.${"0".repeat(zeros)}${significantDigits}`;
+      const subscripts = ["₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉"];
+      const subscriptZeros = zeroCount
+        .toString()
+        .split("")
+        .map((d) => subscripts[parseInt(d)])
+        .join("");
+      return `${sign}0.0${subscriptZeros}${significantDigits}`;
     }
-    const truncated = truncateToDecimals(absNum, 6);
-    return `${sign}${truncated}`.replace(/\.?0+$/, "");
+    return `${sign}<0.001`;
   }
 
+  if (absNum < 0.01) {
+    const truncated = truncateToDecimals(absNum, 4);
+    return `${sign}${truncated}`.replace(/0+$/, "").replace(/\.$/, "");
+  }
   if (absNum < 1) {
-    const truncated = truncateToDecimals(absNum, 1);
-    return `${sign}${truncated}`;
+    const truncated = truncateToDecimals(absNum, 2);
+    return `${sign}${truncated}`.replace(/0+$/, "").replace(/\.$/, "");
   }
 
   if (absNum < 100) {

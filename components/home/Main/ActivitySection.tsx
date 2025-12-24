@@ -138,6 +138,7 @@ const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
         <Text className="text-light-primary-red font-bold text-lg">
           {(() => {
             try {
+              console.log("transfer amount", transfer.amount);
               const formattedUnits = formatUnits(
                 BigInt(transfer.amount),
                 transfer.token.decimals,
