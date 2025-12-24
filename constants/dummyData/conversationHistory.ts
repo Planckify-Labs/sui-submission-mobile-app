@@ -1,4 +1,9 @@
-import { ChatMessageProps } from "@/components/home/TakumiAgent/ChatMessage";
+export interface ChatMessageProps {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
 
 export interface ChatSession {
   id: string;
@@ -6,10 +11,6 @@ export interface ChatSession {
   messages: ChatMessageProps[];
 }
 
-/**
- * Dummy conversation history data for the AI agent
- * Used for testing and development purposes
- */
 export const DUMMY_CHAT_SESSIONS: ChatSession[] = [
   {
     id: "session-1",
