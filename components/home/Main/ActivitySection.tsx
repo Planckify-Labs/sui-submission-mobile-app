@@ -138,11 +138,9 @@ const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
         <Text className="text-light-primary-red font-bold text-lg">
           {(() => {
             try {
-              console.log("token decimals", transfer.token.decimals);
               const formattedUnits = formatUnits(
                 BigInt(transfer.amount),
-                // TODO: fix this, token decimals is undefined, it uses the fallback value of 6
-                transfer.token.decimals || 6,
+                transfer.token.decimals,
               );
               return formatTokenAmount(formattedUnits);
             } catch (error) {

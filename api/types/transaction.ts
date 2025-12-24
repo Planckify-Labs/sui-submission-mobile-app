@@ -30,7 +30,7 @@ export interface TToken {
   contractAddress: string;
   name: string;
   symbol: string;
-  decimals?: number;
+  decimals: number;
   logoUrl: string;
 }
 
