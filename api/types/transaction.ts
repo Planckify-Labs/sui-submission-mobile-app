@@ -91,8 +91,8 @@ export interface TCreateTransactionRequest {
   tokenId: string;
   type: TTransactionType;
   status?: TTransactionStatus;
-  amount: number | string;
-  amountInFiat?: number | string;
+  amount: string;
+  amountInFiat?: string;
   fiatCurrency?: string;
   txHash?: string | null;
   fromAddress?: string;
