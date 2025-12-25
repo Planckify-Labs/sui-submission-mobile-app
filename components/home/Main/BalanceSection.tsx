@@ -219,7 +219,8 @@ const BalanceSection = forwardRef<BalanceSectionRef>((props, ref) => {
             <View className="flex-1 min-w-[100px] gap-3 flex-row flex-wrap">
               <TouchableOpacity
                 activeOpacity={0.7}
-                className="hidden- flex-1 min-w-[120px] bg-light-main-container rounded-xl py-3 px-3 flex-row items-center"
+                onPress={() => router.push("/deposit")}
+                className="flex-1 min-w-[120px] bg-light-main-container rounded-xl py-3 px-3 flex-row items-center"
               >
                 <View className="bg-light-primary-red/10 rounded-full p-1.5 mr-2">
                   <PlusIcon size={20} color="#c71c4b" />
