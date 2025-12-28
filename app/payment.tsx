@@ -22,6 +22,8 @@ import type { TToken } from "@/api/types/token";
 import ChainSelector from "@/components/common/ChainSelector";
 import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import OptimizedImage from "@/components/common/OptimizedImage";
+import PaymentErrorModal from "@/components/common/PaymentErrorModal";
+import PaymentSuccessModal from "@/components/common/PaymentSuccessModal";
 import PinConfirmationModal from "@/components/common/PinConfirmationModal";
 import SpendingApprovalModal from "@/components/common/SpendingApprovalModal";
 import TokenSelectorModal from "@/components/wallet/TokenSelectorModal";
@@ -82,6 +84,17 @@ export default function PaymentScreen() {
   const [isApprovingSpending, setIsApprovingSpending] = useState(false);
   const [exchangeRate, setExchangeRate] = useState<TExchangeRate | null>(null);
   const [isLoadingRate, setIsLoadingRate] = useState(false);
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [paymentError, setPaymentError] = useState<string>("");
+  const [paymentSuccess, setPaymentSuccess] = useState<{
+    productName: string;
+    amount: string;
+    tokenSymbol: string;
+    bookingId: string;
+    txHash: string;
+    refId: string;
+  } | null>(null);
 
   const { variantId, customerInfo } = useLocalSearchParams<{
     variantId: string;
@@ -347,21 +360,22 @@ export default function PaymentScreen() {
 
         setTransactionStatus("Finalizing purchase...");
 
-        const txHashDisplay = txHash
-          ? `${txHash.substring(0, 6)}...${txHash.substring(txHash.length - 4)}`
-          : "";
-
-        console.log(
-          "Payment Successful:",
-          `You have successfully purchased ${variantData.name} for ${purchaseAmount} ${selectedToken.symbol}. Booking ID: ${booking.id}, Transaction: ${txHashDisplay}, Ref ID: ${refId}`,
-        );
-        router.back();
+        // Payment successful - show success modal
+        setPaymentSuccess({
+          productName: variantData.name,
+          amount: formatUnits(BigInt(purchaseAmount), selectedToken.decimals),
+          tokenSymbol: selectedToken.symbol,
+          bookingId: booking.id.toString(),
+          txHash,
+          refId,
+        });
+        setSuccessModalVisible(true);
       } catch (error) {
         console.error("Payment error:", error);
-        console.error(
-          "Payment Failed:",
-          `An error occurred during the payment process: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error occurred";
+        setPaymentError(errorMessage);
+        setErrorModalVisible(true);
       } finally {
         setIsLoading(false);
         setTransactionStatus("");
@@ -884,6 +898,36 @@ export default function PaymentScreen() {
             isInternalContract={true}
           />
         )}
+
+        <PaymentSuccessModal
+          visible={successModalVisible}
+          onClose={() => setSuccessModalVisible(false)}
+          productName={paymentSuccess?.productName}
+          amount={paymentSuccess?.amount}
+          tokenSymbol={paymentSuccess?.tokenSymbol}
+          bookingId={paymentSuccess?.bookingId}
+          txHash={paymentSuccess?.txHash}
+          refId={paymentSuccess?.refId}
+          onViewActivity={() => {
+            setSuccessModalVisible(false);
+            router.push("/activities");
+          }}
+        />
+
+        <PaymentErrorModal
+          visible={errorModalVisible}
+          onClose={() => setErrorModalVisible(false)}
+          errorMessage={paymentError}
+          onRetry={() => {
+            setErrorModalVisible(false);
+            handlePaymentConfirmation();
+          }}
+          onContactSupport={() => {
+            setErrorModalVisible(false);
+            // TODO: Implement contact support functionality
+            console.log("Contact support");
+          }}
+        />
       </SafeAreaView>
     </>
   );
