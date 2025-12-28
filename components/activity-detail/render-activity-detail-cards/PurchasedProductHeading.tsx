@@ -1,9 +1,9 @@
 import React from "react";
 import { Image, Text, View } from "react-native";
-import { TPurchaseCompleted } from "@/api/types/purchase";
+import { TPurchaseResponse } from "@/api/types/purchase";
 
 interface PurchasedProductCardProps {
-  purchase: TPurchaseCompleted;
+  purchase: TPurchaseResponse;
 }
 
 export default function PurchasedProductHeading({

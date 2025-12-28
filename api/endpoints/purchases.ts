@@ -1,6 +1,5 @@
 import { api } from "@/constants/configs/ky";
 import type {
-  TPurchaseCompleted,
   TPurchaseCreateRequest,
   TPurchaseResponse,
 } from "../types/purchase";
@@ -22,7 +21,7 @@ export const purchaseApi = {
     try {
       const response = await api
         .get(`purchases/${id}`)
-        .json<TPurchaseCompleted>();
+        .json<TPurchaseResponse>();
       return response;
     } catch (error) {
       console.error("Failed to fetch purchase by ID:", error);
@@ -34,7 +33,7 @@ export const purchaseApi = {
     try {
       const response = await api
         .get(`purchases/${refId}`)
-        .json<TPurchaseCompleted>();
+        .json<TPurchaseResponse>();
       return response;
     } catch (error) {
       console.error("Failed to fetch purchase:", error);
@@ -46,7 +45,7 @@ export const purchaseApi = {
     try {
       const response = await api
         .get(`purchases/wallet/${walletAddress}`)
-        .json<TPurchaseCompleted[]>();
+        .json<TPurchaseResponse[]>();
       return response;
     } catch (error) {
       console.error("Failed to fetch purchases for wallet:", error);

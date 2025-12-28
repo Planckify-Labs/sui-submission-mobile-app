@@ -12,14 +12,14 @@ import {
 } from "lucide-react-native";
 import { Text, TouchableOpacity, View } from "react-native";
 import { formatUnits } from "viem";
-import { TPurchaseCompleted } from "@/api/types/purchase";
+import { TPurchaseResponse } from "@/api/types/purchase";
 import { copyToClipboard } from "@/utils/helperUtils";
 import AditionalInformationCard from "./AditionalInformationCard";
 
 export default function PurchasedProductDetailCard({
   purchase,
 }: {
-  purchase: TPurchaseCompleted;
+  purchase: TPurchaseResponse;
 }) {
   const openBlockchainExplorer = async (
     txHash: string,

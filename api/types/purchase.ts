@@ -99,7 +99,7 @@ export type TBooking = {
   }>;
 };
 
-export type TPurchaseCompleted = {
+export type TPurchaseResponse = {
   id: string;
   status: "PENDING" | "COMPLETED" | "FAILED";
   transactionId: string;
@@ -112,15 +112,3 @@ export type TPurchaseCompleted = {
   voucherCode?: string;
   booking: TBooking;
 };
-
-export type TPurchaseInitialResponse = {
-  refId: string;
-  status: "PENDING";
-  message: string;
-  processingStatus: "queued" | "processing" | "completed" | "failed";
-  jobId: string;
-  bookingId: string;
-  estimatedProcessingTime: string;
-};
-
-export type TPurchaseResponse = TPurchaseInitialResponse | TPurchaseCompleted;

@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { CheckCircle, ExternalLink, Home, Receipt } from "lucide-react-native";
+import { CheckCircle, ExternalLink, Home, Receipt, ReceiptTextIcon } from "lucide-react-native";
 import React, { useEffect, useRef } from "react";
 import {
   Animated,
@@ -21,6 +21,7 @@ type PaymentSuccessModalProps = {
   bookingId?: string;
   txHash?: string;
   refId?: string;
+  purchaseId?: string;
   onViewActivity?: () => void;
 };
 
@@ -35,6 +36,7 @@ export default function PaymentSuccessModal({
   bookingId,
   txHash,
   refId,
+  purchaseId,
   onViewActivity,
 }: PaymentSuccessModalProps) {
   const { bottom } = useSafeAreaInsets();
@@ -86,14 +88,17 @@ export default function PaymentSuccessModal({
     onClose();
     if (onViewActivity) {
       onViewActivity();
-    } else {
-      router.push("/activities");
+    } else if (purchaseId) {
+      router.replace({
+        pathname: "/activity-detail",
+        params: { purchaseId },
+      });
     }
   };
 
   const handleGoHome = () => {
     onClose();
-    router.push("/");
+    router.replace("/");
   };
 
   const txHashDisplay = txHash
@@ -148,7 +153,6 @@ export default function PaymentSuccessModal({
               </Text>
             </Animated.View>
 
-            {/* Transaction Details */}
             <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
               <Text className="text-light-matte-black font-bold text-base mb-3">
                 Transaction Details
@@ -194,31 +198,29 @@ export default function PaymentSuccessModal({
               )}
             </View>
 
-            {/* Action Buttons */}
-            <View className="space-y-3">
+            <View className="flex gap-2 flex-row justify-center">
               <Pressable
-                className="bg-light-primary-red p-4 rounded-full shadow-md"
-                onPress={handleViewActivity}
-              >
-                <View className="flex-row items-center justify-center">
-                  <Receipt size={20} color="#ffffff" strokeWidth={2} />
-                  <Text className="text-white font-bold text-base ml-2">
-                    View Activity Details
-                  </Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                className="bg-light-main-container p-4 rounded-full"
+                className="p-4 grow rounded-full"
                 onPress={handleGoHome}
               >
                 <View className="flex-row items-center justify-center">
-                  <Home size={20} color="#c71c4b" strokeWidth={2} />
-                  <Text className="text-light-primary-red font-bold text-base ml-2">
+                  <Home size={20} stroke="#20222c" strokeWidth={2} />
+                  <Text className="text-light-matte-black font-bold text-base ml-2">
                     Back to Home
                   </Text>
                 </View>
               </Pressable>
+              <Pressable
+                className="bg-light-primary-red p-4 grow rounded-xl shadow-xs"
+                onPress={handleViewActivity}
+              >
+                <View className="flex-row items-center justify-center">
+                  <Text className="text-white font-bold text-base ml-2">
+                    Activity Details
+                  </Text>
+                </View>
+              </Pressable>
+
             </View>
           </View>
         </Animated.View>

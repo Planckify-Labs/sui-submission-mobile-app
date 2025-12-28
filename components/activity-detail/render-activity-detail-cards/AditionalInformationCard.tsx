@@ -1,12 +1,12 @@
 import React from "react";
 import { Text, View } from "react-native";
-import { TPurchaseCompleted } from "@/api/types/purchase";
+import { TPurchaseResponse } from "@/api/types/purchase";
 import PLNCard from "./PLNCard";
 
 export default function AditionalInformationCard({
   purchase,
 }: {
-  purchase: TPurchaseCompleted;
+  purchase: TPurchaseResponse;
 }) {
   return (
     <View className="bg-white rounded-2xl p-4 shadow-sm">

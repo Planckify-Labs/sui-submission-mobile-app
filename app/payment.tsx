@@ -94,6 +94,7 @@ export default function PaymentScreen() {
     bookingId: string;
     txHash: string;
     refId: string;
+    purchaseId: string;
   } | null>(null);
 
   const { variantId, customerInfo } = useLocalSearchParams<{
@@ -335,6 +336,7 @@ export default function PaymentScreen() {
 
         setTransactionStatus("Creating purchase record...");
 
+        let purchaseId: string | undefined;
         try {
           const purchaseData = {
             refId,
@@ -347,6 +349,7 @@ export default function PaymentScreen() {
 
           const purchaseResponse = await createPurchase(purchaseData);
           console.log("Purchase created:", purchaseResponse);
+          purchaseId = purchaseResponse.id?.toString();
         } catch (purchaseError) {
           console.error("Failed to create purchase:", purchaseError);
           console.error(
@@ -368,6 +371,7 @@ export default function PaymentScreen() {
           bookingId: booking.id.toString(),
           txHash,
           refId,
+          purchaseId: purchaseId || "",
         });
         setSuccessModalVisible(true);
       } catch (error) {
@@ -908,10 +912,7 @@ export default function PaymentScreen() {
           bookingId={paymentSuccess?.bookingId}
           txHash={paymentSuccess?.txHash}
           refId={paymentSuccess?.refId}
-          onViewActivity={() => {
-            setSuccessModalVisible(false);
-            router.push("/activities");
-          }}
+          purchaseId={paymentSuccess?.purchaseId}
         />
 
         <PaymentErrorModal
