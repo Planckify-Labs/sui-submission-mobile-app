@@ -224,7 +224,7 @@ export default function ConversationHistory({
         <View className="flex-row justify-between p-4 px-[4px]">
           <View className="flex-row gap-2 items-center">
             <TouchableOpacity onPress={openChainModal}>
-              <View className="aspect-square w-[42px] rounded-full bg-light/50 border-4 border-light-matte-black/80">
+              <View className="aspect-square w-[42px] rounded-full overflow-hidden bg-light/50 border-4 border-light-matte-black/80">
                 <OptimizedImage source={{ uri: activeChain?.iconUrl }} />
               </View>
             </TouchableOpacity>
