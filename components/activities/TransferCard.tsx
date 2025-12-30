@@ -5,6 +5,7 @@ import React, { useCallback } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { formatUnits } from "viem/utils";
 import { TTransaction } from "@/api/types/transaction";
+import { formatDate } from "@/utils/dateUtils";
 import { copyToClipboard, formatTokenAmount } from "@/utils/helperUtils";
 import { truncateAddress } from "@/utils/walletUtils";
 import Chip from "../common/Chip";
@@ -54,7 +55,7 @@ const TransferCard = React.memo(
                 Transfer
               </Text>
               <Text className="text-light-matte-black/50 text-xs">
-                {transaction.createdAt}
+                {formatDate({ date: transaction.createdAt, preset: "short" })}
               </Text>
             </View>
           </View>

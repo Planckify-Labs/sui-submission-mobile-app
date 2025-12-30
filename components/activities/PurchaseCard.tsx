@@ -1,10 +1,11 @@
-import * as ExpoClipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { openBrowserAsync } from "expo-web-browser";
 import { Copy, ExternalLink, ShoppingBag } from "lucide-react-native";
 import React, { useCallback } from "react";
-import { Alert, Image, Text, TouchableOpacity, View } from "react-native";
+import { Image, Text, TouchableOpacity, View } from "react-native";
 import { TTransaction } from "@/api/types/transaction";
+import { formatCurrency } from "@/utils/currencyUtils";
+import { formatDate } from "@/utils/dateUtils";
 import { copyToClipboard } from "@/utils/helperUtils";
 import Chip from "../common/Chip";
 
@@ -47,7 +48,7 @@ const PurchaseCard = React.memo(
                 Purchase
               </Text>
               <Text className="text-light-matte-black/50 text-xs">
-                {transaction.createdAt}
+                {formatDate({ date: transaction.createdAt, preset: "short" })}
               </Text>
             </View>
           </View>
@@ -109,7 +110,10 @@ const PurchaseCard = React.memo(
               {transaction?.amount} {transaction?.token?.symbol}
             </Text>
             <Text className="text-light-primary-red font-bold text-md">
-              Rp.{transaction?.amountInFiat?.toLocaleString()}
+              {formatCurrency({
+                amount: transaction?.amountInFiat ?? 0,
+                currency: "IDR",
+              })}
             </Text>
           </View>
           <View className="relative mt-4">
