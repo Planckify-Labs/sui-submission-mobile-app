@@ -171,7 +171,7 @@ const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
         </View>
       </View>
       <Text className="text-light-matte-black text-center text-xs font-bold mt-1">
-        {truncateAddress(transfer.recipientAddress)}
+        {truncateAddress({ address: transfer.recipientAddress })}
       </Text>
     </TouchableOpacity>
   );

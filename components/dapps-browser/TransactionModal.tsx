@@ -12,7 +12,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { formatEther } from "viem";
 import { TWallet } from "@/constants/types/walletTypes";
 import { TTransactionModalProps } from "../../types/dapps-browser";
-import { formatAddress, getDappDomain } from "../../utils/dappsBrowserUtils";
+import { getDappDomain } from "../../utils/dappsBrowserUtils";
+import { truncateAddress } from "../../utils/walletUtils";
 
 const TransactionModal = memo<TTransactionModalProps>(
   function TransactionModal({
@@ -66,11 +67,14 @@ const TransactionModal = memo<TTransactionModalProps>(
 
     const dappDomain = useMemo(() => getDappDomain(dappUrl), [dappUrl]);
     const formattedWalletAddress = useMemo(
-      () => formatAddress(wallet.address),
+      () => truncateAddress({ address: wallet.address, preset: "medium" }),
       [wallet.address],
     );
     const formattedToAddress = useMemo(
-      () => (transaction.to ? formatAddress(transaction.to) : null),
+      () =>
+        transaction.to
+          ? truncateAddress({ address: transaction.to, preset: "medium" })
+          : null,
       [transaction.to],
     );
 

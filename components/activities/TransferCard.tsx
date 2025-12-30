@@ -114,14 +114,14 @@ const TransferCard = React.memo(
         <View className="pt-1">
           <Text className="text-light-matte-black text-xs">Recipient</Text>
           <Text className="text-light-matte-black/80 text-sm" numberOfLines={1}>
-            {truncateAddress(transaction.recipientAddress)}
+            {truncateAddress({ address: transaction.recipientAddress })}
           </Text>
         </View>
 
         <View className="pt-1">
           <Text className="text-light-matte-black text-xs">Spender</Text>
           <Text className="text-light-matte-black/80 text-sm" numberOfLines={1}>
-            {truncateAddress(transaction.senderAddress)}
+            {truncateAddress({ address: transaction.senderAddress })}
           </Text>
         </View>
 

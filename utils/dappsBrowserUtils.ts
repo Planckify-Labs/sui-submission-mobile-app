@@ -1,9 +1,5 @@
 import { CATEGORY_STYLES, COLORS } from "../constants/dapps-browser";
 
-export const formatAddress = (address: string): string => {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-};
-
 export const getDappDomain = (url: string): string => {
   try {
     return new URL(url).hostname;

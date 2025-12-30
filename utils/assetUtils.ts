@@ -1,9 +1,13 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   TCryptoAsset,
   TExtendedCryptoAsset,
 } from "@/constants/types/assetTypes";
 import { TNetwork } from "@/constants/types/networkTypes";
+import {
+  createStorageKey,
+  getStorageItem,
+  setStorageItem,
+} from "./storageUtils";
 
 export function isAssetAdded(
   userAssets: TCryptoAsset[],
@@ -99,39 +103,23 @@ export function filterAssets(
   );
 }
 
-// New function to load assets for a specific wallet and network
+// Load assets for a specific wallet and network
 export async function loadWalletAssets(
   walletAddress: string,
   networkId: string,
 ): Promise<TCryptoAsset[]> {
-  try {
-    const storageKey = `wallet_assets_${walletAddress}_${networkId}`;
-    const storedAssets = await AsyncStorage.getItem(storageKey);
-
-    if (storedAssets) {
-      return JSON.parse(storedAssets);
-    }
-    return [];
-  } catch (error) {
-    console.error("Failed to load wallet assets:", error);
-    return [];
-  }
+  const storageKey = createStorageKey("wallet_assets", walletAddress, networkId);
+  return getStorageItem<TCryptoAsset[]>(storageKey, []);
 }
 
-// New function to save assets for a specific wallet and network
+// Save assets for a specific wallet and network
 export async function saveWalletAssets(
   walletAddress: string,
   networkId: string,
   assets: TCryptoAsset[],
 ): Promise<boolean> {
-  try {
-    const storageKey = `wallet_assets_${walletAddress}_${networkId}`;
-    await AsyncStorage.setItem(storageKey, JSON.stringify(assets));
-    return true;
-  } catch (error) {
-    console.error("Failed to save wallet assets:", error);
-    return false;
-  }
+  const storageKey = createStorageKey("wallet_assets", walletAddress, networkId);
+  return setStorageItem(storageKey, assets);
 }
 
 // Function to get network-specific assets

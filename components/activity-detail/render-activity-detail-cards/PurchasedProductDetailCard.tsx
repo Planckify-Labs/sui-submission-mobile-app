@@ -13,7 +13,10 @@ import {
 import { Text, TouchableOpacity, View } from "react-native";
 import { formatUnits } from "viem";
 import { TPurchaseResponse } from "@/api/types/purchase";
+import { formatCurrency } from "@/utils/currencyUtils";
+import { formatDate } from "@/utils/dateUtils";
 import { copyToClipboard } from "@/utils/helperUtils";
+import { truncateAddress } from "@/utils/walletUtils";
 import AditionalInformationCard from "./AditionalInformationCard";
 
 export default function PurchasedProductDetailCard({
@@ -57,23 +60,6 @@ export default function PurchasedProductDetailCard({
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString("id-ID", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const formatCurrency = (amount: string, currency: string) => {
-    const numAmount = parseFloat(amount);
-    if (currency === "IDR") {
-      return `Rp${numAmount.toLocaleString("id-ID")}`;
-    }
-    return `${currency} ${numAmount.toLocaleString()}`;
-  };
   return (
     <View className="gap-4 p-4">
       <View className="bg-white rounded-2xl p-4 shadow-sm">
@@ -141,7 +127,7 @@ export default function PurchasedProductDetailCard({
                 Date & Time
               </Text>
               <Text className="text-light-matte-black text-xs">
-                {formatDate(purchase.createdAt)}
+                {formatDate({ date: purchase.createdAt, preset: "long" })}
               </Text>
             </View>
           </View>
@@ -212,10 +198,10 @@ export default function PurchasedProductDetailCard({
                 Fiat Amount
               </Text>
               <Text className="text-light-matte-black text-sm font-medium">
-                {formatCurrency(
-                  purchase.transaction.amountInFiat,
-                  purchase.transaction.fiatCurrency,
-                )}
+                {formatCurrency({
+                  amount: purchase.transaction.amountInFiat,
+                  currency: purchase.transaction.fiatCurrency,
+                })}
               </Text>
             </View>
 
@@ -240,8 +226,10 @@ export default function PurchasedProductDetailCard({
                 className="flex-row items-center"
               >
                 <Text className="text-light-matte-black text-sm font-mono mr-1">
-                  {purchase.transaction.token.contractAddress.slice(0, 6)}...
-                  {purchase.transaction.token.contractAddress.slice(-4)}
+                  {truncateAddress({
+                    address: purchase.transaction.token.contractAddress,
+                    preset: "medium",
+                  })}
                 </Text>
                 <Copy size={12} color="#c71c4b" />
               </TouchableOpacity>

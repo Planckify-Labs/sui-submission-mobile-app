@@ -80,16 +80,42 @@ export function createWalletFromParams(
   return null;
 }
 
-export function truncateAddress(
-  address: string,
-  startLength = 4,
-  endLength = 4,
-): string {
+// Common address truncation presets
+export const ADDRESS_TRUNCATE_PRESETS = {
+  short: { start: 4, end: 4 },    // 0x12...5678
+  medium: { start: 6, end: 4 },   // 0x1234...5678
+  long: { start: 10, end: 8 },    // 0x12345678...12345678
+} as const;
+
+type TAddressTruncatePreset = keyof typeof ADDRESS_TRUNCATE_PRESETS;
+
+type TTruncateAddressParams = {
+  address: string;
+  preset?: TAddressTruncatePreset;
+  startLength?: number;
+  endLength?: number;
+};
+
+/**
+ * Truncates an address with preset or custom lengths
+ *
+ * @example
+ * truncateAddress({ address: "0x1234567890abcdef" }) // "0x12...cdef"
+ * truncateAddress({ address: "0x1234567890abcdef", preset: "medium" }) // "0x1234...cdef"
+ * truncateAddress({ address: "0x1234567890abcdef", startLength: 8, endLength: 6 }) // "0x123456...abcdef"
+ */
+export function truncateAddress({
+  address,
+  preset = "short",
+  startLength,
+  endLength,
+}: TTruncateAddressParams): string {
   if (!address) return "";
-  if (address.length <= startLength + endLength) return address;
 
-  const start = address.slice(0, startLength);
-  const end = address.slice(-endLength);
+  const start = startLength ?? ADDRESS_TRUNCATE_PRESETS[preset].start;
+  const end = endLength ?? ADDRESS_TRUNCATE_PRESETS[preset].end;
 
-  return `${start}...${end}`;
+  if (address.length <= start + end) return address;
+
+  return `${address.slice(0, start)}...${address.slice(-end)}`;
 }

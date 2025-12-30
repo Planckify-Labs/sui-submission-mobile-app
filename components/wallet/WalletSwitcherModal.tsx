@@ -22,6 +22,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Chip from "@/components/common/Chip";
 import type { TWallet } from "@/constants/types/walletTypes";
+import { truncateAddress } from "@/utils/walletUtils";
 
 const { height } = Dimensions.get("window");
 const MODAL_HEIGHT = height * 0.75;
@@ -134,11 +135,6 @@ const WalletSwitcherModal = memo(function WalletSwitcherModal({
     }),
   ).current;
 
-  const formatAddress = useCallback((address: string) => {
-    if (!address) return "...";
-    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
-  }, []);
-
   const renderWalletItem = useCallback(
     ({ item }: { item: TWallet }) => {
       const originalIndex = wallets.findIndex(
@@ -167,7 +163,7 @@ const WalletSwitcherModal = memo(function WalletSwitcherModal({
             </Text>
             <View className="flex-row items-center mt-1">
               <Text className="text-light-matte-black/60 text-sm mr-2">
-                {formatAddress(item.address)}
+                {truncateAddress({ address: item.address, preset: "medium" })}
               </Text>
               <Chip label={item.type} size="small" />
             </View>
@@ -181,7 +177,7 @@ const WalletSwitcherModal = memo(function WalletSwitcherModal({
         </Pressable>
       );
     },
-    [wallets, activeWalletIndex, handleWalletSelect, formatAddress],
+    [wallets, activeWalletIndex, handleWalletSelect],
   );
 
   const keyExtractor = useCallback(

@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TWallet } from "@/constants/types/walletTypes";
+import { truncateAddress } from "@/utils/walletUtils";
 
 const { height } = Dimensions.get("window");
 const MODAL_HEIGHT = height * 0.67;
@@ -132,10 +133,6 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
     }
   }, []);
 
-  const formatAddress = useCallback((address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  }, []);
-
   const handleWalletSelection = useCallback(
     (wallet: TWallet, index: number) => {
       if (isDappConnection && onSelectWalletForDapp) {
@@ -178,9 +175,7 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
                   : "text-light-matte-black/70"
               }`}
             >
-              {isDappConnection
-                ? formatAddress(wallet.address)
-                : `${wallet.address.substring(0, 6)}...${wallet.address.substring(wallet.address.length - 4)}`}
+              {truncateAddress({ address: wallet.address, preset: "medium" })}
             </Text>
           </View>
 
@@ -204,7 +199,6 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
       disabledLabel,
       handleWalletSelection,
       isDappConnection,
-      formatAddress,
     ],
   );
 

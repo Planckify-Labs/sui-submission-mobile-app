@@ -4,6 +4,7 @@ import React, { useCallback } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { formatUnits } from "viem/utils";
 import { TTransaction } from "@/api/types/transaction";
+import { formatDate } from "@/utils/dateUtils";
 import { copyToClipboard } from "@/utils/helperUtils";
 import { truncateAddress } from "@/utils/walletUtils";
 
@@ -34,22 +35,10 @@ const TransferDetailCard = React.memo(
       }
     }, [transfer.amount, transfer.token?.decimals]);
 
-    const formatDate = useCallback(() => {
-      if (!transfer.createdAt) return "N/A";
-
-      try {
-        const date = new Date(transfer.createdAt);
-        return date.toLocaleDateString("id-ID", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      } catch {
-        return transfer.createdAt;
-      }
-    }, [transfer.createdAt]);
+    const formattedDate = formatDate({
+      date: transfer.createdAt,
+      preset: "short",
+    });
 
     return (
       <View className="mt-4">
@@ -72,7 +61,7 @@ const TransferDetailCard = React.memo(
             <View className="flex-row items-center gap-2 mb-4 bg-light-main-container/50 p-3 rounded-xl">
               <Clock size={16} color="#c71c4b" />
               <Text className="text-light-matte-black/70 text-sm font-medium">
-                {formatDate()}
+                {formattedDate}
               </Text>
             </View>
 
@@ -135,7 +124,7 @@ const TransferDetailCard = React.memo(
                 </View>
                 <View className="flex-row items-center gap-2 bg-light-main-container p-4 rounded-xl">
                   <Text className="text-light-matte-black/80 text-sm flex-1 font-mono font-medium">
-                    {truncateAddress(transfer.senderAddress)}
+                    {truncateAddress({ address: transfer.senderAddress })}
                   </Text>
                   <TouchableOpacity
                     activeOpacity={0.7}
@@ -156,7 +145,7 @@ const TransferDetailCard = React.memo(
                 </View>
                 <View className="flex-row items-center gap-2 p-4 rounded-xl bg-light-main-container">
                   <Text className="text-light-matte-black/80 text-sm flex-1 font-mono font-medium">
-                    {truncateAddress(transfer.recipientAddress)}
+                    {truncateAddress({ address: transfer.recipientAddress })}
                   </Text>
                   <TouchableOpacity
                     activeOpacity={0.7}
