@@ -22,41 +22,6 @@ export type TExtendedCryptoAsset = TCryptoAsset & {
 export type TAssetTabType = "my-assets" | "explore-assets";
 
 // ============================================
-// AssetTabContent DTOs
-// ============================================
-export type TAssetTabState = {
-  activeTab: TAssetTabType;
-  searchQuery: string;
-  isLoading: boolean;
-};
-
-export type TAssetData = {
-  userAssets: TCryptoAsset[];
-  filteredUserAssets: TCryptoAsset[];
-  filteredAvailableAssets: TCryptoAsset[];
-};
-
-export type TAssetTabActions = {
-  setActiveTab: (tab: TAssetTabType) => void;
-};
-
-export type TAssetRenderItems = {
-  renderUserAssetItem: ({ item }: { item: TCryptoAsset }) => React.ReactElement;
-  renderAvailableAssetItem: ({
-    item,
-  }: {
-    item: TCryptoAsset;
-  }) => React.ReactElement;
-};
-
-export type TAssetTabContentProps = {
-  state: TAssetTabState;
-  data: TAssetData;
-  actions: TAssetTabActions;
-  renderItems: TAssetRenderItems;
-};
-
-// ============================================
 // AssetItem DTOs
 // ============================================
 export type TAssetItemState = {
@@ -124,32 +89,6 @@ export type TAssetWalletSelectorModalProps = {
     asset: TCryptoAsset | null,
     assets?: TCryptoAsset[],
   ) => void;
-};
-
-// ============================================
-// Legacy Types (keeping for backward compatibility during migration)
-// ============================================
-/** @deprecated Use TAssetTabContentProps instead */
-export type AssetListContentProps = {
-  activeTab: TAssetTabType;
-  userAssets: TCryptoAsset[];
-  filteredUserAssets: TCryptoAsset[];
-  filteredAvailableAssets: TCryptoAsset[];
-  searchQuery: string;
-  setActiveTab: (tab: TAssetTabType) => void;
-  renderUserAssetItem: ({ item }: { item: TCryptoAsset }) => React.ReactElement;
-  renderAvailableAssetItem: ({
-    item,
-  }: {
-    item: TCryptoAsset;
-  }) => React.ReactElement;
-  selectionMode: boolean;
-  isAssetAdded: (id: string) => boolean;
-  addAsset?: (asset: TCryptoAsset) => void;
-  selectedAssets?: TCryptoAsset[];
-  toggleAssetSelection?: (asset: TCryptoAsset) => void;
-  handleAssetLongPress?: (asset: TCryptoAsset) => void;
-  isLoading?: boolean;
 };
 
 export type TAssetCategoryTabsProps = {

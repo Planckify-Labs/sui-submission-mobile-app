@@ -3,13 +3,12 @@ import { ScrollView, StatusBar, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AddTokenForm from "@/components/asset-explorer/AddTokenForm";
 import AssetExplorerHeader from "@/components/asset-explorer/AssetExplorerHeader";
-import AssetItem from "@/components/asset-explorer/AssetItem";
-import AssetTabContent from "@/components/asset-explorer/AssetTabContent";
 import AssetWalletSelectorModal from "@/components/asset-explorer/AssetWalletSelectorModal";
+import AvailableAssetList from "@/components/asset-explorer/AvailableAssetList";
 import AssetExplorerTabs from "@/components/asset-explorer/MyAssetsAndExploreAssetTabs";
 import NetworkRadioButtons from "@/components/asset-explorer/NetworkRadioButtons";
 import NetworkSelectorModal from "@/components/asset-explorer/NetworkSelectorModal";
-import UserAssetItem from "@/components/asset-explorer/UserAssetItem";
+import UserAssetList from "@/components/asset-explorer/UserAssetList";
 import WalletInfo from "@/components/asset-explorer/WalletInfo";
 import SearchBar from "@/components/common/SearchBar";
 import { SAMPLE_ASSETS } from "@/constants/dummyData/assets";
@@ -97,8 +96,11 @@ export default function AssetExplorer() {
   }, [tokens, isLoadingTokens, activeNetwork, activeBlockchainId]);
 
   const filteredAvailableAssets = useMemo(
-    () => filterAssets(availableAssets, searchQuery),
-    [availableAssets, searchQuery],
+    () =>
+      filterAssets(availableAssets, searchQuery).map((asset) =>
+        adaptAssetForNetwork(asset, activeNetwork, ALL_NETWORKS),
+      ),
+    [availableAssets, searchQuery, activeNetwork],
   );
 
   const filteredUserAssets = useMemo(
@@ -142,54 +144,15 @@ export default function AssetExplorer() {
     [addMultipleAssets, confirmSelection],
   );
 
-  const renderUserAssetItem = useCallback(
-    ({ item }: { item: TCryptoAsset }) => {
-      return <UserAssetItem item={item} removeAsset={removeAsset} />;
+  const handleAssetPress = useCallback(
+    (asset: TCryptoAsset) => {
+      if (selectionMode) {
+        handleToggleAssetSelection(asset);
+      } else {
+        openWalletSelector(asset);
+      }
     },
-    [removeAsset],
-  );
-
-  const renderAvailableAssetItem = useCallback(
-    ({ item }: { item: TCryptoAsset }) => {
-      const adaptedItem = adaptAssetForNetwork(
-        item,
-        activeNetwork,
-        ALL_NETWORKS,
-      );
-      const isAdded = isAssetAdded(adaptedItem.id);
-      const isSelected = isAssetSelected(adaptedItem.id);
-
-      return (
-        <AssetItem
-          item={adaptedItem}
-          state={{
-            isAdded,
-            isSelected,
-            selectionMode,
-          }}
-          actions={{
-            onPress: () => {
-              if (selectionMode) {
-                handleToggleAssetSelection(adaptedItem);
-              } else {
-                openWalletSelector(adaptedItem);
-              }
-            },
-            onLongPress: () => handleAssetLongPress(adaptedItem),
-            onAddPress: () => openWalletSelector(adaptedItem),
-          }}
-        />
-      );
-    },
-    [
-      activeNetwork,
-      isAssetAdded,
-      isAssetSelected,
-      selectionMode,
-      handleToggleAssetSelection,
-      handleAssetLongPress,
-      openWalletSelector,
-    ],
+    [selectionMode, handleToggleAssetSelection, openWalletSelector],
   );
 
   return (
@@ -239,25 +202,33 @@ export default function AssetExplorer() {
               selectionMode={selectionMode}
             />
 
-            <AssetTabContent
-              state={{
-                activeTab,
-                searchQuery,
-                isLoading: isLoadingTokens && activeTab === "explore-assets",
-              }}
-              data={{
-                userAssets,
-                filteredUserAssets,
-                filteredAvailableAssets,
-              }}
-              actions={{
-                setActiveTab,
-              }}
-              renderItems={{
-                renderUserAssetItem,
-                renderAvailableAssetItem,
-              }}
-            />
+            {activeTab === "my-assets" ? (
+              <UserAssetList
+                data={{
+                  userAssets,
+                  filteredUserAssets,
+                  searchQuery,
+                }}
+                onNavigateToExplore={() => setActiveTab("explore-assets")}
+                removeAsset={removeAsset}
+              />
+            ) : (
+              <AvailableAssetList
+                data={{
+                  filteredAssets: filteredAvailableAssets,
+                  searchQuery,
+                }}
+                state={{
+                  isLoading: isLoadingTokens,
+                  selectionMode,
+                }}
+                isAssetAdded={isAssetAdded}
+                isAssetSelected={isAssetSelected}
+                onAssetPress={handleAssetPress}
+                onAssetLongPress={handleAssetLongPress}
+                onAddPress={openWalletSelector}
+              />
+            )}
           </View>
         </ScrollView>
         {!selectionMode && <NetworkRadioButtons />}

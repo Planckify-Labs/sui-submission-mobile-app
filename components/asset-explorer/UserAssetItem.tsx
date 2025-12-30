@@ -19,7 +19,7 @@ const UserAssetItem = ({ item, removeAsset }: UserAssetItemProps) => {
     >
       <View className="flex-row justify-between items-center">
         <View className="flex-row items-center">
-          <View className="w-10 h-10 rounded-full items-center justify-center mr-3">
+          <View className="w-10 h-10 rounded-full overflow-hidden items-center justify-center mr-3">
             <OptimizedImage
               source={{ uri: item.logo }}
               style={{ width: 30, height: 30 }}
