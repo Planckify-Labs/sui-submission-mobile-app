@@ -386,7 +386,7 @@ const AssetWalletSelectorModal = ({
                           key={item.id}
                           className="flex-row items-center mr-3"
                         >
-                          <View className="w-6 aspect-square bg-light-primary-red/10 rounded-full items-center justify-center mr-1">
+                          <View className="w-6 aspect-square bg-light-primary-red/10 overflow-hidden rounded-full items-center justify-center mr-1">
                             <OptimizedImage
                               source={{ uri: item.logo }}
                               style={{ width: 20, height: 20 }}
