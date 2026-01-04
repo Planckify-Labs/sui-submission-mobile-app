@@ -178,7 +178,7 @@ export default function Wallet() {
               </TouchableOpacity>
             </View>
             <Text className="text-light-matte-black/50 text-sm">
-              {wallets.length} wallet{wallets.length !== 1 ? "s" : ""} connected
+             You have {wallets.length} wallets
             </Text>
           </View>
 
