@@ -185,7 +185,7 @@ export default function Wallet() {
           <View className="mb-4">
             <FlatList
               ref={flatListRef}
-              data={wallets}
+              data={wallets.slice(0, 3)}
               renderItem={renderCompactWalletItem}
               keyExtractor={keyExtractor}
               getItemLayout={getItemLayout}
