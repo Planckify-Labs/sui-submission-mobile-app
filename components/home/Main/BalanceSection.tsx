@@ -50,7 +50,6 @@ const BalanceSection = forwardRef<BalanceSectionRef>((props, ref) => {
     activeChain,
   );
 
-  // Expose refetch to parent component
   useImperativeHandle(ref, () => ({
     refetch,
   }));
@@ -187,6 +186,7 @@ const BalanceSection = forwardRef<BalanceSectionRef>((props, ref) => {
 
               <TouchableOpacity
                 activeOpacity={0.7}
+                hitSlop={40}
                 onPress={() => {
                   Vibration.vibrate(100);
                   setShowBalance((prevValue) => !prevValue);
