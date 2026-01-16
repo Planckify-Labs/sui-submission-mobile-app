@@ -26,7 +26,7 @@ import {
   useAssetSearchQuery,
 } from "@/hooks/useAssetExplorerState";
 import { useAssetSelection } from "@/hooks/useAssetSelection";
-import { useUserAssets } from "@/hooks/useUserAssets";
+import { useUserAssetsWithBalances } from "@/hooks/useUserAssetsWithBalances";
 import { useWallet } from "@/hooks/useWallet";
 import {
   adaptAssetForNetwork,
@@ -55,7 +55,7 @@ export default function AssetExplorer() {
     addCustomToken,
     addMultipleAssets,
     isAssetAdded,
-  } = useUserAssets();
+  } = useUserAssetsWithBalances();
 
   const {
     selectionMode,

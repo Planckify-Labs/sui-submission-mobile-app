@@ -21,7 +21,16 @@ function truncateToDecimals(num: number, decimals: number): number {
   return Math.trunc(num * multiplier) / multiplier;
 }
 
-export function formatTokenAmount(value: string | number): string {
+type FormatTokenAmountOptions = {
+  /** Use K/M/B suffixes for large numbers (default: true) */
+  simplify?: boolean;
+};
+
+export function formatTokenAmount(
+  value: string | number,
+  options: FormatTokenAmountOptions = {},
+): string {
+  const { simplify = true } = options;
   const num = typeof value === "string" ? parseFloat(value) : value;
 
   if (isNaN(num) || num === 0) {
@@ -31,6 +40,47 @@ export function formatTokenAmount(value: string | number): string {
   const absNum = Math.abs(num);
   const sign = num < 0 ? "-" : "";
 
+  // Handle very small numbers
+  if (absNum < 0.000001) {
+    if (simplify) {
+      const str = absNum.toFixed(12);
+      const match = str.match(/0\.(0*)([1-9]\d{0,1})/);
+      if (match) {
+        const zeroCount = match[1].length;
+        const significantDigits = match[2];
+        const subscripts = ["₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉"];
+        const subscriptZeros = zeroCount
+          .toString()
+          .split("")
+          .map((d) => subscripts[parseInt(d)])
+          .join("");
+        return `${sign}0.0${subscriptZeros}${significantDigits}`;
+      }
+    }
+    return `${sign}<0.000001`;
+  }
+
+  // For non-simplified format, use locale string with appropriate decimals
+  if (!simplify) {
+    if (absNum < 1) {
+      return `${sign}${absNum.toLocaleString("en-US", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 6,
+      })}`;
+    }
+    if (absNum < 1000) {
+      return `${sign}${absNum.toLocaleString("en-US", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 4,
+      })}`;
+    }
+    return `${sign}${absNum.toLocaleString("en-US", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+
+  // Simplified format with K/M/B suffixes
   if (absNum < 0.001) {
     const str = absNum.toFixed(12);
     const match = str.match(/0\.(0*)([1-9]\d{0,1})/);

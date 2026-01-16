@@ -11,6 +11,7 @@ export type TCryptoAsset = {
   address?: string;
   isCustom?: boolean;
   contractAddress?: string;
+  decimals?: number;
   networkSpecific?: boolean;
   supportedNetworks?: string[];
 };

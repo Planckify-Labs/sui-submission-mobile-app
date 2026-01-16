@@ -6,6 +6,7 @@ import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { formatUnits } from "viem";
 import { TWalletInfoProps } from "@/constants/types/networkTypes";
 import { useWallet } from "@/hooks/useWallet";
+import { formatTokenAmount } from "@/utils/helperUtils";
 
 const WalletInfo = ({ activeWallet }: TWalletInfoProps) => {
   const { activeChain, getPublicClientForActiveChain } = useWallet();
@@ -35,8 +36,9 @@ const WalletInfo = ({ activeWallet }: TWalletInfoProps) => {
   }, [activeWallet?.address, getPublicClientForActiveChain]);
 
   const formatBalance = (value: bigint): string => {
-    const formatted = parseFloat(formatUnits(value, 18)).toFixed(4);
-    return formatted.replace(/\.?0+$/, "");
+    const decimals = activeChain?.chain?.nativeCurrency?.decimals ?? 18;
+    const formatted = formatUnits(value, decimals);
+    return formatTokenAmount(formatted, { simplify: false });
   };
 
   const copyAddress = async () => {
