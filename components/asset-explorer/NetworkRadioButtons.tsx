@@ -9,6 +9,7 @@ import { useNetworkModal } from "@/hooks/useNetworkModal";
 import { usePinnedNetworks } from "@/hooks/usePinnedNetworks";
 import { useWallet } from "@/hooks/useWallet";
 import NetworkRadioButtonLoadingSkeletons from "./NetworkRadioButtonLoadingSkeletons";
+import OptimizedImage from "../common/OptimizedImage";
 
 const NetworkRadioButtons = () => {
   const { activeChain } = useWallet();
@@ -30,6 +31,7 @@ const NetworkRadioButtons = () => {
         color: network.color,
         isPinned: true,
         blockchainId: network.blockchainId,
+        logoUrl: network.logoUrl,
       }));
     }
 
@@ -42,6 +44,7 @@ const NetworkRadioButtons = () => {
       color: "#627EEA",
       isPinned: true,
       blockchainId: blockchain.id,
+      logoUrl: blockchain.tokens?.[0]?.logoUrl,
     }));
   }, [blockchains, pinnedNetworks]);
 
@@ -85,22 +88,22 @@ const NetworkRadioButtons = () => {
 
   return (
     <View
-      className="absolute left-4 right-4 rounded-3xl overflow-hidden"
+      className="absolute left-4 right-4 rounded-full overflow-hidden"
       style={{
         bottom: bottomOffset,
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
-        shadowRadius: 10,
-        elevation: 8,
+        shadowRadius: 0,
+        elevation: 1,
       }}
     >
       <BlurView intensity={80} tint="light" className="flex-row items-center">
-        <View className="flex-1 flex-row items-center bg-white/80 py-2 pl-2 pr-1">
+        <View className="flex-1 relative flex-row items-center bg-white/80 py-[4px]">
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingRight: 8 }}
+            contentContainerStyle={{ paddingRight: 50, paddingLeft: 4 }}
           >
             <View className="flex-row items-center gap-1.5">
               {isLoading ? (
@@ -115,30 +118,20 @@ const NetworkRadioButtons = () => {
                       onPress={() =>
                         selectNetwork(network.id, network.blockchainId)
                       }
-                      className={`px-3.5 py-2.5 rounded-2xl flex-row items-center ${
+                      className={`rounded-full flex-row overflow-hidden pr-4 items-center ${
                         isActive ? "" : "bg-gray-100/80"
                       }`}
                       style={
                         isActive
-                          ? {
-                              backgroundColor: accentColor,
-                              shadowColor: accentColor,
-                              shadowOffset: { width: 0, height: 4 },
-                              shadowOpacity: 0.3,
-                              shadowRadius: 6,
-                              elevation: 4,
-                            }
-                          : {}
+                          && {
+                              backgroundColor: accentColor}
                       }
                     >
-                      <View
-                        className={`w-2 h-2 rounded-full mr-2`}
-                        style={{
-                          backgroundColor: isActive
-                            ? "#fff"
-                            : network.color || accentColor,
-                        }}
-                      />
+                      <View className="w-8 h-8 rounded-full mr-2 bg-light-main-container overflow-hidden">
+                        <OptimizedImage
+                          source={{ uri: network.logoUrl }}
+                        />
+                      </View>
                       <Text
                         className={`font-semibold text-xs ${
                           isActive ? "text-white" : "text-light-matte-black"
@@ -157,14 +150,9 @@ const NetworkRadioButtons = () => {
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={openModal}
-            className="w-11 h-11 rounded-2xl items-center justify-center ml-1"
+            className="w-11- h-11- aspect-square rounded-full items-center absolute right-[4px] top-[4px] bottom-[4px] justify-center ml-1"
             style={{
               backgroundColor: accentColor,
-              shadowColor: accentColor,
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 6,
-              elevation: 4,
             }}
             accessibilityLabel="Open network selection"
           >

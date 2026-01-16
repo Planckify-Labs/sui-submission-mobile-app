@@ -182,69 +182,6 @@ export default function AssetExplorer() {
 
             {!selectionMode && <WalletInfo activeWallet={activeWallet} />}
 
-            {!selectionMode && (
-              <View
-                className="flex-row items-center bg-white rounded-2xl px-4 py-1 my-3"
-                style={{
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.05,
-                  shadowRadius: 8,
-                  elevation: 2,
-                }}
-              >
-                <Search size={20} color="#9ca3af" />
-                <TextInput
-                  className="flex-1 py-3 px-3 text-light-matte-black text-base"
-                  placeholder="Search tokens..."
-                  placeholderTextColor="#9ca3af"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-                {searchQuery ? (
-                  <Pressable
-                    onPress={() => setSearchQuery("")}
-                    className="p-1"
-                  >
-                    <X size={18} color="#9ca3af" />
-                  </Pressable>
-                ) : (
-                  <Pressable
-                    onPress={() => setShowAddToken(!showAddToken)}
-                    className={`px-3 py-1.5 rounded-xl ${
-                      showAddToken ? "bg-light-primary-red" : "bg-gray-100"
-                    }`}
-                  >
-                    <View className="flex-row items-center">
-                      <View
-                        className={`text-xs font-semibold ${
-                          showAddToken ? "text-white" : "text-light-matte-black"
-                        }`}
-                      >
-                        {showAddToken ? (
-                          <X size={14} color="#fff" />
-                        ) : (
-                          <View className="w-3 h-3 rounded-full bg-light-primary-red" />
-                        )}
-                      </View>
-                    </View>
-                  </Pressable>
-                )}
-              </View>
-            )}
-
-            {showAddToken && !selectionMode && (
-              <AddTokenForm
-                state={{
-                  tokenAddress,
-                  isLoading,
-                }}
-                onAddressChange={setTokenAddress}
-                onSubmit={handleAddCustomToken}
-                onClose={() => setShowAddToken(false)}
-              />
-            )}
-
             <AssetExplorerTabs
               activeTab={activeTab}
               setActiveTab={setActiveTab}
