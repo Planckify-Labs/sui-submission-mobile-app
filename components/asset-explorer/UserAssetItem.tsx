@@ -30,7 +30,7 @@ const UserAssetItem = ({ item, removeAsset }: UserAssetItemProps) => {
       <View className="flex-row items-center">
         {/* Token logo with gradient background */}
         <View
-          className="w-14 h-14 rounded-2xl items-center justify-center mr-4 bg-gray-50"
+          className="w-14 h-14 rounded-2xl items-center justify-center mr-4 bg-gray-50 overflow-hidden"
           style={{
             shadowColor: "#000",
             shadowOffset: { width: 0, height: 2 },
@@ -39,12 +39,14 @@ const UserAssetItem = ({ item, removeAsset }: UserAssetItemProps) => {
             elevation: 2,
           }}
         >
-          <OptimizedImage
-            source={{ uri: item.logo }}
-            style={{ width: 36, height: 36 }}
-            contentFit="contain"
-            alt={`${item.name} logo`}
-          />
+          <View className="w-10 h-10 rounded-full overflow-hidden justify-center items-center">
+            <OptimizedImage
+              source={{ uri: item.logo }}
+              containerStyle={{ width: 40, height: 40 }}
+              contentFit="cover"
+              alt={`${item.name} logo`}
+            />
+          </View>
         </View>
 
         {/* Token name and symbol */}

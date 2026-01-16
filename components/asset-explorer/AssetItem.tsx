@@ -38,7 +38,7 @@ const AssetItem = ({ item, state, actions }: TAssetItemProps) => {
 
       {/* Token logo */}
       <View
-        className="w-12 h-12 rounded-2xl items-center justify-center mr-3 overflow-hidden bg-gray-50"
+        className="w-12 h-12 rounded-2xl items-center justify-center mr-3 bg-gray-50 overflow-hidden"
         style={{
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 2 },
@@ -47,12 +47,14 @@ const AssetItem = ({ item, state, actions }: TAssetItemProps) => {
           elevation: 2,
         }}
       >
-        <OptimizedImage
-          source={{ uri: item.logo }}
-          style={{ width: 32, height: 32 }}
-          contentFit="contain"
-          alt={`${item.name} logo`}
-        />
+        <View className="w-8 h-8 rounded-full overflow-hidden justify-center items-center">
+          <OptimizedImage
+            source={{ uri: item.logo }}
+            containerStyle={{ width: 32, height: 32 }}
+            contentFit="cover"
+            alt={`${item.name} logo`}
+          />
+        </View>
       </View>
 
       {/* Token info */}
