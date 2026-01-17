@@ -59,7 +59,7 @@ const UserAssetItem = ({ item, removeAsset }: UserAssetItemProps) => {
               {item.symbol}
             </Text>
             <View
-              className={`ml-2 px-2 py-0.5 rounded-full flex-row items-center ${
+              className={`ml-2 px-2 py-0.5 rounded-full hidden flex-row items-center ${
                 isPositiveChange ? "bg-green-500/10" : "bg-red-500/10"
               }`}
             >
@@ -102,7 +102,7 @@ const UserAssetItem = ({ item, removeAsset }: UserAssetItemProps) => {
             </Text>
           </Text>
         </View>
-        <View className="items-end flex-1">
+        <View className="items-end flex-1 hidden">
           <Text className="text-light-matte-black/40 text-xs font-medium uppercase tracking-wide">
             Value
           </Text>

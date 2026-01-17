@@ -73,17 +73,13 @@ const AssetItem = ({ item, state, actions }: TAssetItemProps) => {
           <Text className="text-light-matte-black/50 text-sm font-medium">
             {item.symbol}
           </Text>
-          <View className="w-1 h-1 rounded-full bg-light-matte-black/30 mx-2" />
-          <Text className="text-light-matte-black/50 text-sm">
-            {item.balance}
-          </Text>
         </View>
       </View>
 
       {/* Right side - Value or Add button */}
       {!selectionMode && (
         <View className="items-end">
-          <View className="flex-row items-center">
+          <View className="flex-row items-center hidden">
             <Text className="text-light-matte-black font-bold text-base">
               ${item.value}
             </Text>
