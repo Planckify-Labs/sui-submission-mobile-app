@@ -70,7 +70,13 @@
           "experimentalLauncherActivity": true
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.744419386674-851aigcjotu3nakge5l3drbk9dpij9ah"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

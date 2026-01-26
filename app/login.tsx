@@ -1,7 +1,9 @@
 import { router } from "expo-router";
 import { ChevronRight, CirclePlus, Key, Wallet } from "lucide-react-native";
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
   StatusBar,
@@ -12,10 +14,40 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  configureGoogleSignIn,
+  useGoogleSignIn,
+} from "@/hooks/queries/useGoogleAuth";
 
 export default function Login() {
   const { height } = useWindowDimensions();
   const scrollViewRef = useRef<ScrollView>(null);
+  const googleSignIn = useGoogleSignIn();
+
+  // Configure Google Sign-In on mount
+  useEffect(() => {
+    configureGoogleSignIn();
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      const result = await googleSignIn.mutateAsync();
+
+      // Show alert with user identity for testing
+      Alert.alert(
+        "Google Sign-In Successful!",
+        `Welcome!\n\nUser ID: ${result.user.id}\nEmail: ${result.user.email || "N/A"}\nName: ${result.user.name || "N/A"}\nRole: ${result.user.role}`,
+        [{ text: "OK" }],
+      );
+    } catch (error: any) {
+      if (error.message !== "Sign in cancelled") {
+        Alert.alert(
+          "Sign In Failed",
+          error.message || "Failed to sign in with Google. Please try again.",
+        );
+      }
+    }
+  };
 
   return (
     <>
@@ -95,17 +127,24 @@ export default function Login() {
               <TouchableOpacity
                 activeOpacity={0.7}
                 className="bg-light border border-light-matte-black/10 py-4 px-5 rounded-xl flex-row items-center justify-between"
-                onPress={() => console.log("Login with Google")}
+                onPress={handleGoogleSignIn}
+                disabled={googleSignIn.isPending}
               >
                 <View className="flex-row items-center">
                   <View className="w-11 h-11 bg-light-primary-red/10 rounded-full items-center justify-center mr-3">
-                    <Image
-                      source={require("@/assets/images/google-takumipay.png")}
-                      style={{ width: 20, height: 20 }}
-                    />
+                    {googleSignIn.isPending ? (
+                      <ActivityIndicator size="small" color="#c71c4b" />
+                    ) : (
+                      <Image
+                        source={require("@/assets/images/google-takumipay.png")}
+                        style={{ width: 20, height: 20 }}
+                      />
+                    )}
                   </View>
                   <Text className="text-light-matte-black font-medium">
-                    Continue with Google
+                    {googleSignIn.isPending
+                      ? "Signing in..."
+                      : "Continue with Google"}
                   </Text>
                 </View>
                 <ChevronRight color="#20222c" size={18} />
