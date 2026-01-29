@@ -1,2 +1,6 @@
 export { useContactPicker } from "./useContactPicker";
-export { usePhoneNumber, usePhoneNumberForm } from "./usePhoneNumber";
+export {
+  useCategoryProducts,
+  usePhoneNumber,
+  usePhoneNumberForm,
+} from "./usePhoneNumber";

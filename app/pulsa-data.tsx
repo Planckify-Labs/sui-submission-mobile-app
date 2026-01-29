@@ -1,5 +1,5 @@
-import { router } from "expo-router";
-import React, { useCallback } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect } from "react";
 import { StatusBar, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -8,8 +8,21 @@ import {
   ProviderNotDetectedAlert,
   ScreenHeader,
 } from "@/components/pulsa-data";
+import { useCategoryProducts } from "@/hooks/pulsa-data";
+import { useProductsByCategory } from "@/hooks/queries/useProducts";
 
 export default function PulsaDataScreen() {
+  const { categoryId } = useLocalSearchParams<{ categoryId: string }>();
+  const { setCategoryProducts } = useCategoryProducts();
+
+  const { data: categoryProducts } = useProductsByCategory(categoryId ?? "");
+
+  useEffect(() => {
+    if (categoryProducts) {
+      setCategoryProducts(categoryProducts);
+    }
+  }, [categoryProducts, setCategoryProducts]);
+
   const handleGoBack = useCallback(() => {
     router.back();
   }, []);

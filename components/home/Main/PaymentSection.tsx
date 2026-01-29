@@ -16,8 +16,7 @@ const paymentItems = [
         resizeMode="contain"
       />
     ),
-    route: "/pulsa-data",
-    type: "route" as const,
+    type: "pulsa-data" as const,
   },
   {
     name: "Gaming",
@@ -49,8 +48,14 @@ export default function PaymentSection() {
   const { data: paymentFeatured } = usePaymentFeatured();
 
   const handleNavigate = (item: (typeof paymentItems)[0]) => {
-    if (item.type === "route" && item.route) {
-      router.push(item.route as any);
+    if (item.type === "pulsa-data") {
+      const categoryId = paymentFeatured?.[item.name]?.id;
+      if (categoryId) {
+        router.push({
+          pathname: "/pulsa-data",
+          params: { categoryId },
+        });
+      }
     } else if (item.type === "category") {
       const categoryId = paymentFeatured?.[item.name]?.id;
       if (categoryId) {

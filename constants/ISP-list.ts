@@ -10,18 +10,8 @@ export type ProviderKey =
 export interface ProviderConfig {
   name: string;
   prefixes: string[];
-  productId: string;
+  code: string;
 }
-
-const PROVIDER_PRODUCT_IDS = {
-  XL: process.env.EXPO_PUBLIC_PROVIDER_XL || "",
-  TELKOMSEL: process.env.EXPO_PUBLIC_PROVIDER_TELKOMSEL || "",
-  INDOSAT: process.env.EXPO_PUBLIC_PROVIDER_INDOSAT || "",
-  SMARTFREN: process.env.EXPO_PUBLIC_PROVIDER_SMARTFREN || "",
-  AXIS: process.env.EXPO_PUBLIC_PROVIDER_AXIS || "",
-  TRI: process.env.EXPO_PUBLIC_PROVIDER_TRI || "",
-  BYU: process.env.EXPO_PUBLIC_PROVIDER_BYU || "",
-};
 
 export const PROVIDER_CONFIG: Record<ProviderKey, ProviderConfig> = {
   TELKOMSEL: {
@@ -37,27 +27,27 @@ export const PROVIDER_CONFIG: Record<ProviderKey, ProviderConfig> = {
       "0852",
       "0853",
     ],
-    productId: PROVIDER_PRODUCT_IDS.TELKOMSEL,
+    code: "TELKOMSEL",
   },
   XL: {
     name: "XL",
     prefixes: ["0817", "0818", "0819", "0859", "0877", "0878"],
-    productId: PROVIDER_PRODUCT_IDS.XL,
+    code: "XL",
   },
   INDOSAT: {
     name: "Indosat",
     prefixes: ["0814", "0815", "0816", "0855", "0856", "0857", "0858"],
-    productId: PROVIDER_PRODUCT_IDS.INDOSAT,
+    code: "INDOSAT",
   },
   TRI: {
     name: "Tri",
     prefixes: ["0895", "0896", "0897", "0898", "0899"],
-    productId: PROVIDER_PRODUCT_IDS.TRI,
+    code: "TRI",
   },
   AXIS: {
     name: "Axis",
     prefixes: ["0831", "0832", "0833", "0838"],
-    productId: PROVIDER_PRODUCT_IDS.AXIS,
+    code: "AXIS",
   },
   SMARTFREN: {
     name: "Smartfren",
@@ -72,12 +62,12 @@ export const PROVIDER_CONFIG: Record<ProviderKey, ProviderConfig> = {
       "0888",
       "0889",
     ],
-    productId: PROVIDER_PRODUCT_IDS.SMARTFREN,
+    code: "SMARTFREN",
   },
   BYU: {
     name: "by.U",
     prefixes: ["0851", "0852", "0853"],
-    productId: PROVIDER_PRODUCT_IDS.BYU,
+    code: "BYU",
   },
 };
 
@@ -103,11 +93,9 @@ export const formatPhoneNumber = (value: string): string => {
   return `${cleaned.slice(0, 4)}-${cleaned.slice(4, 8)}-${cleaned.slice(8, 12)}`;
 };
 
-export const getProviderByProductId = (
-  productId: string,
-): ProviderConfig | null => {
+export const getProviderByCode = (code: string): ProviderConfig | null => {
   for (const config of Object.values(PROVIDER_CONFIG)) {
-    if (config.productId === productId) {
+    if (config.code === code) {
       return config;
     }
   }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
+import type { TProduct } from "@/api/types/product";
 import {
   detectProvider,
   PROVIDER_CONFIG,
@@ -13,6 +14,7 @@ const MIN_VALID_LENGTH = 11;
 const MIN_PREFIX_LENGTH = 4;
 
 const PHONE_NUMBER_QUERY_KEY = ["pulsa-data", "phone-number"] as const;
+const CATEGORY_PRODUCTS_QUERY_KEY = ["pulsa-data", "category-products"] as const;
 
 interface PhoneNumberFormValues {
   phoneNumber: string;
@@ -60,11 +62,26 @@ export function usePhoneNumberForm() {
   };
 }
 
+export function useCategoryProducts() {
+  const { data: categoryProducts, setNewData: setCategoryProducts } =
+    useRQGlobalState<TProduct[]>({
+      queryKey: CATEGORY_PRODUCTS_QUERY_KEY,
+      initialData: [],
+    });
+
+  return {
+    categoryProducts: categoryProducts ?? [],
+    setCategoryProducts,
+  };
+}
+
 export function usePhoneNumber() {
   const { data: phoneNumber } = useRQGlobalState<string>({
     queryKey: PHONE_NUMBER_QUERY_KEY,
     initialData: "",
   });
+
+  const { categoryProducts } = useCategoryProducts();
 
   const safePhoneNumber = phoneNumber ?? "";
 
@@ -72,9 +89,16 @@ export function usePhoneNumber() {
     return detectProvider(safePhoneNumber);
   }, [safePhoneNumber]);
 
-  const detectedProductId = detectedProvider
-    ? PROVIDER_CONFIG[detectedProvider].productId
-    : null;
+  const detectedProductId = useMemo(() => {
+    if (!detectedProvider || !categoryProducts.length) return null;
+
+    const providerCode = PROVIDER_CONFIG[detectedProvider].code;
+    const matchedProduct = categoryProducts.find(
+      (product) => product.code === providerCode,
+    );
+
+    return matchedProduct?.id ?? null;
+  }, [detectedProvider, categoryProducts]);
 
   const { data: productDetail, isLoading: isLoadingProductDetail } =
     useProductById(detectedProductId || "");
