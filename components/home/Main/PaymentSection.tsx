@@ -1,9 +1,13 @@
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import { MoveRight } from "lucide-react-native";
-import React from "react";
+import React, { forwardRef, useImperativeHandle } from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { usePaymentFeatured } from "@/hooks/queries/useProducts";
+
+export type PaymentSectionRef = {
+  refetch: () => void;
+};
 
 const paymentItems = [
   {
@@ -44,37 +48,44 @@ const paymentItems = [
   },
 ];
 
-export default function PaymentSection() {
-  const { data: paymentFeatured } = usePaymentFeatured();
+const PaymentSection = forwardRef<PaymentSectionRef>((_, ref) => {
+  const { data: paymentFeatured, refetch } = usePaymentFeatured();
 
-  const handleNavigate = (item: (typeof paymentItems)[0]) => {
+  useImperativeHandle(ref, () => ({
+    refetch: () => refetch(),
+  }));
+
+  const handleNavigate = async (item: (typeof paymentItems)[0]) => {
+    let id = paymentFeatured?.[item.name]?.id;
+
+    if (!id) {
+      const maxRetries = 3;
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const { data: freshData } = await refetch();
+        id = freshData?.[item.name]?.id;
+        if (id) break;
+      }
+      if (!id) return;
+    }
+
     if (item.type === "pulsa-data") {
-      const categoryId = paymentFeatured?.[item.name]?.id;
-      if (categoryId) {
-        router.push({
-          pathname: "/pulsa-data",
-          params: { categoryId },
-        });
-      }
+      router.push({
+        pathname: "/pulsa-data",
+        params: { categoryId: id },
+      });
     } else if (item.type === "category") {
-      const categoryId = paymentFeatured?.[item.name]?.id;
-      if (categoryId) {
-        router.push({
-          pathname: "/view-all-item",
-          params: {
-            categoryId,
-            categoryName: item.displayName,
-          },
-        });
-      }
+      router.push({
+        pathname: "/view-all-item",
+        params: {
+          categoryId: id,
+          categoryName: item.displayName,
+        },
+      });
     } else if (item.type === "product") {
-      const productId = paymentFeatured?.[item.name]?.id;
-      if (productId) {
-        router.push({
-          pathname: "/purchase-item",
-          params: { productId },
-        });
-      }
+      router.push({
+        pathname: "/purchase-item",
+        params: { productId: id },
+      });
     }
   };
 
@@ -123,4 +134,8 @@ export default function PaymentSection() {
       </View>
     </View>
   );
-}
+});
+
+PaymentSection.displayName = "PaymentSection";
+
+export default PaymentSection;

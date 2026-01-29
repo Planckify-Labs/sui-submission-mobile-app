@@ -7,19 +7,23 @@ import BalanceSection, {
   BalanceSectionRef,
 } from "@/components/home/Main/BalanceSection";
 import Header from "@/components/home/Main/Header";
-import PaymentSection from "@/components/home/Main/PaymentSection";
+import PaymentSection, {
+  PaymentSectionRef,
+} from "@/components/home/Main/PaymentSection";
 
 export default function HomeMain() {
   const [refreshing, setRefreshing] = useState(false);
   const balanceSectionRef = useRef<BalanceSectionRef>(null);
   const activitySectionRef = useRef<ActivitySectionRef>(null);
+  const paymentSectionRef = useRef<PaymentSectionRef>(null);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
 
-    // Call refetch on both components
+    // Call refetch on all components
     balanceSectionRef.current?.refetch();
     activitySectionRef.current?.refetch();
+    paymentSectionRef.current?.refetch();
 
     // Wait a bit to ensure the refetch completes
     // This provides a better UX by not ending the refresh too quickly
@@ -46,7 +50,7 @@ export default function HomeMain() {
         <Header />
         <BalanceSection ref={balanceSectionRef} />
         <ActivitySection ref={activitySectionRef} />
-        <PaymentSection />
+        <PaymentSection ref={paymentSectionRef} />
       </View>
     </ScrollView>
   );
