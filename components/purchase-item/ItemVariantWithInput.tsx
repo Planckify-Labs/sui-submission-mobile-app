@@ -30,6 +30,7 @@ import {
   useProductInputFields,
 } from "@/hooks/queries/useProducts";
 import useRQGlobalState from "@/hooks/useRQGlobalState";
+import { formatPhoneNumber } from "@/constants/ISP-list";
 import ItemVariantWithInputSkeleton from "./ItemVariantWithInputSkeleton";
 
 interface ItemVariantWithInputProps {
@@ -245,21 +246,40 @@ export default function ItemWithInput({
         control={control}
         name={field.key}
         rules={{ required: true }}
-        render={({ field: { value, onChange } }) => (
-          <View className="mb-4">
-            <Text className="text-light-matte-black/70 mb-2">
-              {field.alias}
-            </Text>
-            <View className="bg-light-main-container p-4 rounded-xl flex-row items-center justify-between">
-              <View className="flex-1">
-                <TextInput
-                  value={value}
-                  onChangeText={onChange}
-                  placeholder={`${field.alias.toLowerCase()}`}
-                  keyboardType={getKeyboardType(field.type)}
-                  className="text-light-matte-black font-medium text-lg"
-                  autoCapitalize="none"
-                />
+        render={({ field: { value, onChange } }) => {
+          const isPhoneOrNumber =
+            field.type.toUpperCase() === "PHONE" ||
+            field.type.toUpperCase() === "NUMBER" ||
+            field.type.toUpperCase() === "NUMERIC";
+
+          // Format display for phone/number fields, show raw value otherwise
+          const displayValue = isPhoneOrNumber ? formatPhoneNumber(value) : value;
+
+          const handleChange = (text: string) => {
+            if (isPhoneOrNumber) {
+              // Strip non-digit characters and store clean value
+              const cleaned = text.replace(/\D/g, "");
+              onChange(cleaned);
+            } else {
+              onChange(text);
+            }
+          };
+
+          return (
+            <View className="mb-4">
+              <Text className="text-light-matte-black/70 mb-2">
+                {field.alias}
+              </Text>
+              <View className="bg-light-main-container p-4 rounded-xl flex-row items-center justify-between">
+                <View className="flex-1">
+                  <TextInput
+                    value={displayValue}
+                    onChangeText={handleChange}
+                    placeholder={`${field.alias.toLowerCase()}`}
+                    keyboardType={getKeyboardType(field.type)}
+                    className="text-light-matte-black font-medium text-lg"
+                    autoCapitalize="none"
+                  />
                 <Text className="text-light-matte-black/60 text-xs">
                   {product?.category?.name}
                 </Text>
@@ -273,7 +293,8 @@ export default function ItemWithInput({
               </View>
             </View>
           </View>
-        )}
+          );
+        }}
       />
     );
   };
@@ -289,10 +310,21 @@ export default function ItemWithInput({
   };
 
   const formatCustomerInfo = (formData: FormData) => {
-    return Object.entries(formData).map(([key, value]) => ({
-      key,
-      value,
-    }));
+    return Object.entries(formData).map(([key, value]) => {
+      const field = inputFields?.forms.find((f) => f.key === key);
+      const fieldType = field?.type?.toUpperCase();
+
+      // Strip non-digit characters for phone/number fields
+      const cleanedValue =
+        fieldType === "PHONE" || fieldType === "NUMBER" || fieldType === "NUMERIC"
+          ? value.replace(/\D/g, "")
+          : value;
+
+      return {
+        key,
+        value: cleanedValue,
+      };
+    });
   };
 
   const renderVariantItem = ({ item: variant }: { item: ProductVariant }) => {
@@ -308,7 +340,9 @@ export default function ItemWithInput({
             (f) => f.type.toLowerCase() !== "option",
           );
           if (textField) {
-            await upsertRecentNumber(formData[textField.key]);
+            // Store cleaned number (without dashes) for recent numbers
+            const cleanedNumber = formData[textField.key].replace(/\D/g, "");
+            await upsertRecentNumber(cleanedNumber);
           }
           const customerInfo = formatCustomerInfo(formData);
           const params = {

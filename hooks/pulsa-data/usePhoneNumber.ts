@@ -92,9 +92,9 @@ export function usePhoneNumber() {
   const detectedProductId = useMemo(() => {
     if (!detectedProvider || !categoryProducts.length) return null;
 
-    const providerCode = PROVIDER_CONFIG[detectedProvider].code;
+    const providerCode = PROVIDER_CONFIG[detectedProvider].code.toUpperCase();
     const matchedProduct = categoryProducts.find(
-      (product) => product.code === providerCode,
+      (product) => product.code?.toUpperCase() === providerCode,
     );
 
     return matchedProduct?.id ?? null;

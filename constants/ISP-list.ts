@@ -27,7 +27,7 @@ export const PROVIDER_CONFIG: Record<ProviderKey, ProviderConfig> = {
       "0852",
       "0853",
     ],
-    code: "TELKOMSEL",
+    code: "PSATL",
   },
   XL: {
     name: "XL",
@@ -37,7 +37,7 @@ export const PROVIDER_CONFIG: Record<ProviderKey, ProviderConfig> = {
   INDOSAT: {
     name: "Indosat",
     prefixes: ["0814", "0815", "0816", "0855", "0856", "0857", "0858"],
-    code: "INDOSAT",
+    code: "PSAIN",
   },
   TRI: {
     name: "Tri",
