@@ -381,17 +381,9 @@ export default function SendScreen() {
         router.back();
       } catch (txError: any) {
         console.error("Transaction execution error:", txError);
-        console.error(
-          "Transaction Failed:",
-          txError?.message || "Failed to execute transaction",
-        );
       }
     } catch (error: any) {
       console.error("Send transaction setup error:", error);
-      console.error(
-        "Transaction Setup Failed:",
-        error?.message || "Failed to set up transaction",
-      );
     } finally {
       setIsLoading(false);
     }

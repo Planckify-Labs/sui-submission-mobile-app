@@ -53,6 +53,7 @@ export default function PurchaseItemScreen() {
   }
 
   if (error || !product || Object.keys(product).length === 0) {
+    console.error("Error loading product:", error);
     return (
       <SafeAreaView className="flex-1 bg-light-main-container" edges={["top"]}>
         <View className="flex-1 justify-center items-center p-6">
@@ -60,7 +61,7 @@ export default function PurchaseItemScreen() {
             Could not load product
           </Text>
           <Text className="text-light-error text-center mb-6">
-            {error instanceof Error ? error.message : "Unknown error"}
+            Something went wrong. Please try again.
           </Text>
         </View>
       </SafeAreaView>

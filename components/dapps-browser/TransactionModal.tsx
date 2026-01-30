@@ -33,10 +33,7 @@ const TransactionModal = memo<TTransactionModalProps>(
         await onApprove();
         onClose();
       } catch (error: any) {
-        console.error(
-          "Transaction Failed:",
-          error.message || "Unknown error occurred",
-        );
+        console.error("Transaction failed:", error);
       } finally {
         setIsProcessing(false);
       }
