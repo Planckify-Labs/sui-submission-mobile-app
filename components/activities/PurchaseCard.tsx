@@ -21,9 +21,18 @@ const PurchaseCard = React.memo(
       [transaction?.txHash],
     );
 
-    const handleRepurchase = useCallback((event: any) => {
-      event.stopPropagation();
-    }, []);
+    const handleRepurchase = useCallback(
+      (event: any) => {
+        event.stopPropagation();
+        router.push({
+          pathname: "/purchase-item",
+          params: {
+            productId: transaction.purchase?.productVariant?.product?.id,
+          },
+        });
+      },
+      [router, transaction.purchase?.productVariant?.product?.id],
+    );
 
     const handleCardPress = useCallback(() => {
       router.push({

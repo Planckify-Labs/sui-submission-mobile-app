@@ -37,6 +37,7 @@ export interface TToken {
 export interface TProductVariantInPurchase {
   name: string;
   product: {
+    id: string;
     imageUrl: string;
   };
 }
