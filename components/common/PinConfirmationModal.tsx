@@ -137,31 +137,27 @@ const PinConfirmationModal: React.FC<PinConfirmationModalProps> = ({
     translateY.setValue,
   ]);
 
-  const handlePinDigit = (digit: string) => {
-    if (pin.length < pinLength) {
-      setPin((prev) => prev + digit);
-      setError("");
+  const handlePinDigit = async (digit: string) => {
+    if (pin.length >= pinLength) return;
+
+    const newPin = pin + digit;
+    setPin(newPin);
+    setError("");
+
+    if (newPin.length === pinLength) {
+      const isValid = await verifyPin(newPin);
+      if (isValid) {
+        onConfirm(newPin);
+      } else {
+        setError("Incorrect PIN. Please try again.");
+        setPin("");
+      }
     }
   };
 
   const handleDelete = () => {
     if (pin.length > 0) {
       setPin((prev) => prev.slice(0, -1));
-    }
-  };
-
-  const handleConfirm = async () => {
-    if (pin.length < pinLength) {
-      setError(`PIN must be ${pinLength} digits`);
-      return;
-    }
-
-    const isValid = await verifyPin(pin);
-    if (isValid) {
-      onConfirm(pin);
-    } else {
-      setError("Incorrect PIN. Please try again.");
-      setPin("");
     }
   };
 
@@ -317,16 +313,6 @@ const PinConfirmationModal: React.FC<PinConfirmationModalProps> = ({
                 <View className="items-center">{renderNumberPad()}</View>
               </View>
 
-              <TouchableOpacity
-                className={`bg-light-primary-red py-4 rounded-xl items-center ${
-                  pin.length < pinLength ? "opacity-50" : ""
-                }`}
-                activeOpacity={0.7}
-                onPress={handleConfirm}
-                disabled={pin.length < pinLength}
-              >
-                <Text className="text-white font-bold">Confirm</Text>
-              </TouchableOpacity>
             </View>
           </Animated.View>
         </View>
