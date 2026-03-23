@@ -1,44 +1,59 @@
 import { TrendingUp } from "lucide-react-native";
 import React, { memo } from "react";
 import { Text, View } from "react-native";
-import { TToken } from "@/api/types/token";
+import type { TPointPriceResponse } from "@/api/types/points";
 
 interface ExchangeRateCardProps {
-  selectedToken: TToken;
-  exchangeRate: number;
+  pointPrice: TPointPriceResponse | undefined;
+  tokenAmountNeeded: { human: number; raw: bigint } | null;
+  pointsRequested: string;
+  isLoading: boolean;
 }
 
 export const ExchangeRateCard = memo<ExchangeRateCardProps>(
-  ({ selectedToken, exchangeRate }) => {
+  ({ pointPrice, tokenAmountNeeded, pointsRequested, isLoading }) => {
+    if (isLoading || !pointPrice) return null;
+
+    const tokenSymbol = pointPrice.token.symbol;
+    const pointsPerToken = parseFloat(pointPrice.pointsPerToken).toLocaleString();
+    const payAmount = tokenAmountNeeded
+      ? tokenAmountNeeded.human.toFixed(4)
+      : "...";
+    const receivePoints = parseInt(pointsRequested, 10);
+
     return (
       <View className="mb-6 px-5">
         <View className="bg-light-main-container p-4 rounded-xl border border-light-matte-black/5">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1">
-              <Text className="text-light-matte-black/50 text-[11px] font-medium mb-1">
-                EXCHANGE RATE
-              </Text>
-              <View className="flex-row items-baseline gap-1.5">
-                <Text className="text-light-matte-black text-2xl font-bold">
-                  ${exchangeRate.toFixed(4)}
-                </Text>
-                <Text className="text-light-matte-black/60 text-sm font-medium">
-                  USD
-                </Text>
-              </View>
-              <Text className="text-light-matte-black/40 text-[10px] mt-1">
-                per 1 {selectedToken.symbol}
-              </Text>
-            </View>
-            <View className="items-end">
-              <View className="bg-light-primary-red/10 p-2.5 rounded-full mb-1">
-                <TrendingUp size={18} color="#c71c4b" strokeWidth={2.5} />
-              </View>
-              <Text className="text-light-matte-black/40 text-[9px]">
+          <View className="flex-row items-center justify-between mb-3">
+            <Text className="text-light-matte-black/50 text-[11px] font-medium">
+              EXCHANGE RATE
+            </Text>
+            <View className="flex-row items-center gap-1">
+              <TrendingUp size={14} color="#c71c4b" strokeWidth={2.5} />
+              <Text className="text-light-primary-red text-[10px] font-medium">
                 {new Date().toLocaleTimeString("en-US", {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}
+              </Text>
+            </View>
+          </View>
+
+          <Text className="text-light-matte-black/70 text-xs mb-3">
+            1 {tokenSymbol} = {pointsPerToken} points
+          </Text>
+
+          <View className="gap-2">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-light-matte-black/60 text-sm">You pay</Text>
+              <Text className="text-light-matte-black font-semibold text-sm">
+                {payAmount} {tokenSymbol}
+              </Text>
+            </View>
+            <View className="flex-row items-center justify-between">
+              <Text className="text-light-matte-black/60 text-sm">You get</Text>
+              <Text className="text-light-primary-red font-semibold text-sm">
+                {isNaN(receivePoints) ? "..." : receivePoints.toLocaleString()} points
               </Text>
             </View>
           </View>

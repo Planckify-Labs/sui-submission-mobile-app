@@ -48,6 +48,21 @@ export interface TWithdrawAllParams {
   to: `0x${string}`;
 }
 
+export type TDepositPointsParams = {
+  tokenAddress: `0x${string}`;
+  refId: string;
+  amount: string; // Raw token amount in smallest unit
+  tokenDecimals: number;
+};
+
+export type TPointDeposit = {
+  walletAddress: `0x${string}`;
+  tokenAddress: `0x${string}`;
+  amount: bigint;
+  refId: string;
+  timestamp: bigint;
+};
+
 export interface TTakumiWalletEvents {
   AdminAdded: {
     admin: `0x${string}`;

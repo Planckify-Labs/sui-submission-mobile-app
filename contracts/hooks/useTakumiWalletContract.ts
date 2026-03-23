@@ -3,9 +3,11 @@ import { useCallback, useMemo } from "react";
 import type { Address, Hash } from "viem";
 import { getContract } from "viem";
 import { useWallet } from "@/hooks/useWallet";
+import AbiTakumiPointDeposit from "../abis/AbiTakumiPointDeposit";
 import AbiTakumiWallet from "../abis/AbiTakumiWallet";
 import type {
   TCreateTransactionParams,
+  TDepositPointsParams,
   TGetTransactionsByAddressParams,
   TGetTransactionsInRangeParams,
   TGetUserTransactionsParams,
@@ -223,6 +225,27 @@ export function useTakumiWalletContract({
     },
   });
 
+  const depositPoints = useMutation({
+    mutationFn: async (params: TDepositPointsParams) => {
+      if (!walletClient || !walletClient.account)
+        throw new Error("Wallet not connected");
+
+      const hash = await walletClient.writeContract({
+        address: contractAddress,
+        abi: AbiTakumiPointDeposit,
+        functionName: "depositPoints",
+        args: [
+          params.tokenAddress,
+          params.refId,
+          params.amount as unknown as bigint,
+        ],
+        chain: walletClient.chain,
+        account: walletClient.account,
+      });
+      return hash as Hash;
+    },
+  });
+
   const withdrawAll = useMutation({
     mutationFn: async (params: TWithdrawAllParams) => {
       if (!walletClient || !walletClient.account)
@@ -404,6 +427,7 @@ export function useTakumiWalletContract({
     addAdmin,
     removeAdmin,
     createTransaction,
+    depositPoints,
     withdraw,
     withdrawAll,
     useWatchTransactionCreated,

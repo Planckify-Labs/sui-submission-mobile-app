@@ -31,6 +31,8 @@ import ChainSelector from "@/components/common/ChainSelector";
 import TakumiWalletHeaderLogo from "@/components/common/TakumiWalletHeaderLogo";
 import { useWallet } from "@/hooks/useWallet";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { useIsAuthenticated } from "@/hooks/queries/useAuth";
+import { usePointBalance } from "@/hooks/queries/usePoints";
 import { copyToClipboard } from "@/utils/helperUtils";
 import BalanceSectionSkeleton from "./BalanceSectionSkeleton";
 import RecievePaymentModal from "./RecievePaymentModal";
@@ -44,6 +46,8 @@ export interface BalanceSectionRef {
 
 const BalanceSection = forwardRef<BalanceSectionRef>((props, ref) => {
   const { activeWallet, activeChain, isLoading } = useWallet();
+  const { isAuthenticated } = useIsAuthenticated();
+  const { data: pointBalance, isFetching: isPointsFetching } = usePointBalance();
   const { balance, isFetching, refetch } = useWalletBalance(
     activeWallet?.address as `0x${string}` | string,
     activeChain,
@@ -206,7 +210,11 @@ const BalanceSection = forwardRef<BalanceSectionRef>((props, ref) => {
                     {isFetching ? "..." : balance}
                   </Text>
                   <Text className="text-light-matte-black text-md font-light">
-                    123 points
+                    {isAuthenticated
+                      ? isPointsFetching
+                        ? "..."
+                        : `${parseInt(pointBalance?.balance ?? "0").toLocaleString()} points`
+                      : "Sign in to view points"}
                   </Text>
                 </View>
               ) : (

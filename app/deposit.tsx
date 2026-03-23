@@ -12,14 +12,13 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { TToken } from "@/api/types/token";
+import type { TToken } from "@/api/types/token";
 import ChainSelector from "@/components/common/ChainSelector";
 import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import {
   AmountInputSection,
   DepositButton,
   DepositHeader,
-  DepositInfoCard,
   ExchangeRateCard,
   QuickAmountButtons,
 } from "@/components/deposit";
@@ -36,8 +35,13 @@ export default function DepositScreen() {
     amount,
     isLoading,
     transactionStatus,
+    error,
     stablecoinTokens,
-    activeChain,
+    pointPrice,
+    tokenAmountNeeded,
+    isAuthenticated,
+    hasContract,
+    isContractFetching,
     setSelectedToken,
     setAmount,
     setQuickAmount,
@@ -105,6 +109,16 @@ export default function DepositScreen() {
                 </View>
               </View>
 
+              {/* No contract warning banner — hidden while fetching to avoid flash on chain switch */}
+              {isAuthenticated && !isContractFetching && !hasContract && (
+                <View className="mx-5 mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <Text className="text-amber-700 text-sm font-medium">
+                    Point deposits are not available on this network. Please
+                    switch to a supported chain.
+                  </Text>
+                </View>
+              )}
+
               {/* Token Selector */}
               <View className="mb-4 px-5">
                 <Text className="text-light-matte-black/70 mb-2">Token</Text>
@@ -130,7 +144,19 @@ export default function DepositScreen() {
 
               <QuickAmountButtons onSelect={setQuickAmount} />
 
-              <DepositButton isLoading={isLoading} onPress={handleDeposit} />
+              {error && (
+                <Text className="text-red-500 text-sm px-5 mb-4">{error}</Text>
+              )}
+
+              <DepositButton
+                isLoading={isLoading}
+                onPress={handleDeposit}
+                label={
+                  isAuthenticated === false
+                    ? "Sign In to Add Points"
+                    : "Add Points"
+                }
+              />
             </View>
           </ScrollView>
         </View>

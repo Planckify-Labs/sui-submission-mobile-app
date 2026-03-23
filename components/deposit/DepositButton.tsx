@@ -4,9 +4,10 @@ import { Text, TouchableOpacity } from "react-native";
 interface DepositButtonProps {
   isLoading: boolean;
   onPress: () => void;
+  label?: string;
 }
 
-export const DepositButton = memo<DepositButtonProps>(({ isLoading, onPress }) => {
+export const DepositButton = memo<DepositButtonProps>(({ isLoading, onPress, label = "Add Points" }) => {
   return (
     <TouchableOpacity
       activeOpacity={0.7}
@@ -15,7 +16,7 @@ export const DepositButton = memo<DepositButtonProps>(({ isLoading, onPress }) =
       disabled={isLoading}
     >
       <Text className="text-white font-bold text-center text-base">
-        {isLoading ? "Processing..." : "Add Points"}
+        {isLoading ? "Processing..." : label}
       </Text>
     </TouchableOpacity>
   );
