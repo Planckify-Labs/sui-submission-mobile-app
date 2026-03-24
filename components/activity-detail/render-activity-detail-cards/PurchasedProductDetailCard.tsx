@@ -12,18 +12,238 @@ import {
 } from "lucide-react-native";
 import { Text, TouchableOpacity, View } from "react-native";
 import { formatUnits } from "viem";
-import { TPurchaseResponse } from "@/api/types/purchase";
+import type { TRedemptionDetail } from "@/api/types/redeem";
+import type { TPurchaseResponse } from "@/api/types/purchase";
 import { formatCurrency } from "@/utils/currencyUtils";
 import { formatDate } from "@/utils/dateUtils";
 import { copyToClipboard } from "@/utils/helperUtils";
 import { truncateAddress } from "@/utils/walletUtils";
 import AditionalInformationCard from "./AditionalInformationCard";
 
+function RedemptionDetailCard({
+  redemption,
+}: {
+  redemption: TRedemptionDetail;
+}) {
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "COMPLETED":
+        return <CheckCircle size={16} color="#10b981" />;
+      case "PENDING":
+      case "PROCESSING":
+        return <Clock size={16} color="#f59e0b" />;
+      case "FAILED":
+        return <XCircle size={16} color="#ef4444" />;
+      default:
+        return <Clock size={16} color="#6b7280" />;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "COMPLETED":
+        return "text-emerald-600";
+      case "PENDING":
+      case "PROCESSING":
+        return "text-yellow-600";
+      case "FAILED":
+        return "text-red-600";
+      default:
+        return "text-gray-600";
+    }
+  };
+
+  return (
+    <View className="gap-4 p-4">
+      <View className="bg-white rounded-2xl p-4 shadow-sm">
+        <Text className="text-light-matte-black font-bold text-lg mb-4">
+          Redemption Details
+        </Text>
+
+        <View className="bg-light-main-container/35 rounded-xl p-4 mb-4 border-l-4 border-light-primary-red">
+          <View className="flex-row items-center justify-between mb-2">
+            <Text className="text-light-matte-black font-medium text-base">
+              Redemption #{redemption.id.slice(-8).toUpperCase()}
+            </Text>
+            <View className="flex-row items-center">
+              {getStatusIcon(redemption.status)}
+              <Text
+                className={`ml-1 font-medium text-sm ${getStatusColor(redemption.status)}`}
+              >
+                {redemption.status}
+              </Text>
+            </View>
+          </View>
+          <View className="mt-3">
+            <View>
+              <Text className="text-light-matte-black/60 text-xs mb-1">
+                Redemption ID
+              </Text>
+              <View className="flex-row items-center justify-between bg-white rounded-lg p-2">
+                <Text
+                  className="text-light-matte-black text-xs font-mono flex-1"
+                  numberOfLines={1}
+                >
+                  {redemption.id}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => copyToClipboard(redemption.id, "Redemption ID")}
+                  className="ml-2 p-1"
+                >
+                  <Copy size={12} color="#c71c4b" />
+                </TouchableOpacity>
+              </View>
+            </View>
+            {redemption.vendorRefId && (
+              <View className="mt-2">
+                <Text className="text-light-matte-black/60 text-xs mb-1">
+                  Vendor Reference
+                </Text>
+                <View className="flex-row items-center justify-between bg-white rounded-lg p-2">
+                  <Text
+                    className="text-light-matte-black text-xs font-mono flex-1"
+                    numberOfLines={1}
+                  >
+                    {redemption.vendorRefId}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      copyToClipboard(redemption.vendorRefId!, "Vendor reference")
+                    }
+                    className="ml-2 p-1"
+                  >
+                    <Copy size={12} color="#c71c4b" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            <View className="flex-row justify-between items-center mt-2">
+              <Text className="text-light-matte-black/60 text-xs">
+                Date & Time
+              </Text>
+              <Text className="text-light-matte-black text-xs">
+                {formatDate({ date: redemption.createdAt, preset: "long" })}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View className="bg-light-main-container/35 rounded-xl p-4 mb-4">
+          <View className="flex-row items-center mb-3">
+            <Package size={16} color="#c71c4b" />
+            <Text className="text-light-matte-black font-medium text-sm ml-2">
+              Item Details
+            </Text>
+          </View>
+          <View>
+            <View className="flex-row justify-between items-start mb-2">
+              <Text className="text-light-matte-black/60 text-sm flex-1">
+                Name
+              </Text>
+              <Text className="text-light-matte-black text-sm font-medium flex-2 text-right">
+                {redemption.product.name}
+              </Text>
+            </View>
+            <View className="flex-row justify-between items-start">
+              <Text className="text-light-matte-black/60 text-sm flex-1">
+                Variant
+              </Text>
+              <Text className="text-light-matte-black text-sm font-medium flex-2 text-right">
+                {redemption.product.variant.name}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View className="bg-light-main-container/35 rounded-xl p-4">
+          <View className="flex-row items-center mb-3">
+            <CreditCard size={16} color="#c71c4b" />
+            <Text className="text-light-matte-black font-medium text-sm ml-2">
+              Payment Details
+            </Text>
+          </View>
+          <View>
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="text-light-matte-black/60 text-sm">
+                Points Spent
+              </Text>
+              <Text className="text-light-primary-red font-bold text-sm">
+                {Number(redemption.pointsSpent).toLocaleString()} points
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {redemption.product.isVoucher && redemption.voucherCode && (
+          <View className="bg-light-main-container/35 rounded-xl p-4 mt-4 border-2 border-dashed border-light-primary-red/40">
+            <Text className="text-light-matte-black font-medium text-sm mb-2">
+              Voucher Code
+            </Text>
+            <View className="flex-row items-center justify-between bg-white rounded-lg p-3">
+              <Text className="text-light-primary-red font-bold text-base font-mono flex-1 tracking-widest">
+                {redemption.voucherCode}
+              </Text>
+              <TouchableOpacity
+                onPress={() =>
+                  copyToClipboard(redemption.voucherCode!, "Voucher code")
+                }
+                className="ml-2 p-1"
+              >
+                <Copy size={16} color="#c71c4b" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {redemption.customerInfo &&
+          (() => {
+            const entries = Array.isArray(redemption.customerInfo)
+              ? redemption.customerInfo
+              : Object.entries(redemption.customerInfo).map(([key, value]) => ({
+                  key,
+                  value,
+                }));
+            return entries.length > 0 ? (
+              <View className="bg-light-main-container/35 rounded-xl p-4 mt-4">
+                <View className="flex-row items-center mb-3">
+                  <Package size={16} color="#c71c4b" />
+                  <Text className="text-light-matte-black font-medium text-sm ml-2">
+                    Customer Info
+                  </Text>
+                </View>
+                {entries.map(({ key, value }) => (
+                  <View
+                    key={key}
+                    className="flex-row justify-between items-center mb-1"
+                  >
+                    <Text className="text-light-matte-black/60 text-sm capitalize">
+                      {key}
+                    </Text>
+                    <Text className="text-light-matte-black text-sm font-medium">
+                      {String(value)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null;
+          })()}
+      </View>
+    </View>
+  );
+}
+
 export default function PurchasedProductDetailCard({
   purchase,
+  redemption,
 }: {
-  purchase: TPurchaseResponse;
+  purchase?: TPurchaseResponse;
+  redemption?: TRedemptionDetail;
 }) {
+  if (redemption) {
+    return <RedemptionDetailCard redemption={redemption} />;
+  }
+
+  if (!purchase) return null;
   const openBlockchainExplorer = async (
     txHash: string,
     explorerUrl: string,

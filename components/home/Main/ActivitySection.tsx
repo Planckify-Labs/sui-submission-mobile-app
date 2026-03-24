@@ -5,6 +5,7 @@ import {
   Send,
   ShoppingBag,
   Sparkles,
+  Star,
   TrendingUp,
 } from "lucide-react-native";
 import React, {
@@ -13,10 +14,12 @@ import React, {
   useImperativeHandle,
   useRef,
 } from "react";
-import { Dimensions, Image, Text, TouchableOpacity, View } from "react-native";
+import { Image, Text, TouchableOpacity, View } from "react-native";
 import { formatUnits } from "viem/utils";
+import type { TRedemptionHistoryItem } from "@/api/types/redeem";
 import { TTransaction } from "@/api/types/transaction";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
+import { useRedemptionHistory } from "@/hooks/queries/useRedeem";
 import { useTransactionHistory } from "@/hooks/queries/useTransactions";
 import { useWallet } from "@/hooks/useWallet";
 import { formatTokenAmount } from "@/utils/helperUtils";
@@ -42,16 +45,17 @@ const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
       { type: "TRANSFER", take: 4 },
       { enabled: shouldFetchTransactions },
     );
-  const { data: paymentHistory, refetch: refetchPaymentHistory } =
-    useTransactionHistory(
-      { type: "PAYMENT", take: 4 },
-      { enabled: shouldFetchTransactions },
-    );
+  const {
+    data: redemptionData,
+    refetch: refetchRedemptionHistory,
+  } = useRedemptionHistory({ limit: 4 }, { enabled: shouldFetchTransactions });
+
+  const redemptionHistory = redemptionData?.pages.flatMap((p) => p.data) ?? [];
 
   useImperativeHandle(ref, () => ({
     refetch: () => {
       refetchTransferHistory();
-      refetchPaymentHistory();
+      refetchRedemptionHistory();
     },
   }));
 
@@ -66,7 +70,7 @@ const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
       !isAuthLoading
     ) {
       refetchTransferHistory();
-      refetchPaymentHistory();
+      refetchRedemptionHistory();
     }
 
     previousWalletAddress.current = currentWalletAddress;
@@ -75,48 +79,43 @@ const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
     isAuthenticated,
     isAuthLoading,
     refetchTransferHistory,
-    refetchPaymentHistory,
+    refetchRedemptionHistory,
   ]);
 
-  const purchaseHistoryButton = (payment: TTransaction) => (
+  const redemptionHistoryButton = (item: TRedemptionHistoryItem) => (
     <TouchableOpacity
       activeOpacity={0.7}
       className="items-center"
       onPress={() =>
         router.push({
           pathname: "/activity-detail",
-          params: {
-            purchaseId: payment.purchase?.id,
-          },
+          params: { redemptionId: item.id },
         })
       }
     >
       <View className="relative">
-        <View className="rounded-2xl border-2 p-0 border-light-matte-black w-16 aspect-square overflow-hidden bg-light-main-container">
-          <OptimizedImage
-            source={{ uri: payment.purchase?.productVariant.product.imageUrl }}
-            style={{ width: "100%", height: "100%" }}
-            contentFit="cover"
-          />
+        <View className="rounded-2xl border-2 p-0 border-light-matte-black w-16 aspect-square overflow-hidden bg-light-main-container items-center justify-center">
+          {item.product.imageUrl ? (
+            <Image
+              source={{ uri: item.product.imageUrl }}
+              style={{ width: "100%", height: "100%" }}
+              resizeMode="cover"
+            />
+          ) : (
+            <ShoppingBag size={24} color="#c71c4b" />
+          )}
         </View>
 
-        <View className="bg-light-main-container aspect-square overflow-hidden w-4 rounded-full border border-light-matte-black absolute -bottom-[5px] right-[10px] items-center justify-center">
-          <OptimizedImage
-            source={{ uri: payment.token.blockchain.tokens[0].logoUrl }}
-            style={{ width: 14, height: 14 }}
-            contentFit="contain"
-          />
-        </View>
-        <View className="bg-light-main-container aspect-square overflow-hidden w-4 rounded-full border border-light-matte-black absolute bottom-0 -right-[5px] items-center justify-center">
-          <OptimizedImage
-            source={{ uri: payment.token.logoUrl }}
-            style={{ width: 14, height: 14 }}
-            contentFit="contain"
-          />
+        <View className="bg-light-primary-red aspect-square overflow-hidden w-5 rounded-full border border-white absolute -bottom-[4px] -right-[4px] items-center justify-center">
+          <Star size={10} color="#fff" fill="#fff" />
         </View>
       </View>
-      <Text className="text-[10px] text-center text-wrap max-w-16 mt-1">
-        {payment.purchase?.productVariant.name}
+      <Text
+        className="text-[10px] text-center max-w-16 mt-2"
+        numberOfLines={2}
+        ellipsizeMode="tail"
+      >
+        {item.product.variant.name}
       </Text>
     </TouchableOpacity>
   );
@@ -282,7 +281,7 @@ const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
     );
   }
   const isNoTransactionHistory =
-    transferHistory?.[0] === undefined && paymentHistory?.[0] === undefined;
+    transferHistory?.[0] === undefined && redemptionHistory.length === 0;
   return (
     <View className="px-4">
       {!isNoTransactionHistory ? (
@@ -301,11 +300,11 @@ const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
               <MoveRight size={20} color="#c71c4b" />
             </TouchableOpacity>
           </View>
-          {paymentHistory?.[0] !== undefined && (
+          {redemptionHistory.length > 0 && (
             <View>
               <FlashList
-                data={paymentHistory?.slice(0, 4) || []}
-                renderItem={({ item }) => purchaseHistoryButton(item)}
+                data={redemptionHistory.slice(0, 4)}
+                renderItem={({ item }) => redemptionHistoryButton(item)}
                 keyExtractor={(item) => item.id}
                 numColumns={4}
                 showsVerticalScrollIndicator={false}

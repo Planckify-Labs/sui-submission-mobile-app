@@ -3,6 +3,7 @@ import { buildSearchParams } from "../utils/api-helpers";
 import type {
   TRedeemExecuteRequest,
   TRedeemExecuteResponse,
+  TRedemptionDetail,
   TRedemptionHistoryParams,
   TRedemptionHistoryResponse,
   TRedemptionStatusResponse,
@@ -13,6 +14,13 @@ export const redeemApi = {
     const response = await api
       .post("redeem/execute", { json: data })
       .json<TRedeemExecuteResponse>();
+    return response;
+  },
+
+  getById: async (id: string) => {
+    const response = await api
+      .get(`redeem/${id}`)
+      .json<TRedemptionDetail>();
     return response;
   },
 

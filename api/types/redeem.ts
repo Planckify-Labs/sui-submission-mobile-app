@@ -22,29 +22,44 @@ export type TRedemptionStatusResponse = {
   id: string;
   status: TRedemptionStatus;
   pointsSpent: string;
-  vendorRefId?: string;
+  vendorRefId: string | null;
   createdAt: string;
 };
+
+export type TRedemptionProduct = {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  isVoucher: boolean;
+  variant: {
+    id: string;
+    name: string;
+  };
+  price: {
+    amount: number;
+    currency: string;
+  };
+};
+
+export type TCustomerInfoEntry = { key: string; value: string };
+export type TCustomerInfo =
+  | Record<string, string>
+  | TCustomerInfoEntry[]
+  | null;
 
 export type TRedemptionHistoryItem = {
   id: string;
   status: TRedemptionStatus;
   pointsSpent: string;
-  vendorRefId?: string;
-  product: {
-    id: string;
-    name: string;
-    variant: {
-      id: string;
-      name: string;
-    };
-    price: {
-      amount: number;
-      currency: string;
-    };
-  };
+  vendorRefId: string | null;
+  customerInfo: TCustomerInfo;
+  product: TRedemptionProduct;
   createdAt: string;
   updatedAt: string;
+};
+
+export type TRedemptionDetail = TRedemptionHistoryItem & {
+  voucherCode: string | null;
 };
 
 export type TRedemptionHistoryResponse = {

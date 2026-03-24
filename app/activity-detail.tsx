@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ActivityDetailHeader from "@/components/activity-detail/ActivityDetailHeader";
@@ -10,16 +10,23 @@ import PurchasedProductDetailCardSkeleton from "@/components/activity-detail/ske
 import PurchasedProductHeadingSkeleton from "@/components/activity-detail/skeletons/PurchasedProductHeadingSkeleton";
 import TransferDetailCardSkeleton from "@/components/activity-detail/skeletons/TransferDetailCardSkeleton";
 import TransferDetailHeadingSkeleton from "@/components/activity-detail/skeletons/TransferDetailHeadingSkeleton";
+import { useRedemptionById } from "@/hooks/queries/useRedeem";
 import { usePurchaseById } from "@/hooks/queries/usePurchases";
 import { useTransaction } from "@/hooks/queries/useTransactions";
 
 export default function ActivityDetailScreen() {
-  const { purchaseId, transferId } = useLocalSearchParams<{
+  const { purchaseId, transferId, redemptionId } = useLocalSearchParams<{
     purchaseId: string;
     transferId: string;
+    redemptionId: string;
   }>();
 
-  const [isInitialized, setIsInitialized] = useState(false);
+  const {
+    data: redemption,
+    isLoading: isRedemptionLoading,
+    error: redemptionError,
+    refetch: refetchRedemption,
+  } = useRedemptionById(redemptionId ?? null);
 
   const {
     data: purchase,
@@ -35,25 +42,15 @@ export default function ActivityDetailScreen() {
     refetch: refetchTransfer,
   } = useTransaction(transferId);
 
-  const [isRefetchingActivityDetail, setIsRefetchingActivityDetail] = useState(false);
+  const [isRefetchingActivityDetail, setIsRefetchingActivityDetail] =
+    useState(false);
 
-  useEffect(() => {
-    const initializeComponent = () => {
-      if (purchaseId) {
-        console.log("Fetching purchase data for ID:", purchaseId);
-      }
-      if (transferId) {
-        console.log("Fetching transfer data for ID:", transferId);
-      }
-      setIsInitialized(true);
-    };
+  const isLoading =
+    (isRedemptionLoading && !!redemptionId) ||
+    (isPurchaseLoading && !!purchaseId) ||
+    (isTransferLoading && !!transferId);
 
-    initializeComponent();
-  }, [purchaseId, transferId]);
-
-  const isLoading = isPurchaseLoading || isTransferLoading || !isInitialized;
-  const hasError = purchaseError || transferError;
-  const activityData = purchase || transfer;
+  const hasError = redemptionError || purchaseError || transferError;
 
   const handleSharePress = () => {
     console.log("Share: Share receipt functionality coming soon!");
@@ -66,12 +63,9 @@ export default function ActivityDetailScreen() {
   const onRefresh = async () => {
     setIsRefetchingActivityDetail(true);
     try {
-      if (purchaseId) {
-        await refetchPurchase();
-      }
-      if (transferId) {
-        await refetchTransfer();
-      }
+      if (redemptionId) await refetchRedemption();
+      if (purchaseId) await refetchPurchase();
+      if (transferId) await refetchTransfer();
     } catch (error) {
       console.error("Error refreshing activity detail:", error);
     } finally {
@@ -93,18 +87,21 @@ export default function ActivityDetailScreen() {
           contentContainerStyle={{ paddingBottom: 20 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={isRefetchingActivityDetail} onRefresh={onRefresh} />
+            <RefreshControl
+              refreshing={isRefetchingActivityDetail}
+              onRefresh={onRefresh}
+            />
           }
         >
-          {purchaseId ? (
-            <>
-              <PurchasedProductHeadingSkeleton />
-              <PurchasedProductDetailCardSkeleton />
-            </>
-          ) : (
+          {transferId ? (
             <>
               <TransferDetailHeadingSkeleton />
               <TransferDetailCardSkeleton />
+            </>
+          ) : (
+            <>
+              <PurchasedProductHeadingSkeleton />
+              <PurchasedProductDetailCardSkeleton />
             </>
           )}
         </ScrollView>
@@ -126,7 +123,8 @@ export default function ActivityDetailScreen() {
             Failed to load activity
           </Text>
           <Text className="text-light-matte-black text-center">
-            {purchaseError?.message ||
+            {redemptionError?.message ||
+              purchaseError?.message ||
               transferError?.message ||
               "An error occurred while loading the activity details."}
           </Text>
@@ -135,7 +133,7 @@ export default function ActivityDetailScreen() {
     );
   }
 
-  if (!activityData) {
+  if (!redemption && !purchase && !transfer) {
     return (
       <SafeAreaView className="flex-1 bg-light-main-container">
         <ActivityDetailHeader
@@ -157,11 +155,17 @@ export default function ActivityDetailScreen() {
     );
   }
 
+  const subtitle = redemption
+    ? "Redemption Information"
+    : purchase
+      ? "Purchase Information"
+      : "Transfer Information";
+
   return (
     <SafeAreaView className="flex-1 bg-light-main-container">
       <ActivityDetailHeader
         title="Activity Detail"
-        subtitle={purchase ? "Purchase Information" : "Transfer Information"}
+        subtitle={subtitle}
         onSharePress={handleSharePress}
         onHelpPress={handleHelpPress}
       />
@@ -171,19 +175,20 @@ export default function ActivityDetailScreen() {
         contentContainerStyle={{ paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={isRefetchingActivityDetail} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={isRefetchingActivityDetail}
+            onRefresh={onRefresh}
+          />
         }
       >
-        {(purchase || transfer) && (
-          <>
-            {purchase && <PurchasedProductHeading purchase={purchase} />}
-            {transfer && <TransferDetailHeading transfer={transfer} />}
-            <RenderActivityDetailCards
-              purchase={purchase}
-              transfer={transfer}
-            />
-          </>
-        )}
+        {redemption && <PurchasedProductHeading redemption={redemption} />}
+        {purchase && <PurchasedProductHeading purchase={purchase} />}
+        {transfer && <TransferDetailHeading transfer={transfer} />}
+        <RenderActivityDetailCards
+          purchase={purchase}
+          transfer={transfer}
+          redemption={redemption}
+        />
       </ScrollView>
     </SafeAreaView>
   );

@@ -22,6 +22,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import type { TRedemptionHistoryItem } from "@/api/types/redeem";
 import type { TTransaction } from "@/api/types/transaction";
 import ActivityHeader from "@/components/activities/ActivityHeader";
 import PurchaseCard from "@/components/activities/PurchaseCard";
@@ -30,9 +31,11 @@ import TransferCard from "@/components/activities/TransferCard";
 import TransferCardSkeleton from "@/components/activities/TransferCardSkeleton";
 import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
+import { useRedemptionHistory } from "@/hooks/queries/useRedeem";
 import { useTransactionHistory } from "@/hooks/queries/useTransactions";
 
-type ListItem = TTransaction | { id: string };
+type RedemptionListItem = TRedemptionHistoryItem | { id: string };
+type TransferListItem = TTransaction | { id: string };
 
 const SKELETON_DATA = Array.from({ length: 5 }).map((_, index) => ({
   id: `skeleton-${index}`,
@@ -79,12 +82,24 @@ export default function ActivitiesScreen() {
   }, [isAuthenticated, isAuthLoading, router]);
 
   const {
-    data: transactions,
-    isLoading: isTransactionsLoading,
-    refetch,
-  } = useTransactionHistory({
-    type: activeActivity === "redemptions" ? "PAYMENT" : "TRANSFER",
-  });
+    data: transfersData,
+    isLoading: isTransfersLoading,
+    refetch: refetchTransfers,
+  } = useTransactionHistory({ type: "TRANSFER" });
+
+  const {
+    data: redemptionsData,
+    isLoading: isRedemptionsLoading,
+    refetch: refetchRedemptions,
+    fetchNextPage: fetchMoreRedemptions,
+    hasNextPage: hasMoreRedemptions,
+    isFetchingNextPage: isFetchingMoreRedemptions,
+  } = useRedemptionHistory(undefined, { enabled: isAuthenticated === true });
+
+  const flatRedemptions = useMemo(
+    () => redemptionsData?.pages.flatMap((page) => page.data) ?? [],
+    [redemptionsData],
+  );
 
   const tabIndicatorPosition = useRef(
     new Animated.Value(activeActivity === "redemptions" ? 1 : 0),
@@ -97,27 +112,24 @@ export default function ActivitiesScreen() {
   const currentTabIndex = useRef(activeActivity === "redemptions" ? 1 : 0);
 
   const renderPurchaseItem = useCallback(
-    ({ item }: { item: ListItem }) => {
-      if (isTransactionsLoading) return <PurchaseCardSkeleton />;
-      if (!("type" in item)) return null;
-      return <PurchaseCard transaction={item} />;
+    ({ item }: { item: RedemptionListItem }) => {
+      if (isRedemptionsLoading) return <PurchaseCardSkeleton />;
+      if (!("pointsSpent" in item)) return null;
+      return <PurchaseCard item={item} />;
     },
-    [isTransactionsLoading],
+    [isRedemptionsLoading],
   );
 
   const renderTransferItem = useCallback(
-    ({ item }: { item: ListItem }) => {
-      if (isTransactionsLoading) return <TransferCardSkeleton />;
+    ({ item }: { item: TransferListItem }) => {
+      if (isTransfersLoading) return <TransferCardSkeleton />;
       if (!("type" in item)) return null;
       return <TransferCard transaction={item} />;
     },
-    [isTransactionsLoading],
+    [isTransfersLoading],
   );
 
-  const keyExtractor = useCallback((item: ListItem) => {
-    if ("type" in item) {
-      return item.id;
-    }
+  const keyExtractor = useCallback((item: RedemptionListItem | TransferListItem) => {
     return item.id;
   }, []);
 
@@ -156,45 +168,55 @@ export default function ActivitiesScreen() {
     extrapolate: "clamp",
   });
 
-  const filteredTransactions = useMemo(() => {
-    if (!transactions || isTransactionsLoading) return [];
-    return transactions;
-  }, [transactions, isTransactionsLoading]);
+  const redemptionShouldShowEmpty = useMemo(
+    () => !isRedemptionsLoading && flatRedemptions.length === 0,
+    [isRedemptionsLoading, flatRedemptions.length],
+  );
 
-  const shouldShowEmptyState = useMemo(() => {
-    return !isTransactionsLoading && filteredTransactions.length === 0;
-  }, [isTransactionsLoading, filteredTransactions.length]);
+  const transferShouldShowEmpty = useMemo(
+    () => !isTransfersLoading && (!transfersData || transfersData.length === 0),
+    [isTransfersLoading, transfersData],
+  );
+
+  const handleLoadMoreRedemptions = useCallback(() => {
+    if (hasMoreRedemptions && !isFetchingMoreRedemptions) {
+      fetchMoreRedemptions();
+    }
+  }, [hasMoreRedemptions, isFetchingMoreRedemptions, fetchMoreRedemptions]);
 
   const PurchaseList = useMemo(() => {
-    const data = isTransactionsLoading ? SKELETON_DATA : filteredTransactions;
-    const SeparatorComponent = isTransactionsLoading
+    const data: RedemptionListItem[] = isRedemptionsLoading
+      ? SKELETON_DATA
+      : flatRedemptions;
+    const SeparatorComponent = isRedemptionsLoading
       ? SkeletonSeparator
       : ItemSeparator;
 
-    const contentStyle = {
-      ...CONTENT_CONTAINER_STYLE,
-    };
-
     return (
-      <FlashList<ListItem>
+      <FlashList<RedemptionListItem>
         data={data}
         keyExtractor={keyExtractor}
         renderItem={renderPurchaseItem}
         ItemSeparatorComponent={SeparatorComponent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={contentStyle}
+
+        contentContainerStyle={
+          redemptionShouldShowEmpty ? { flex: 1 } : CONTENT_CONTAINER_STYLE
+        }
         ListEmptyComponent={
-          shouldShowEmptyState ? <EmptyState type="redemptions" /> : null
+          redemptionShouldShowEmpty ? <EmptyState type="redemptions" /> : null
         }
         removeClippedSubviews={true}
+        onEndReached={handleLoadMoreRedemptions}
+        onEndReachedThreshold={0.3}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: false },
         )}
         refreshControl={
           <RefreshControl
-            refreshing={isTransactionsLoading}
-            onRefresh={refetch}
+            refreshing={isRedemptionsLoading}
+            onRefresh={refetchRedemptions}
             tintColor="#c71c4b"
             colors={["#c71c4b"]}
           />
@@ -202,35 +224,37 @@ export default function ActivitiesScreen() {
       />
     );
   }, [
-    isTransactionsLoading,
-    filteredTransactions,
+    isRedemptionsLoading,
+    flatRedemptions,
     keyExtractor,
     renderPurchaseItem,
-    shouldShowEmptyState,
-    refetch,
+    redemptionShouldShowEmpty,
+    refetchRedemptions,
     scrollY,
+    handleLoadMoreRedemptions,
   ]);
 
   const TransferList = useMemo(() => {
-    const data = isTransactionsLoading ? SKELETON_DATA : filteredTransactions;
-    const SeparatorComponent = isTransactionsLoading
+    const data: TransferListItem[] = isTransfersLoading
+      ? SKELETON_DATA
+      : (transfersData ?? []);
+    const SeparatorComponent = isTransfersLoading
       ? SkeletonSeparator
       : ItemSeparator;
 
-    const contentStyle = {
-      ...CONTENT_CONTAINER_STYLE,
-    };
-
     return (
-      <FlashList<ListItem>
+      <FlashList<TransferListItem>
         data={data}
         keyExtractor={keyExtractor}
         renderItem={renderTransferItem}
         ItemSeparatorComponent={SeparatorComponent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={contentStyle}
+
+        contentContainerStyle={
+          transferShouldShowEmpty ? { flex: 1 } : CONTENT_CONTAINER_STYLE
+        }
         ListEmptyComponent={
-          shouldShowEmptyState ? <EmptyState type="transfers" /> : null
+          transferShouldShowEmpty ? <EmptyState type="transfers" /> : null
         }
         removeClippedSubviews={true}
         onScroll={Animated.event(
@@ -239,8 +263,8 @@ export default function ActivitiesScreen() {
         )}
         refreshControl={
           <RefreshControl
-            refreshing={isTransactionsLoading}
-            onRefresh={refetch}
+            refreshing={isTransfersLoading}
+            onRefresh={refetchTransfers}
             tintColor="#c71c4b"
             colors={["#c71c4b"]}
           />
@@ -248,12 +272,12 @@ export default function ActivitiesScreen() {
       />
     );
   }, [
-    isTransactionsLoading,
-    filteredTransactions,
+    isTransfersLoading,
+    transfersData,
     keyExtractor,
     renderTransferItem,
-    shouldShowEmptyState,
-    refetch,
+    transferShouldShowEmpty,
+    refetchTransfers,
     scrollY,
   ]);
 
@@ -292,6 +316,9 @@ export default function ActivitiesScreen() {
     [{ nativeEvent: { contentOffset: { x: horizontalScrollX } } }],
     { useNativeDriver: false },
   );
+
+  const { bottom } = useSafeAreaInsets();
+  const bottomOffset = bottom > 0 ? bottom + 8 : 8;
 
   const TabButtons = () => (
     <View
@@ -347,9 +374,6 @@ export default function ActivitiesScreen() {
     </View>
   );
 
-  const { bottom } = useSafeAreaInsets();
-  const bottomOffset = bottom > 0 ? bottom + 8 : 8;
-  console.log({ bottom });
   return (
     <>
       <StatusBar barStyle="dark-content" />
