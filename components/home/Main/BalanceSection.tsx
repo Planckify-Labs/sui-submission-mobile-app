@@ -36,7 +36,6 @@ import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 import { usePointBalance } from "@/hooks/queries/usePoints";
 import { copyToClipboard } from "@/utils/helperUtils";
 import { usePaymentFeatured } from "@/hooks/queries/useProducts";
-import BalanceSectionSkeleton from "./BalanceSectionSkeleton";
 import RecievePaymentModal from "./RecievePaymentModal";
 
 const quickPaymentItems = [
@@ -197,10 +196,6 @@ const BalanceSection = forwardRef<BalanceSectionRef>((props, ref) => {
       },
     }),
   ).current;
-
-  if (isLoading) {
-    return <BalanceSectionSkeleton />;
-  }
 
   return (
     <>
