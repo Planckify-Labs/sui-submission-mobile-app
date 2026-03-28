@@ -9,7 +9,7 @@ interface PackageVariantItemProps {
 }
 
 function formatPrice(price: string): string {
-  return parseInt(price).toLocaleString("id-ID");
+  return parseInt(price).toLocaleString();
 }
 
 export const PackageVariantItem = memo(function PackageVariantItem({
@@ -36,7 +36,7 @@ export const PackageVariantItem = memo(function PackageVariantItem({
           </Text>
         </View>
         <Text className="text-light-primary-red font-bold text-base ml-2">
-          Rp{formatPrice(price)}
+          {formatPrice(price)} points
         </Text>
       </View>
     </TouchableOpacity>
