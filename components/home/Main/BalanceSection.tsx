@@ -68,7 +68,7 @@ export interface BalanceSectionRef {
 
 const BalanceSection = forwardRef<BalanceSectionRef>((props, ref) => {
   const { activeWallet, activeChain, isLoading } = useWallet();
-  const { isAuthenticated } = useIsAuthenticated();
+  const { isAuthenticated, isLoading: isAuthLoading, hadPreviousSession } = useIsAuthenticated();
   const { data: pointBalance, isFetching: isPointsFetching, refetch: refetchPoints } = usePointBalance();
   const { data: paymentFeatured, refetch: refetchPayment } = usePaymentFeatured();
   const { balance, isFetching, refetch } = useWalletBalance(
@@ -271,7 +271,9 @@ const BalanceSection = forwardRef<BalanceSectionRef>((props, ref) => {
                       ? isPointsFetching
                         ? "..."
                         : `${parseInt(pointBalance?.balance ?? "0").toLocaleString()} points`
-                      : "Sign in to view points"}
+                      : isAuthLoading || hadPreviousSession
+                        ? "..."
+                        : "Sign in to view points"}
                   </Text>
                 </View>
               ) : (

@@ -11,6 +11,8 @@ import * as walletService from "@/services/walletService";
 
 interface ApiError {
   message?: string;
+  // Structured error code from the API (see jwt.strategy.ts / auth.service.ts)
+  code?: string;
 }
 
 // Guard to prevent multiple concurrent 401 handlers from spamming redirects.
@@ -77,30 +79,22 @@ const handleApiResponse = async (
       if (response.status === 401) {
         if (!isHandling401) {
           isHandling401 = true;
+
+          // USER_NOT_FOUND: JWT is cryptographically valid but the user row was deleted
+          // (e.g. DB reset). The user needs to re-sign to recreate their account.
+          // All other 401s mean the token itself is invalid/expired.
+          const isUserDeleted = error.code === "USER_NOT_FOUND";
           console.log(
-            "401 Unauthorized - Clearing tokens and redirecting to auth",
+            isUserDeleted
+              ? "401 USER_NOT_FOUND - user row deleted, redirecting to re-auth without clearing tokens"
+              : "401 Unauthorized - token invalid, redirecting to auth",
           );
 
-          await clearTokens();
-
-          try {
-            const indexStr = await SecureStore.getItemAsync(
-              "active_wallet_index",
-            );
-            const idx = indexStr ? parseInt(indexStr, 10) : 0;
-            const wallets = await walletService.loadWalletsFromStorage();
-            const activeAddr = wallets?.[idx]?.address?.toLowerCase();
-
-            if (activeAddr) {
-              await SecureStore.deleteItemAsync(
-                `takumipay_access_token_${activeAddr}`,
-              );
-              await SecureStore.deleteItemAsync(
-                `takumipay_refresh_token_${activeAddr}`,
-              );
-            }
-          } catch (clearError) {
-            console.error("Error clearing per-wallet tokens:", clearError);
+          // Only clear tokens when the JWT itself is bad. If the user row is simply
+          // missing (DB reset / seeding), keep tokens — they'll be overwritten on
+          // successful re-sign and we avoid wiping state unnecessarily.
+          if (!isUserDeleted) {
+            await clearTokens();
           }
 
           router.replace("/auth");

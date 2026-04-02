@@ -33,7 +33,7 @@ export interface ActivitySectionRef {
 
 const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
   const { activeWallet } = useWallet();
-  const { isAuthenticated, isLoading: isAuthLoading } = useIsAuthenticated();
+  const { isAuthenticated, isLoading: isAuthLoading, hadPreviousSession } = useIsAuthenticated();
   const previousWalletAddress = useRef<string | undefined>(undefined);
 
   const shouldFetchTransactions = Boolean(
@@ -187,7 +187,10 @@ const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
     );
   }
 
-  if (!isAuthenticated) {
+  // Only show the sign-in prompt for users who have never authenticated.
+  // If they had a prior session but auth is uncertain (API down, server error),
+  // show the skeleton — their data may still be accessible once the API recovers.
+  if (!isAuthenticated && !hadPreviousSession) {
     return (
       <View className="px-4">
         <View className="bg-light rounded-[14px] w-full p-[22px] gap-4">
@@ -279,6 +282,22 @@ const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
       </View>
     );
   }
+
+  // User had a session but auth check failed (API down / server error) — show skeleton
+  // rather than the sign-in prompt. Cached data will appear once the query resolves.
+  if (!isAuthenticated && hadPreviousSession) {
+    return (
+      <View className="px-4">
+        <View className="bg-light rounded-[14px] w-full p-[22px] gap-4">
+          <View className="flex-row">
+            <Text className="text-light-matte-black text-sm">Activities</Text>
+          </View>
+          <ActivitySkeleton />
+        </View>
+      </View>
+    );
+  }
+
   const isNoTransactionHistory =
     transferHistory?.[0] === undefined && redemptionHistory.length === 0;
   return (

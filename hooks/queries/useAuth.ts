@@ -237,9 +237,15 @@ export const useRefreshToken = () => {
         reset401Guard();
 
         return response;
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to refresh token:", error);
-        await clearTokens();
+        // Only clear tokens if the server explicitly rejected the refresh token (401/403).
+        // Network errors or 5xx responses mean the API is temporarily unavailable —
+        // keep tokens so the user stays authenticated when the server comes back.
+        const status = error?.response?.status;
+        if (status === 401 || status === 403) {
+          await clearTokens();
+        }
         throw error;
       }
     },
@@ -258,8 +264,14 @@ export const useRefreshToken = () => {
     }
   }, [refreshTokenMutation]);
 
+  // Like refreshAccessToken but throws so callers can inspect the error type.
+  const refreshAccessTokenOrThrow = useCallback(async () => {
+    await refreshTokenMutation.mutateAsync();
+  }, [refreshTokenMutation]);
+
   return {
     refreshAccessToken,
+    refreshAccessTokenOrThrow,
     isRefreshing: refreshTokenMutation.isPending,
     error: refreshTokenMutation.error,
   };
@@ -269,13 +281,13 @@ export const useIsAuthenticated = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hadPreviousSession, setHadPreviousSession] = useState(false);
-  const { refreshAccessToken } = useRefreshToken();
-  const refreshAccessTokenRef = useRef(refreshAccessToken);
+  const { refreshAccessTokenOrThrow } = useRefreshToken();
+  const refreshAccessTokenRef = useRef(refreshAccessTokenOrThrow);
   const { activeWallet } = useWallet();
 
   useEffect(() => {
-    refreshAccessTokenRef.current = refreshAccessToken;
-  }, [refreshAccessToken]);
+    refreshAccessTokenRef.current = refreshAccessTokenOrThrow;
+  }, [refreshAccessTokenOrThrow]);
 
   useEffect(() => {
     // Reset immediately so no stale auth state from the previous wallet leaks
@@ -361,12 +373,21 @@ export const useIsAuthenticated = () => {
         }
 
         if (!accessToken && refreshToken) {
-          const refreshed = await refreshAccessTokenRef.current();
-          if (!refreshed) {
-            setIsAuthenticated(false);
-            return;
+          try {
+            await refreshAccessTokenRef.current();
+            setIsAuthenticated(true);
+          } catch (refreshError: any) {
+            const status = refreshError?.response?.status;
+            if (status === 401 || status === 403) {
+              // Server explicitly rejected the refresh token — session is truly expired.
+              setIsAuthenticated(false);
+            } else {
+              // Network error or server unavailable — assume still authenticated
+              // and let individual API calls handle re-auth when the server returns.
+              console.warn("Refresh failed (network/server error), keeping authenticated state:", refreshError);
+              setIsAuthenticated(true);
+            }
           }
-          setIsAuthenticated(true);
           return;
         }
 
@@ -386,9 +407,16 @@ export const useIsAuthenticated = () => {
         }
 
         setIsAuthenticated(true);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error checking authentication:", error);
-        setIsAuthenticated(false);
+        // Only mark as unauthenticated for explicit auth rejections.
+        // Network/server errors should not log the user out.
+        const status = error?.response?.status;
+        if (status === 401 || status === 403) {
+          setIsAuthenticated(false);
+        } else {
+          setIsAuthenticated(true);
+        }
       } finally {
         setIsLoading(false);
       }
