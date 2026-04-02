@@ -32,7 +32,10 @@ export default function PulsaDataScreen() {
       <StatusBar barStyle="dark-content" />
       <SafeAreaView className="flex-1 bg-light-main-container" edges={["top"]}>
         <View className="flex-1 px-6">
-          <ScreenHeader title="Pulsa & Data Package" onBackPress={handleGoBack} />
+          <ScreenHeader
+            title="Pulsa & Data Package"
+            onBackPress={handleGoBack}
+          />
 
           <PhoneNumberInput />
 

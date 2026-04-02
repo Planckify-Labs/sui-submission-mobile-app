@@ -1,7 +1,9 @@
 export type TRedeemExecuteRequest = {
   productVariantId: string;
   productPriceId: string;
-  customerInfo: { [key: string]: string } | Array<{ key: string; value: string }>;
+  customerInfo:
+    | { [key: string]: string }
+    | Array<{ key: string; value: string }>;
 };
 
 export type TRedeemExecuteResponse = {

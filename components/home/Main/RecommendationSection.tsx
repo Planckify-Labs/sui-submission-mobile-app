@@ -35,7 +35,10 @@ const RecommendationItem = ({ item }: { item: TRecommendation }) => (
     activeOpacity={0.7}
     className="items-center"
     onPress={() =>
-      router.push({ pathname: "/purchase-item", params: { productId: item.id } })
+      router.push({
+        pathname: "/purchase-item",
+        params: { productId: item.id },
+      })
     }
   >
     <View className="rounded-2xl border-2 p-0 border-light-matte-black w-16 aspect-square overflow-hidden bg-light-main-container items-center justify-center">
@@ -75,8 +78,14 @@ const RecommendationSection = forwardRef<RecommendationSectionRef>((_, ref) => {
   const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stopAutoScroll = useCallback(() => {
-    if (timer1Ref.current) { clearInterval(timer1Ref.current); timer1Ref.current = null; }
-    if (timer2Ref.current) { clearInterval(timer2Ref.current); timer2Ref.current = null; }
+    if (timer1Ref.current) {
+      clearInterval(timer1Ref.current);
+      timer1Ref.current = null;
+    }
+    if (timer2Ref.current) {
+      clearInterval(timer2Ref.current);
+      timer2Ref.current = null;
+    }
   }, []);
 
   const startAutoScroll = useCallback(
@@ -145,9 +154,7 @@ const RecommendationSection = forwardRef<RecommendationSectionRef>((_, ref) => {
     <View className="px-4">
       <View className="bg-light rounded-[14px] w-full gap-4">
         <View className="flex-row px-[22px] pt-[22px]">
-          <Text className="text-light-matte-black text-sm">
-            For You
-          </Text>
+          <Text className="text-light-matte-black text-sm">For You</Text>
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={() => router.push("/service")}
@@ -180,7 +187,11 @@ const RecommendationSection = forwardRef<RecommendationSectionRef>((_, ref) => {
           onScroll={handleScroll2}
           onScrollBeginDrag={handleScrollBeginDrag}
           scrollEventThrottle={16}
-          contentContainerStyle={{ gap: ITEM_GAP, paddingHorizontal: 22, paddingBottom: 22 }}
+          contentContainerStyle={{
+            gap: ITEM_GAP,
+            paddingHorizontal: 22,
+            paddingBottom: 22,
+          }}
         >
           {row2.map((item) => (
             <RecommendationItem key={item.id} item={item} />

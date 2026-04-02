@@ -15,21 +15,26 @@ import {
 import type { TToken } from "@/api/types/token";
 import ChainSelector from "@/components/common/ChainSelector";
 import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
+import PinConfirmationModal from "@/components/common/PinConfirmationModal";
 import {
   AmountInputSection,
   DepositButton,
   DepositHeader,
   QuickAmountButtons,
 } from "@/components/deposit";
-import PinConfirmationModal from "@/components/common/PinConfirmationModal";
 import TokenSelectorModal from "@/components/wallet/TokenSelectorModal";
 import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
 import { useDepositState } from "@/hooks/deposit/useDepositState";
 import { useWallet } from "@/hooks/useWallet";
 
 export default function DepositScreen() {
-  const { wallets, activeWallet, activeWalletIndex, setActiveWallet, activeChain } =
-    useWallet();
+  const {
+    wallets,
+    activeWallet,
+    activeWalletIndex,
+    setActiveWallet,
+    activeChain,
+  } = useWallet();
   const {
     selectedToken,
     amount,
@@ -160,7 +165,9 @@ export default function DepositScreen() {
               {/* Wallet Balance */}
               {selectedToken && (
                 <View className="mb-4 px-5">
-                  <Text className="text-light-matte-black/70 mb-2">Your Balance</Text>
+                  <Text className="text-light-matte-black/70 mb-2">
+                    Your Balance
+                  </Text>
                   <View className="bg-light-main-container rounded-xl p-4 gap-2">
                     <View className="flex-row items-center justify-between">
                       <Text className="text-light-matte-black/60 text-sm">

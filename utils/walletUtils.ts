@@ -82,9 +82,9 @@ export function createWalletFromParams(
 
 // Common address truncation presets
 export const ADDRESS_TRUNCATE_PRESETS = {
-  short: { start: 4, end: 4 },    // 0x12...5678
-  medium: { start: 6, end: 4 },   // 0x1234...5678
-  long: { start: 10, end: 8 },    // 0x12345678...12345678
+  short: { start: 4, end: 4 }, // 0x12...5678
+  medium: { start: 6, end: 4 }, // 0x1234...5678
+  long: { start: 10, end: 8 }, // 0x12345678...12345678
 } as const;
 
 type TAddressTruncatePreset = keyof typeof ADDRESS_TRUNCATE_PRESETS;

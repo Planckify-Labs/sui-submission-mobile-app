@@ -12,8 +12,8 @@ import {
 } from "lucide-react-native";
 import { Text, TouchableOpacity, View } from "react-native";
 import { formatUnits } from "viem";
-import type { TRedemptionDetail } from "@/api/types/redeem";
 import type { TPurchaseResponse } from "@/api/types/purchase";
+import type { TRedemptionDetail } from "@/api/types/redeem";
 import { formatCurrency } from "@/utils/currencyUtils";
 import { formatDate } from "@/utils/dateUtils";
 import { copyToClipboard } from "@/utils/helperUtils";
@@ -88,7 +88,9 @@ function RedemptionDetailCard({
                   {redemption.id}
                 </Text>
                 <TouchableOpacity
-                  onPress={() => copyToClipboard(redemption.id, "Redemption ID")}
+                  onPress={() =>
+                    copyToClipboard(redemption.id, "Redemption ID")
+                  }
                   className="ml-2 p-1"
                 >
                   <Copy size={12} color="#c71c4b" />
@@ -109,7 +111,10 @@ function RedemptionDetailCard({
                   </Text>
                   <TouchableOpacity
                     onPress={() =>
-                      copyToClipboard(redemption.vendorRefId!, "Vendor reference")
+                      copyToClipboard(
+                        redemption.vendorRefId!,
+                        "Vendor reference",
+                      )
                     }
                     className="ml-2 p-1"
                   >
@@ -175,64 +180,63 @@ function RedemptionDetailCard({
           </View>
         </View>
 
-        {redemption.voucherCode && (() => {
-          const isPLN =
-            redemption.voucherCode.includes("kWh") ||
-            redemption.voucherCode.includes("KWH");
+        {redemption.voucherCode &&
+          (() => {
+            const isPLN =
+              redemption.voucherCode.includes("kWh") ||
+              redemption.voucherCode.includes("KWH");
 
-          if (isPLN) {
-            const customerInfo = redemption.customerInfo;
-            let meterNumber = 0;
-            if (Array.isArray(customerInfo) && customerInfo.length > 0) {
-              const meterEntry =
-                customerInfo.find(
-                  (e) =>
-                    e.key === "userId" ||
-                    e.key.toLowerCase().includes("meter"),
-                ) ?? customerInfo[0];
-              meterNumber = Number(meterEntry.value ?? 0);
-            } else if (customerInfo && !Array.isArray(customerInfo)) {
-              const val =
-                customerInfo["userId"] ??
-                Object.values(customerInfo)[0] ??
-                0;
-              meterNumber = Number(val);
+            if (isPLN) {
+              const customerInfo = redemption.customerInfo;
+              let meterNumber = 0;
+              if (Array.isArray(customerInfo) && customerInfo.length > 0) {
+                const meterEntry =
+                  customerInfo.find(
+                    (e) =>
+                      e.key === "userId" ||
+                      e.key.toLowerCase().includes("meter"),
+                  ) ?? customerInfo[0];
+                meterNumber = Number(meterEntry.value ?? 0);
+              } else if (customerInfo && !Array.isArray(customerInfo)) {
+                const val =
+                  customerInfo["userId"] ?? Object.values(customerInfo)[0] ?? 0;
+                meterNumber = Number(val);
+              }
+              return (
+                <PLNCard
+                  plnCustomerInfo={{
+                    vcGamerVoucher: redemption.voucherCode,
+                    meterNumber,
+                  }}
+                />
+              );
             }
-            return (
-              <PLNCard
-                plnCustomerInfo={{
-                  vcGamerVoucher: redemption.voucherCode,
-                  meterNumber,
-                }}
-              />
-            );
-          }
 
-          if (redemption.product.isVoucher) {
-            return (
-              <View className="bg-light-main-container/35 rounded-xl p-4 mt-4 border-2 border-dashed border-light-primary-red/40">
-                <Text className="text-light-matte-black font-medium text-sm mb-2">
-                  Voucher Code
-                </Text>
-                <View className="flex-row items-center justify-between bg-white rounded-lg p-3">
-                  <Text className="text-light-primary-red font-bold text-base font-mono flex-1 tracking-widest">
-                    {redemption.voucherCode}
+            if (redemption.product.isVoucher) {
+              return (
+                <View className="bg-light-main-container/35 rounded-xl p-4 mt-4 border-2 border-dashed border-light-primary-red/40">
+                  <Text className="text-light-matte-black font-medium text-sm mb-2">
+                    Voucher Code
                   </Text>
-                  <TouchableOpacity
-                    onPress={() =>
-                      copyToClipboard(redemption.voucherCode!, "Voucher code")
-                    }
-                    className="ml-2 p-1"
-                  >
-                    <Copy size={16} color="#c71c4b" />
-                  </TouchableOpacity>
+                  <View className="flex-row items-center justify-between bg-white rounded-lg p-3">
+                    <Text className="text-light-primary-red font-bold text-base font-mono flex-1 tracking-widest">
+                      {redemption.voucherCode}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() =>
+                        copyToClipboard(redemption.voucherCode!, "Voucher code")
+                      }
+                      className="ml-2 p-1"
+                    >
+                      <Copy size={16} color="#c71c4b" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            );
-          }
+              );
+            }
 
-          return null;
-        })()}
+            return null;
+          })()}
 
         {redemption.customerInfo &&
           (() => {

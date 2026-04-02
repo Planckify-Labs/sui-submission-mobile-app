@@ -1,5 +1,5 @@
-import { useCallback } from "react";
 import { type QueryKey, useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
 import { queryClient } from "@/app/_layout";
 
 type TUseRQGlobalState<T> = {

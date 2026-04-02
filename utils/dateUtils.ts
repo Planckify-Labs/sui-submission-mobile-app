@@ -1,4 +1,9 @@
-type TDateFormatPreset = "short" | "long" | "datetime" | "dateOnly" | "timeOnly";
+type TDateFormatPreset =
+  | "short"
+  | "long"
+  | "datetime"
+  | "dateOnly"
+  | "timeOnly";
 
 type TFormatDateParams = {
   date: Date | string | number;
@@ -6,7 +11,10 @@ type TFormatDateParams = {
   locale?: string;
 };
 
-const DATE_FORMAT_OPTIONS: Record<TDateFormatPreset, Intl.DateTimeFormatOptions> = {
+const DATE_FORMAT_OPTIONS: Record<
+  TDateFormatPreset,
+  Intl.DateTimeFormatOptions
+> = {
   short: {
     day: "2-digit",
     month: "short",
@@ -84,7 +92,9 @@ export function getRelativeTime(
   try {
     const dateObj = date instanceof Date ? date : new Date(date);
     const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - dateObj.getTime()) / 1000);
+    const diffInSeconds = Math.floor(
+      (now.getTime() - dateObj.getTime()) / 1000,
+    );
 
     const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
 

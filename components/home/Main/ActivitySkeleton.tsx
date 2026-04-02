@@ -87,4 +87,3 @@ const ActivitySkeleton = () => (
 ActivitySkeleton.displayName = "ActivitySkeleton";
 
 export default ActivitySkeleton;
-

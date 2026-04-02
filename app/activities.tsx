@@ -69,7 +69,11 @@ const EmptyState = React.memo(
 
 export default function ActivitiesScreen() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: isAuthLoading, hadPreviousSession } = useIsAuthenticated();
+  const {
+    isAuthenticated,
+    isLoading: isAuthLoading,
+    hadPreviousSession,
+  } = useIsAuthenticated();
   const [activeActivity, setActiveActivity] = useState<
     "redemptions" | "transfers"
   >("redemptions");
@@ -133,12 +137,16 @@ export default function ActivitiesScreen() {
     [isTransfersLoading],
   );
 
-  const keyExtractor = useCallback((item: RedemptionListItem | TransferListItem) => {
-    return item.id;
-  }, []);
+  const keyExtractor = useCallback(
+    (item: RedemptionListItem | TransferListItem) => {
+      return item.id;
+    },
+    [],
+  );
 
   const searchPlaceholder = useMemo(
-    () => `search ${activeActivity === "redemptions" ? "redemptions" : "transfers"}...`,
+    () =>
+      `search ${activeActivity === "redemptions" ? "redemptions" : "transfers"}...`,
     [activeActivity],
   );
 
@@ -203,7 +211,6 @@ export default function ActivitiesScreen() {
         renderItem={renderPurchaseItem}
         ItemSeparatorComponent={SeparatorComponent}
         showsVerticalScrollIndicator={false}
-
         contentContainerStyle={
           redemptionShouldShowEmpty ? { flex: 1 } : CONTENT_CONTAINER_STYLE
         }
@@ -253,7 +260,6 @@ export default function ActivitiesScreen() {
         renderItem={renderTransferItem}
         ItemSeparatorComponent={SeparatorComponent}
         showsVerticalScrollIndicator={false}
-
         contentContainerStyle={
           transferShouldShowEmpty ? { flex: 1 } : CONTENT_CONTAINER_STYLE
         }

@@ -26,7 +26,10 @@ export const AmountInputSection = memo<AmountInputSectionProps>(
             points
           </Text>
         </View>
-        {amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0 && parseFloat(amount) < 15000 ? (
+        {amount &&
+        !isNaN(parseFloat(amount)) &&
+        parseFloat(amount) > 0 &&
+        parseFloat(amount) < 15000 ? (
           <Text className="text-red-500 text-xs mt-1.5 ml-1">
             Minimum 15,000 points
           </Text>
@@ -42,5 +45,5 @@ export const AmountInputSection = memo<AmountInputSectionProps>(
         ) : null}
       </View>
     );
-  }
+  },
 );

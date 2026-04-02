@@ -1,5 +1,4 @@
 import { api } from "@/constants/configs/ky";
-import { buildSearchParams } from "../utils/api-helpers";
 import type {
   TRedeemExecuteRequest,
   TRedeemExecuteResponse,
@@ -8,6 +7,7 @@ import type {
   TRedemptionHistoryResponse,
   TRedemptionStatusResponse,
 } from "../types/redeem";
+import { buildSearchParams } from "../utils/api-helpers";
 
 export const redeemApi = {
   execute: async (data: TRedeemExecuteRequest) => {
@@ -18,9 +18,7 @@ export const redeemApi = {
   },
 
   getById: async (id: string) => {
-    const response = await api
-      .get(`redeem/${id}`)
-      .json<TRedemptionDetail>();
+    const response = await api.get(`redeem/${id}`).json<TRedemptionDetail>();
     return response;
   },
 
@@ -32,9 +30,13 @@ export const redeemApi = {
   },
 
   getHistory: async (params?: TRedemptionHistoryParams) => {
-    const searchParams = params ? buildSearchParams(params) : new URLSearchParams();
+    const searchParams = params
+      ? buildSearchParams(params)
+      : new URLSearchParams();
     const queryString = searchParams.toString();
-    const url = queryString ? `redeem/history?${queryString}` : "redeem/history";
+    const url = queryString
+      ? `redeem/history?${queryString}`
+      : "redeem/history";
     const response = await api.get(url).json<TRedemptionHistoryResponse>();
     return response;
   },

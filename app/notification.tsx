@@ -1,3 +1,4 @@
+import { FlashList } from "@shopify/flash-list";
 import React, { useCallback } from "react";
 import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -11,7 +12,6 @@ import {
   Notification,
   useNotificationState,
 } from "@/hooks/notification/useNotificationState";
-import { FlashList } from "@shopify/flash-list";
 
 export default function NotificationScreen() {
   const {
@@ -33,7 +33,7 @@ export default function NotificationScreen() {
         onDelete={deleteNotification}
       />
     ),
-    [markAsRead, deleteNotification]
+    [markAsRead, deleteNotification],
   );
 
   const keyExtractor = useCallback((item: Notification) => item.id, []);

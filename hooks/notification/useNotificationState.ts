@@ -75,17 +75,18 @@ const initialState: NotificationState = {
 };
 
 export function useNotificationState() {
-  const { data: state, setNewData: setState } = useRQGlobalState<NotificationState>({
-    queryKey: NOTIFICATION_STATE_KEY,
-    initialData: initialState,
-  });
+  const { data: state, setNewData: setState } =
+    useRQGlobalState<NotificationState>({
+      queryKey: NOTIFICATION_STATE_KEY,
+      initialData: initialState,
+    });
 
   const notifications = state?.notifications ?? [];
   const activeCategory = state?.activeCategory ?? "all";
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.isRead).length,
-    [notifications]
+    [notifications],
   );
 
   const filteredNotifications = useMemo(
@@ -93,7 +94,7 @@ export function useNotificationState() {
       activeCategory === "all"
         ? notifications
         : notifications.filter((n) => n.type === activeCategory),
-    [notifications, activeCategory]
+    [notifications, activeCategory],
   );
 
   const getCategoryCount = useCallback(
@@ -101,14 +102,14 @@ export function useNotificationState() {
       category === "all"
         ? notifications.length
         : notifications.filter((n) => n.type === category).length,
-    [notifications]
+    [notifications],
   );
 
   const setActiveCategory = useCallback(
     (category: NotificationCategory) => {
       setState({ notifications, activeCategory: category });
     },
-    [notifications, setState]
+    [notifications, setState],
   );
 
   const markAllAsRead = useCallback(() => {
@@ -123,11 +124,11 @@ export function useNotificationState() {
       setState({
         activeCategory,
         notifications: notifications.map((n) =>
-          n.id === id ? { ...n, isRead: true } : n
+          n.id === id ? { ...n, isRead: true } : n,
         ),
       });
     },
-    [activeCategory, setState, notifications]
+    [activeCategory, setState, notifications],
   );
 
   const deleteNotification = useCallback(
@@ -137,7 +138,7 @@ export function useNotificationState() {
         notifications: notifications.filter((n) => n.id !== id),
       });
     },
-    [activeCategory, setState, notifications]
+    [activeCategory, setState, notifications],
   );
 
   return {

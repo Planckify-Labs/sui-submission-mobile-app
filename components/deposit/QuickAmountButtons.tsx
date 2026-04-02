@@ -7,23 +7,25 @@ interface QuickAmountButtonsProps {
   onSelect: (value: string) => void;
 }
 
-export const QuickAmountButtons = memo<QuickAmountButtonsProps>(({ onSelect }) => {
-  return (
-    <View className="mb-6 px-5">
-      <View className="flex-row flex-wrap gap-2">
-        {QUICK_AMOUNTS.map((amount) => (
-          <TouchableOpacity
-            key={amount}
-            activeOpacity={0.7}
-            className="bg-light-main-container py-2.5 px-4 rounded-lg"
-            onPress={() => onSelect(amount)}
-          >
-            <Text className="text-light-primary-red text-sm font-semibold">
-              {Number(amount).toLocaleString()}
-            </Text>
-          </TouchableOpacity>
-        ))}
+export const QuickAmountButtons = memo<QuickAmountButtonsProps>(
+  ({ onSelect }) => {
+    return (
+      <View className="mb-6 px-5">
+        <View className="flex-row flex-wrap gap-2">
+          {QUICK_AMOUNTS.map((amount) => (
+            <TouchableOpacity
+              key={amount}
+              activeOpacity={0.7}
+              className="bg-light-main-container py-2.5 px-4 rounded-lg"
+              onPress={() => onSelect(amount)}
+            >
+              <Text className="text-light-primary-red text-sm font-semibold">
+                {Number(amount).toLocaleString()}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
-    </View>
-  );
-});
+    );
+  },
+);

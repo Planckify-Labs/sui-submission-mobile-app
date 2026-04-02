@@ -1,6 +1,12 @@
 import { Coins, Compass } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, LayoutChangeEvent, Pressable, Text, View } from "react-native";
+import {
+  Animated,
+  LayoutChangeEvent,
+  Pressable,
+  Text,
+  View,
+} from "react-native";
 import { TAssetCategoryTabsProps } from "@/constants/types/assetTypes";
 
 const PADDING = 6; // p-1.5 = 6px
@@ -50,7 +56,8 @@ const MyAssetsAndExploreAssetTabs = ({
             style={{
               width: tabWidth,
               left: PADDING,
-              backgroundColor: activeTab === "my-assets" ? "#c71c4b" : "#20222c",
+              backgroundColor:
+                activeTab === "my-assets" ? "#c71c4b" : "#20222c",
               transform: [
                 {
                   translateX: slideAnim.interpolate({
@@ -79,7 +86,9 @@ const MyAssetsAndExploreAssetTabs = ({
           />
           <Text
             className={`font-semibold text-sm ${
-              activeTab === "my-assets" ? "text-white" : "text-light-matte-black"
+              activeTab === "my-assets"
+                ? "text-white"
+                : "text-light-matte-black"
             }`}
           >
             My Assets

@@ -32,4 +32,3 @@ const DappsErrorMessage = memo<TErrorMessageProps>(function DappsErrorMessage({
 });
 
 export default DappsErrorMessage;
-

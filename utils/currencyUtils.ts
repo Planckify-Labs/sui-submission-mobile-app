@@ -67,10 +67,7 @@ export function formatCurrency({
  * formatNumber(50000) // "50,000"
  * formatNumber("1234567.89") // "1,234,567.89"
  */
-export function formatNumber(
-  value: number | string,
-  locale = "en-US",
-): string {
+export function formatNumber(value: number | string, locale = "en-US"): string {
   const num = typeof value === "string" ? parseFloat(value) : value;
 
   if (isNaN(num)) {

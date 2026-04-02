@@ -93,7 +93,12 @@ export default function PaymentSuccessModal({
   if (!visible) return null;
 
   return (
-    <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={onClose}
+    >
       <View style={{ flex: 1 }}>
         <TouchableWithoutFeedback onPress={onClose}>
           <Animated.View
@@ -145,8 +150,13 @@ export default function PaymentSuccessModal({
 
               {productName && (
                 <View className="flex-row justify-between items-center mb-2">
-                  <Text className="text-light-matte-black/60 text-sm">Product</Text>
-                  <Text className="text-light-matte-black text-sm font-medium" numberOfLines={1}>
+                  <Text className="text-light-matte-black/60 text-sm">
+                    Product
+                  </Text>
+                  <Text
+                    className="text-light-matte-black text-sm font-medium"
+                    numberOfLines={1}
+                  >
                     {productName}
                   </Text>
                 </View>
@@ -154,7 +164,9 @@ export default function PaymentSuccessModal({
 
               {pointsSpent && (
                 <View className="flex-row justify-between items-center mb-2">
-                  <Text className="text-light-matte-black/60 text-sm">Points Spent</Text>
+                  <Text className="text-light-matte-black/60 text-sm">
+                    Points Spent
+                  </Text>
                   <Text className="text-light-primary-red text-sm font-bold">
                     {parseInt(pointsSpent).toLocaleString()} points
                   </Text>
@@ -163,8 +175,13 @@ export default function PaymentSuccessModal({
 
               {redemptionId && (
                 <View className="flex-row justify-between items-center">
-                  <Text className="text-light-matte-black/60 text-sm">Redemption ID</Text>
-                  <Text className="text-light-matte-black text-xs font-mono" numberOfLines={1}>
+                  <Text className="text-light-matte-black/60 text-sm">
+                    Redemption ID
+                  </Text>
+                  <Text
+                    className="text-light-matte-black text-xs font-mono"
+                    numberOfLines={1}
+                  >
                     #{redemptionId.substring(0, 12)}...
                   </Text>
                 </View>
@@ -193,7 +210,6 @@ export default function PaymentSuccessModal({
                   </Text>
                 </View>
               </Pressable>
-
             </View>
           </View>
         </Animated.View>
@@ -201,4 +217,3 @@ export default function PaymentSuccessModal({
     </Modal>
   );
 }
-

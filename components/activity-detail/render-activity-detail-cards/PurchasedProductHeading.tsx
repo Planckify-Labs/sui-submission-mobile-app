@@ -1,8 +1,8 @@
 import { ShoppingBag } from "lucide-react-native";
 import React from "react";
 import { Image, Text, View } from "react-native";
-import type { TRedemptionDetail } from "@/api/types/redeem";
 import type { TPurchaseResponse } from "@/api/types/purchase";
+import type { TRedemptionDetail } from "@/api/types/redeem";
 
 interface PurchasedProductCardProps {
   purchase?: TPurchaseResponse;

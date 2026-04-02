@@ -45,4 +45,3 @@ export const ONBOARDING_SLIDE_DATA = [
     ],
   },
 ];
-

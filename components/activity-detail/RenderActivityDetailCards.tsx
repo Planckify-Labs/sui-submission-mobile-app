@@ -1,5 +1,5 @@
-import type { TRedemptionDetail } from "@/api/types/redeem";
 import type { TPurchaseResponse } from "@/api/types/purchase";
+import type { TRedemptionDetail } from "@/api/types/redeem";
 import type { TTransaction } from "@/api/types/transaction";
 import PurchasedProductDetailCard from "./render-activity-detail-cards/PurchasedProductDetailCard";
 import TransferDetailCard from "./render-activity-detail-cards/TransferDetailCard";

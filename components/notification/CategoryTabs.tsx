@@ -73,5 +73,5 @@ export const CategoryTabs = memo<CategoryTabsProps>(
         })}
       </ScrollView>
     );
-  }
+  },
 );

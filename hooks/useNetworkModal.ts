@@ -7,11 +7,12 @@ const QUERY_KEYS = {
 };
 
 export const useNetworkModal = () => {
-  const { data: isVisible, setNewData: setVisible } =
-    useRQGlobalState<boolean>({
+  const { data: isVisible, setNewData: setVisible } = useRQGlobalState<boolean>(
+    {
       queryKey: QUERY_KEYS.visible,
       initialData: false,
-    });
+    },
+  );
 
   const { data: searchQuery, setNewData: setSearchQuery } =
     useRQGlobalState<string>({

@@ -20,9 +20,12 @@ import PaymentErrorModal from "@/components/common/PaymentErrorModal";
 import PaymentSuccessModal from "@/components/common/PaymentSuccessModal";
 import PinConfirmationModal from "@/components/common/PinConfirmationModal";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
-import { useProductVariantById } from "@/hooks/queries/useProducts";
 import { usePointBalance } from "@/hooks/queries/usePoints";
-import { useExecuteRedemption, useRedemptionStatus } from "@/hooks/queries/useRedeem";
+import { useProductVariantById } from "@/hooks/queries/useProducts";
+import {
+  useExecuteRedemption,
+  useRedemptionStatus,
+} from "@/hooks/queries/useRedeem";
 
 export default function PaymentScreen() {
   const [transactionStatus, setTransactionStatus] = useState("");
@@ -172,7 +175,9 @@ export default function PaymentScreen() {
     ? parseInt(variantData.ProductPrice[0].sellPrice)
     : 0;
   const hasInsufficientPoints =
-    !isPointBalanceFetching && requiredPoints > 0 && userPoints < requiredPoints;
+    !isPointBalanceFetching &&
+    requiredPoints > 0 &&
+    userPoints < requiredPoints;
 
   const buttonDisabled = useMemo(() => {
     return (
@@ -182,12 +187,7 @@ export default function PaymentScreen() {
       !variantData?.ProductPrice?.[0]?.id ||
       hasInsufficientPoints
     );
-  }, [
-    isLoading,
-    isLoadingVariant,
-    variantData,
-    hasInsufficientPoints,
-  ]);
+  }, [isLoading, isLoadingVariant, variantData, hasInsufficientPoints]);
 
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 0 : bottom > 0 ? bottom : 0;
@@ -221,8 +221,8 @@ export default function PaymentScreen() {
                   Insufficient Points
                 </Text>
                 <Text className="text-red-600 text-sm">
-                  You need {requiredPoints.toLocaleString()} points but only have{" "}
-                  {userPoints.toLocaleString()} points. Please deposit more
+                  You need {requiredPoints.toLocaleString()} points but only
+                  have {userPoints.toLocaleString()} points. Please deposit more
                   points to continue.
                 </Text>
               </View>

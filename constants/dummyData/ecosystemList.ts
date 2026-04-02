@@ -77,7 +77,8 @@ export const getPromotionalItems = (): TPromotionalItem[] => [
     subtitle: "OpenSea Marketplace",
     description: "Buy, sell, and discover exclusive digital items",
     url: "https://opensea.io",
-    imageUrl: "https://storage.googleapis.com/opensea-static/Logomark/Logomark-Blue.png",
+    imageUrl:
+      "https://storage.googleapis.com/opensea-static/Logomark/Logomark-Blue.png",
     backgroundColor: "#2081E2",
     textColor: "#FFFFFF",
   },
@@ -115,7 +116,8 @@ export const getPopularDApps = (): TDApp[] => [
     name: "OpenSea",
     description: "The largest NFT marketplace",
     url: "https://opensea.io",
-    logoUrl: "https://storage.googleapis.com/opensea-static/Logomark/Logomark-Blue.png",
+    logoUrl:
+      "https://storage.googleapis.com/opensea-static/Logomark/Logomark-Blue.png",
     isPopular: true,
   },
   {
@@ -165,7 +167,11 @@ export const getWeb3EcosystemCategories = (): TDAppCategory[] => [
     id: "dex",
     title: "Decentralized Exchange",
     description: "Trade tokens directly from your wallet",
-    icon: (isActive: boolean) => React.createElement(Coins, { color: isActive ? "white" : "#c71c4b", size: 24 }),
+    icon: (isActive: boolean) =>
+      React.createElement(Coins, {
+        color: isActive ? "white" : "#c71c4b",
+        size: 24,
+      }),
     color: "bg-light-primary-red/10",
     dapps: [
       {
@@ -211,7 +217,11 @@ export const getWeb3EcosystemCategories = (): TDAppCategory[] => [
     id: "defi",
     title: "DeFi Protocols",
     description: "Lending, borrowing, and yield farming",
-    icon: (isActive: boolean) => React.createElement(TrendingUp, { color: isActive ? "white" : "#c71c4b", size: 24 }),
+    icon: (isActive: boolean) =>
+      React.createElement(TrendingUp, {
+        color: isActive ? "white" : "#c71c4b",
+        size: 24,
+      }),
     color: "bg-light-primary-red/10",
     dapps: [
       {
@@ -249,7 +259,11 @@ export const getWeb3EcosystemCategories = (): TDAppCategory[] => [
     id: "launchpad",
     title: "Launchpads",
     description: "Discover and invest in new projects",
-    icon: (isActive: boolean) => React.createElement(Rocket, { color: isActive ? "white" : "#c71c4b", size: 24 }),
+    icon: (isActive: boolean) =>
+      React.createElement(Rocket, {
+        color: isActive ? "white" : "#c71c4b",
+        size: 24,
+      }),
     color: "bg-light-primary-red/10",
     dapps: [
       {
@@ -280,7 +294,11 @@ export const getWeb3EcosystemCategories = (): TDAppCategory[] => [
     id: "nft",
     title: "NFT Marketplaces",
     description: "Buy, sell, and trade NFTs",
-    icon: (isActive: boolean) => React.createElement(ShoppingBag, { color: isActive ? "white" : "#c71c4b", size: 24 }),
+    icon: (isActive: boolean) =>
+      React.createElement(ShoppingBag, {
+        color: isActive ? "white" : "#c71c4b",
+        size: 24,
+      }),
     color: "bg-light-primary-red/10",
     dapps: [
       {
@@ -288,7 +306,8 @@ export const getWeb3EcosystemCategories = (): TDAppCategory[] => [
         name: "OpenSea",
         description: "The largest NFT marketplace",
         url: "https://opensea.io",
-        logoUrl: "https://storage.googleapis.com/opensea-static/Logomark/Logomark-Blue.png",
+        logoUrl:
+          "https://storage.googleapis.com/opensea-static/Logomark/Logomark-Blue.png",
         isPopular: true,
       },
       {
@@ -319,7 +338,11 @@ export const getWeb3EcosystemCategories = (): TDAppCategory[] => [
     id: "gaming",
     title: "Gaming & Metaverse",
     description: "Play-to-earn games and virtual worlds",
-    icon: (isActive: boolean) => React.createElement(Zap, { color: isActive ? "white" : "#c71c4b", size: 24 }),
+    icon: (isActive: boolean) =>
+      React.createElement(Zap, {
+        color: isActive ? "white" : "#c71c4b",
+        size: 24,
+      }),
     color: "bg-light-primary-red/10",
     dapps: [
       {
@@ -365,7 +388,11 @@ export const getWeb3EcosystemCategories = (): TDAppCategory[] => [
     id: "tools",
     title: "Web3 Tools",
     description: "Analytics, portfolio tracking, and utilities",
-    icon: (isActive: boolean) => React.createElement(Globe, { color: isActive ? "white" : "#c71c4b", size: 24 }),
+    icon: (isActive: boolean) =>
+      React.createElement(Globe, {
+        color: isActive ? "white" : "#c71c4b",
+        size: 24,
+      }),
     color: "bg-light-primary-red/10",
     dapps: [
       {

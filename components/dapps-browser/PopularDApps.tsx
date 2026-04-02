@@ -8,6 +8,7 @@ import { generateSkeletonData } from "../../utils/dappsBrowserUtils";
 import DAppCard from "./DAppCard";
 import DAppCardSkeleton from "./DAppCardSkeleton";
 import DappsErrorMessage from "./DappsErrorMessage";
+
 const PopularDApps = memo<TDAppNavigationProps>(function PopularDApps({
   onNavigateToDapp,
 }) {

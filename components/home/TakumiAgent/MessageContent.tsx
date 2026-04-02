@@ -38,7 +38,7 @@ const MessageContent: React.FC<MessageContentProps> = React.memo(
             ))}
           </View>
         )}
-        
+
         {/* Show text content */}
         {textContent && <MarkdownMessage content={textContent} />}
       </View>

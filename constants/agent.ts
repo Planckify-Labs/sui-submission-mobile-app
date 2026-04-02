@@ -38,4 +38,3 @@ export const AGENT_QUICK_PROMPTS = [
     prompt: "Show my recent transactions",
   },
 ];
-

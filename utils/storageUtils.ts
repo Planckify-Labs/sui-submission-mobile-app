@@ -40,7 +40,10 @@ export async function getStorageItem<T>(
  * @example
  * await setStorageItem("my_assets", assets);
  */
-export async function setStorageItem<T>(key: string, value: T): Promise<boolean> {
+export async function setStorageItem<T>(
+  key: string,
+  value: T,
+): Promise<boolean> {
   try {
     await AsyncStorage.setItem(key, JSON.stringify(value));
     return true;

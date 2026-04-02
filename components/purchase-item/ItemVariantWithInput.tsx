@@ -25,12 +25,12 @@ import {
 import { queryClient } from "@/app/_layout";
 import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import OptionSelectorModal from "@/components/common/OptionSelectorModal";
+import { formatPhoneNumber } from "@/constants/ISP-list";
 import {
   useProductById,
   useProductInputFields,
 } from "@/hooks/queries/useProducts";
 import useRQGlobalState from "@/hooks/useRQGlobalState";
-import { formatPhoneNumber } from "@/constants/ISP-list";
 import ItemVariantWithInputSkeleton from "./ItemVariantWithInputSkeleton";
 
 interface ItemVariantWithInputProps {
@@ -253,7 +253,9 @@ export default function ItemWithInput({
             field.type.toUpperCase() === "NUMERIC";
 
           // Format display for phone/number fields, show raw value otherwise
-          const displayValue = isPhoneOrNumber ? formatPhoneNumber(value) : value;
+          const displayValue = isPhoneOrNumber
+            ? formatPhoneNumber(value)
+            : value;
 
           const handleChange = (text: string) => {
             if (isPhoneOrNumber) {
@@ -280,19 +282,19 @@ export default function ItemWithInput({
                     className="text-light-matte-black font-medium text-lg"
                     autoCapitalize="none"
                   />
-                <Text className="text-light-matte-black/60 text-xs">
-                  {product?.category?.name}
-                </Text>
-              </View>
-              <View className="flex-row items-center">
-                <Image
-                  source={{ uri: product?.imageUrl }}
-                  className="w-8 h-8 mr-2"
-                  style={{ resizeMode: "contain" }}
-                />
+                  <Text className="text-light-matte-black/60 text-xs">
+                    {product?.category?.name}
+                  </Text>
+                </View>
+                <View className="flex-row items-center">
+                  <Image
+                    source={{ uri: product?.imageUrl }}
+                    className="w-8 h-8 mr-2"
+                    style={{ resizeMode: "contain" }}
+                  />
+                </View>
               </View>
             </View>
-          </View>
           );
         }}
       />
@@ -316,7 +318,9 @@ export default function ItemWithInput({
 
       // Strip non-digit characters for phone/number fields
       const cleanedValue =
-        fieldType === "PHONE" || fieldType === "NUMBER" || fieldType === "NUMERIC"
+        fieldType === "PHONE" ||
+        fieldType === "NUMBER" ||
+        fieldType === "NUMERIC"
           ? value.replace(/\D/g, "")
           : value;
 

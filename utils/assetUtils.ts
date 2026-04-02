@@ -108,7 +108,11 @@ export async function loadWalletAssets(
   walletAddress: string,
   networkId: string,
 ): Promise<TCryptoAsset[]> {
-  const storageKey = createStorageKey("wallet_assets", walletAddress, networkId);
+  const storageKey = createStorageKey(
+    "wallet_assets",
+    walletAddress,
+    networkId,
+  );
   return getStorageItem<TCryptoAsset[]>(storageKey, []);
 }
 
@@ -118,7 +122,11 @@ export async function saveWalletAssets(
   networkId: string,
   assets: TCryptoAsset[],
 ): Promise<boolean> {
-  const storageKey = createStorageKey("wallet_assets", walletAddress, networkId);
+  const storageKey = createStorageKey(
+    "wallet_assets",
+    walletAddress,
+    networkId,
+  );
   return setStorageItem(storageKey, assets);
 }
 

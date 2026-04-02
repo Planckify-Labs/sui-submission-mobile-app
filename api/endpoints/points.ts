@@ -1,5 +1,4 @@
 import { api, publicApi } from "@/constants/configs/ky";
-import { buildSearchParams } from "../utils/api-helpers";
 import type {
   TPointBalanceResponse,
   TPointDepositRequest,
@@ -10,6 +9,7 @@ import type {
   TPointPriceParams,
   TPointPriceResponse,
 } from "../types/points";
+import { buildSearchParams } from "../utils/api-helpers";
 
 export const pointsApi = {
   // Public endpoint (API key only, no JWT) -- uses publicApi
@@ -30,7 +30,9 @@ export const pointsApi = {
   // Authenticated endpoints -- uses api (includes Bearer token)
   getBalance: async () => {
     try {
-      const response = await api.get("points/balance").json<TPointBalanceResponse>();
+      const response = await api
+        .get("points/balance")
+        .json<TPointBalanceResponse>();
       return response;
     } catch (error) {
       console.error("Failed to fetch point balance:", error);
@@ -64,9 +66,13 @@ export const pointsApi = {
 
   getHistory: async (params?: TPointHistoryParams) => {
     try {
-      const searchParams = params ? buildSearchParams(params) : new URLSearchParams();
+      const searchParams = params
+        ? buildSearchParams(params)
+        : new URLSearchParams();
       const queryString = searchParams.toString();
-      const url = queryString ? `points/history?${queryString}` : "points/history";
+      const url = queryString
+        ? `points/history?${queryString}`
+        : "points/history";
       const response = await api.get(url).json<TPointHistoryResponse>();
       return response;
     } catch (error) {

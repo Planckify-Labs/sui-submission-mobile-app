@@ -1,6 +1,12 @@
 import { useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ActivityDetailHeader from "@/components/activity-detail/ActivityDetailHeader";
 import RenderActivityDetailCards from "@/components/activity-detail/RenderActivityDetailCards";
@@ -10,8 +16,8 @@ import PurchasedProductDetailCardSkeleton from "@/components/activity-detail/ske
 import PurchasedProductHeadingSkeleton from "@/components/activity-detail/skeletons/PurchasedProductHeadingSkeleton";
 import TransferDetailCardSkeleton from "@/components/activity-detail/skeletons/TransferDetailCardSkeleton";
 import TransferDetailHeadingSkeleton from "@/components/activity-detail/skeletons/TransferDetailHeadingSkeleton";
-import { useRedemptionById } from "@/hooks/queries/useRedeem";
 import { usePurchaseById } from "@/hooks/queries/usePurchases";
+import { useRedemptionById } from "@/hooks/queries/useRedeem";
 import { useTransaction } from "@/hooks/queries/useTransactions";
 
 export default function ActivityDetailScreen() {

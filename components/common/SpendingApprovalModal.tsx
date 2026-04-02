@@ -49,7 +49,7 @@ const SpendingApprovalModal: React.FC<SpendingApprovalModalProps> = ({
 }) => {
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
-  
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
   const [unlimitedAllowance, setUnlimitedAllowance] = useState(false);

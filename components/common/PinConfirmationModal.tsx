@@ -40,7 +40,7 @@ const PinConfirmationModal: React.FC<PinConfirmationModalProps> = ({
 }) => {
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
-  
+
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [setupModalVisible, setSetupModalVisible] = useState(false);
@@ -312,7 +312,6 @@ const PinConfirmationModal: React.FC<PinConfirmationModalProps> = ({
 
                 <View className="items-center">{renderNumberPad()}</View>
               </View>
-
             </View>
           </Animated.View>
         </View>

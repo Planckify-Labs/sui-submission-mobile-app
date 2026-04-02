@@ -27,7 +27,7 @@ const PinSetupModal: React.FC<PinSetupModalProps> = ({
 }) => {
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
-  
+
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [step, setStep] = useState<"intro" | "create" | "confirm">("intro");

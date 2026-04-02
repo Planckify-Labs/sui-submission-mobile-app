@@ -24,7 +24,7 @@ export const transactionApi = {
     }
 
     const searchParams = { take: 10, ...params };
-    
+
     return searchItems<TTransactionListResponse>(
       api,
       "transactions/my-history",

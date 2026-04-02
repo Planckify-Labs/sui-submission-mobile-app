@@ -384,7 +384,10 @@ export const useIsAuthenticated = () => {
             } else {
               // Network error or server unavailable — assume still authenticated
               // and let individual API calls handle re-auth when the server returns.
-              console.warn("Refresh failed (network/server error), keeping authenticated state:", refreshError);
+              console.warn(
+                "Refresh failed (network/server error), keeping authenticated state:",
+                refreshError,
+              );
               setIsAuthenticated(true);
             }
           }

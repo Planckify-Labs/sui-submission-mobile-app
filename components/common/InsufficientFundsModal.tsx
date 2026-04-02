@@ -1,6 +1,5 @@
-import DepositIcon from "@/assets/icons/deposit-duotone.svg";
 import { router } from "expo-router";
-import { Wallet, ArrowLeft } from "lucide-react-native";
+import { ArrowLeft, Wallet } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Animated,
@@ -12,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import DepositIcon from "@/assets/icons/deposit-duotone.svg";
 
 type InsufficientFundsModalProps = {
   visible: boolean;

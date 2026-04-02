@@ -1,5 +1,4 @@
-import { useRouter } from "expo-router";
-import { router } from "expo-router";
+import { router, useRouter } from "expo-router";
 import {
   ChevronDown,
   Copy,
@@ -8,8 +7,6 @@ import {
   QrCode,
   Send,
 } from "lucide-react-native";
-import DepositIcon from "@/assets/icons/deposit-duotone.svg";
-import WithdrawIcon from "@/assets/icons/withdraw-duotone.svg";
 import React, {
   forwardRef,
   useCallback,
@@ -28,14 +25,16 @@ import {
   Vibration,
   View,
 } from "react-native";
+import DepositIcon from "@/assets/icons/deposit-duotone.svg";
+import WithdrawIcon from "@/assets/icons/withdraw-duotone.svg";
 import ChainSelector from "@/components/common/ChainSelector";
 import TakumiWalletHeaderLogo from "@/components/common/TakumiWalletHeaderLogo";
-import { useWallet } from "@/hooks/useWallet";
-import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 import { usePointBalance } from "@/hooks/queries/usePoints";
-import { copyToClipboard } from "@/utils/helperUtils";
 import { usePaymentFeatured } from "@/hooks/queries/useProducts";
+import { useWallet } from "@/hooks/useWallet";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { copyToClipboard } from "@/utils/helperUtils";
 import RecievePaymentModal from "./RecievePaymentModal";
 
 const quickPaymentItems = [
@@ -67,10 +66,19 @@ export interface BalanceSectionRef {
 }
 
 const BalanceSection = forwardRef<BalanceSectionRef>((props, ref) => {
-  const { activeWallet, activeChain, isLoading } = useWallet();
-  const { isAuthenticated, isLoading: isAuthLoading, hadPreviousSession } = useIsAuthenticated();
-  const { data: pointBalance, isFetching: isPointsFetching, refetch: refetchPoints } = usePointBalance();
-  const { data: paymentFeatured, refetch: refetchPayment } = usePaymentFeatured();
+  const { activeWallet, activeChain } = useWallet();
+  const {
+    isAuthenticated,
+    isLoading: isAuthLoading,
+    hadPreviousSession,
+  } = useIsAuthenticated();
+  const {
+    data: pointBalance,
+    isFetching: isPointsFetching,
+    refetch: refetchPoints,
+  } = usePointBalance();
+  const { data: paymentFeatured, refetch: refetchPayment } =
+    usePaymentFeatured();
   const { balance, isFetching, refetch } = useWalletBalance(
     activeWallet?.address as `0x${string}` | string,
     activeChain,
@@ -84,7 +92,9 @@ const BalanceSection = forwardRef<BalanceSectionRef>((props, ref) => {
     },
   }));
 
-  const handleQuickPaymentNavigate = async (item: (typeof quickPaymentItems)[0]) => {
+  const handleQuickPaymentNavigate = async (
+    item: (typeof quickPaymentItems)[0],
+  ) => {
     let id = paymentFeatured?.[item.name]?.id;
 
     if (!id) {

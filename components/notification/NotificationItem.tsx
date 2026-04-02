@@ -62,7 +62,9 @@ export const NotificationItem = memo<NotificationItemProps>(
         <View className="flex-row items-start p-4">
           <View
             className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
-              notification.isRead ? "bg-light-main-container" : "bg-light-primary-red/10"
+              notification.isRead
+                ? "bg-light-main-container"
+                : "bg-light-primary-red/10"
             }`}
           >
             {getNotificationIcon(notification.icon)}
@@ -115,5 +117,5 @@ export const NotificationItem = memo<NotificationItemProps>(
         </View>
       </Pressable>
     );
-  }
+  },
 );

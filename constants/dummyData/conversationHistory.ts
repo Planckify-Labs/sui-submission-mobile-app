@@ -179,8 +179,7 @@ export const DUMMY_CHAT_SESSIONS: ChatSession[] = [
       {
         id: "msg-21",
         role: "assistant",
-        content:
-          "Transfer of 50 USDC to Alice completed successfully!",
+        content: "Transfer of 50 USDC to Alice completed successfully!",
         timestamp: new Date("2024-10-27T13:15:20"),
       },
     ],
@@ -205,8 +204,7 @@ export const DUMMY_CHAT_SESSIONS: ChatSession[] = [
       {
         id: "msg-24",
         role: "assistant",
-        content:
-          "Swap completed! You now have 32 ETH in your wallet.",
+        content: "Swap completed! You now have 32 ETH in your wallet.",
         timestamp: new Date("2024-10-26T08:45:15"),
       },
     ],
@@ -250,8 +248,7 @@ export const DUMMY_CHAT_SESSIONS: ChatSession[] = [
       {
         id: "msg-29",
         role: "assistant",
-        content:
-          "Transaction sent! 100 MATIC is on its way to Bob.",
+        content: "Transaction sent! 100 MATIC is on its way to Bob.",
         timestamp: new Date("2024-10-24T12:00:15"),
       },
     ],
@@ -288,15 +285,13 @@ export const DUMMY_CHAT_SESSIONS: ChatSession[] = [
       {
         id: "msg-33",
         role: "assistant",
-        content:
-          "Swapping 5 USDT for DAI at current market rate...",
+        content: "Swapping 5 USDT for DAI at current market rate...",
         timestamp: new Date("2024-10-22T14:45:05"),
       },
       {
         id: "msg-34",
         role: "assistant",
-        content:
-          "Swap completed! You now have 5 DAI in your wallet.",
+        content: "Swap completed! You now have 5 DAI in your wallet.",
         timestamp: new Date("2024-10-22T14:45:15"),
       },
     ],
@@ -333,15 +328,13 @@ export const DUMMY_CHAT_SESSIONS: ChatSession[] = [
       {
         id: "msg-38",
         role: "assistant",
-        content:
-          "Preparing to transfer 15 ETH to Andre's wallet...",
+        content: "Preparing to transfer 15 ETH to Andre's wallet...",
         timestamp: new Date("2024-10-20T11:15:05"),
       },
       {
         id: "msg-39",
         role: "assistant",
-        content:
-          "Transfer initiated! 15 ETH is being sent to Andre.",
+        content: "Transfer initiated! 15 ETH is being sent to Andre.",
         timestamp: new Date("2024-10-20T11:15:15"),
       },
     ],
@@ -378,15 +371,13 @@ export const DUMMY_CHAT_SESSIONS: ChatSession[] = [
       {
         id: "msg-43",
         role: "assistant",
-        content:
-          "Swapping 3 MATIC for USDC at current rate...",
+        content: "Swapping 3 MATIC for USDC at current rate...",
         timestamp: new Date("2024-10-18T13:45:05"),
       },
       {
         id: "msg-44",
         role: "assistant",
-        content:
-          "Swap completed! You now have approximately 3.50 USDC.",
+        content: "Swap completed! You now have approximately 3.50 USDC.",
         timestamp: new Date("2024-10-18T13:45:15"),
       },
     ],
@@ -411,4 +402,3 @@ export const getDummyChatSessionById = (
 ): ChatSession | undefined => {
   return DUMMY_CHAT_SESSIONS.find((session) => session.id === sessionId);
 };
-

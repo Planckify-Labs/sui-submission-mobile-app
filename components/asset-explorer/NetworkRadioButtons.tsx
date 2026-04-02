@@ -1,22 +1,29 @@
 import { BlurView } from "expo-blur";
 import { Maximize2 } from "lucide-react-native";
 import React, { useCallback, useEffect } from "react";
-import { Platform, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import {
+  Platform,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBlockchains } from "@/hooks/queries/useBlockchains";
 import { useActiveNetwork, useActiveTab } from "@/hooks/useAssetExplorerState";
 import { useNetworkModal } from "@/hooks/useNetworkModal";
 import { usePinnedNetworks } from "@/hooks/usePinnedNetworks";
 import { useWallet } from "@/hooks/useWallet";
-import NetworkRadioButtonLoadingSkeletons from "./NetworkRadioButtonLoadingSkeletons";
 import OptimizedImage from "../common/OptimizedImage";
+import NetworkRadioButtonLoadingSkeletons from "./NetworkRadioButtonLoadingSkeletons";
 
 const NetworkRadioButtons = () => {
   const { activeChain } = useWallet();
   const { data: blockchains, isLoading } = useBlockchains({ isActive: true });
   const { pinnedNetworks } = usePinnedNetworks();
   const { bottom } = useSafeAreaInsets();
-  const bottomOffset = Platform.OS === "ios" ? 24 : bottom > 0 ? bottom + 8 : 16;
+  const bottomOffset =
+    Platform.OS === "ios" ? 24 : bottom > 0 ? bottom + 8 : 16;
 
   const { activeNetwork, selectNetwork } = useActiveNetwork();
   const { activeTab } = useActiveTab();
@@ -122,15 +129,13 @@ const NetworkRadioButtons = () => {
                         isActive ? "" : "bg-gray-100/80"
                       }`}
                       style={
-                        isActive
-                          && {
-                              backgroundColor: accentColor}
+                        isActive && {
+                          backgroundColor: accentColor,
+                        }
                       }
                     >
                       <View className="w-8 h-8 rounded-full mr-2 bg-light-main-container overflow-hidden">
-                        <OptimizedImage
-                          source={{ uri: network.logoUrl }}
-                        />
+                        <OptimizedImage source={{ uri: network.logoUrl }} />
                       </View>
                       <Text
                         className={`font-semibold text-xs ${

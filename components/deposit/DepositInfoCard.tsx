@@ -27,5 +27,5 @@ export const DepositInfoCard = memo<DepositInfoCardProps>(
         </Text>
       </View>
     );
-  }
+  },
 );

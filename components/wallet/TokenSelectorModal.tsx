@@ -46,7 +46,7 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
 }: TokenSelectorModalProps) {
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
-  
+
   const [searchQuery, setSearchQuery] = useState("");
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(300)).current;

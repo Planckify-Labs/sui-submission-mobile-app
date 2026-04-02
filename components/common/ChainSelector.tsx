@@ -25,7 +25,7 @@ const MODAL_HEIGHT = height * 0.67;
 const ChainSelector = memo(() => {
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
-  
+
   const { activeChain, changeActiveChain } = useWallet();
   const [modalVisible, setModalVisible] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;

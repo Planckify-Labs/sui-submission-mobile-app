@@ -25,9 +25,8 @@ const loadFromStorage = (): FavoriteDApp[] => {
 
 export const useFavoriteDApps = () => {
   // Synchronous MMKV read — data is ready on first render, no loading state needed
-  const [favoriteDApps, setFavoriteDApps] = useState<FavoriteDApp[]>(
-    loadFromStorage,
-  );
+  const [favoriteDApps, setFavoriteDApps] =
+    useState<FavoriteDApp[]>(loadFromStorage);
 
   const isFavorite = useCallback(
     (dappId: string): boolean => favoriteDApps.some((fav) => fav.id === dappId),

@@ -1,4 +1,9 @@
-import { ChevronRight, Trash2, TrendingDown, TrendingUp } from "lucide-react-native";
+import {
+  ChevronRight,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react-native";
 import React from "react";
 import { Pressable, Text, View } from "react-native";
 import { TCryptoAsset } from "@/constants/types/assetTypes";

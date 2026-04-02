@@ -1,4 +1,9 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { pointsApi } from "@/api/endpoints/points";
 import type {
   TPointDepositRequest,
@@ -62,7 +67,7 @@ export const usePointHistory = (params?: TPointHistoryParams) => {
       pointsApi.getHistory({ ...params, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
-      lastPage.hasMore ? lastPage.nextCursor ?? undefined : undefined,
+      lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
     staleTime: 5 * 60 * 1000,
     gcTime: 24 * 60 * 60 * 1000,
   });

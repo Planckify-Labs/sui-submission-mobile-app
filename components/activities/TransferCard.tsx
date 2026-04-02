@@ -75,10 +75,7 @@ const TransferCard = React.memo(
             >
               {transaction.txHash}
             </Text>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={handleCopyHash}
-            >
+            <TouchableOpacity activeOpacity={0.7} onPress={handleCopyHash}>
               <Copy size={14} color="#c71c4b" />
             </TouchableOpacity>
             <TouchableOpacity activeOpacity={0.7} onPress={openBlockExplorer}>

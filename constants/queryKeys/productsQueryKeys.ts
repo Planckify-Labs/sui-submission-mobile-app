@@ -18,7 +18,8 @@ export const productsQueryKeys = {
   },
   inputFields: (productId: string) =>
     [...productsQueryKeys.all, "input-fields", productId] as const,
-  paymentFeatured: () => [...productsQueryKeys.all, "payment-featured"] as const,
+  paymentFeatured: () =>
+    [...productsQueryKeys.all, "payment-featured"] as const,
   recommendations: (limit?: number) =>
     [...productsQueryKeys.all, "recommendations", { limit }] as const,
 } as const;

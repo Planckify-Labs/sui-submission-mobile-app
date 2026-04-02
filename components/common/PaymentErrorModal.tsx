@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { AlertCircle, Home, RefreshCw } from "lucide-react-native";
 import React, { useEffect, useRef } from "react";
 import {
@@ -10,7 +11,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
 
 type PaymentErrorModalProps = {
   visible: boolean;
@@ -104,7 +104,12 @@ export default function PaymentErrorModal({
   if (!visible) return null;
 
   return (
-    <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={onClose}
+    >
       <View style={{ flex: 1 }}>
         <TouchableWithoutFeedback onPress={onClose}>
           <Animated.View
@@ -155,9 +160,7 @@ export default function PaymentErrorModal({
                 Error Details
               </Text>
               <View className="bg-red-50 border border-red-200 rounded-xl p-3">
-                <Text className="text-red-700 text-sm">
-                  {errorMessage}
-                </Text>
+                <Text className="text-red-700 text-sm">{errorMessage}</Text>
               </View>
             </View>
 
@@ -195,4 +198,3 @@ export default function PaymentErrorModal({
     </Modal>
   );
 }
-

@@ -38,7 +38,9 @@ const saveToStorage = async (networks: PinnedNetwork[]) => {
 let isStorageInitialized = false;
 
 export const usePinnedNetworks = () => {
-  const { data: pinnedNetworks, setNewData } = useRQGlobalState<PinnedNetwork[]>({
+  const { data: pinnedNetworks, setNewData } = useRQGlobalState<
+    PinnedNetwork[]
+  >({
     queryKey: QUERY_KEY,
     initialData: [],
   });
@@ -59,7 +61,9 @@ export const usePinnedNetworks = () => {
 
   const isPinned = useCallback(
     (networkId: string): boolean => {
-      return pinnedNetworks?.some((network) => network.id === networkId) ?? false;
+      return (
+        pinnedNetworks?.some((network) => network.id === networkId) ?? false
+      );
     },
     [pinnedNetworks],
   );
@@ -74,7 +78,9 @@ export const usePinnedNetworks = () => {
       logoUrl?: string;
     }) => {
       const currentNetworks = pinnedNetworks ?? [];
-      const isCurrentlyPinned = currentNetworks.some((n) => n.id === network.id);
+      const isCurrentlyPinned = currentNetworks.some(
+        (n) => n.id === network.id,
+      );
 
       let updatedNetworks: PinnedNetwork[];
 

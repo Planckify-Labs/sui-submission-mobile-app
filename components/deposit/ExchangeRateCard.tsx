@@ -15,7 +15,9 @@ export const ExchangeRateCard = memo<ExchangeRateCardProps>(
     if (isLoading || !pointPrice) return null;
 
     const tokenSymbol = pointPrice.token.symbol;
-    const pointsPerToken = parseFloat(pointPrice.pointsPerToken).toLocaleString();
+    const pointsPerToken = parseFloat(
+      pointPrice.pointsPerToken,
+    ).toLocaleString();
     const payAmount = tokenAmountNeeded
       ? tokenAmountNeeded.human.toFixed(4)
       : "...";
@@ -53,12 +55,13 @@ export const ExchangeRateCard = memo<ExchangeRateCardProps>(
             <View className="flex-row items-center justify-between">
               <Text className="text-light-matte-black/60 text-sm">You get</Text>
               <Text className="text-light-primary-red font-semibold text-sm">
-                {isNaN(receivePoints) ? "..." : receivePoints.toLocaleString()} points
+                {isNaN(receivePoints) ? "..." : receivePoints.toLocaleString()}{" "}
+                points
               </Text>
             </View>
           </View>
         </View>
       </View>
     );
-  }
+  },
 );

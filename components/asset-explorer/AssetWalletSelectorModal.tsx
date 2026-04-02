@@ -30,7 +30,7 @@ const AssetWalletSelectorModal = ({
   const { asset, assets, wallets, activeNetwork } = data;
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
-  
+
   const [selectedWallets, setSelectedWallets] = useState<number[]>([0]);
   const [walletsWithAsset, setWalletsWithAsset] = useState<
     Record<number, string[]>

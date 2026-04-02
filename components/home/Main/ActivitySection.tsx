@@ -33,7 +33,11 @@ export interface ActivitySectionRef {
 
 const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
   const { activeWallet } = useWallet();
-  const { isAuthenticated, isLoading: isAuthLoading, hadPreviousSession } = useIsAuthenticated();
+  const {
+    isAuthenticated,
+    isLoading: isAuthLoading,
+    hadPreviousSession,
+  } = useIsAuthenticated();
   const previousWalletAddress = useRef<string | undefined>(undefined);
 
   const shouldFetchTransactions = Boolean(
@@ -45,10 +49,8 @@ const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
       { type: "TRANSFER", take: 4 },
       { enabled: shouldFetchTransactions },
     );
-  const {
-    data: redemptionData,
-    refetch: refetchRedemptionHistory,
-  } = useRedemptionHistory({ limit: 4 }, { enabled: shouldFetchTransactions });
+  const { data: redemptionData, refetch: refetchRedemptionHistory } =
+    useRedemptionHistory({ limit: 4 }, { enabled: shouldFetchTransactions });
 
   const redemptionHistory = redemptionData?.pages.flatMap((p) => p.data) ?? [];
 
@@ -403,7 +405,9 @@ const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
                 <View className="bg-white/20 p-2.5 rounded-xl mb-2">
                   <ShoppingBag color="#ffffff" size={20} strokeWidth={2.5} />
                 </View>
-                <Text className="text-white font-bold text-sm">Redemptions</Text>
+                <Text className="text-white font-bold text-sm">
+                  Redemptions
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity

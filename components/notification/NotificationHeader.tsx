@@ -58,5 +58,5 @@ export const NotificationHeader = memo<NotificationHeaderProps>(
         )}
       </View>
     );
-  }
+  },
 );

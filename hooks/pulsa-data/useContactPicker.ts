@@ -1,6 +1,6 @@
+import * as Contacts from "expo-contacts";
 import { useCallback } from "react";
 import { Alert } from "react-native";
-import * as Contacts from "expo-contacts";
 
 const MAX_CONTACTS_TO_SHOW = 5;
 

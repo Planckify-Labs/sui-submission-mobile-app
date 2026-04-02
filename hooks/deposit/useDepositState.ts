@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useMemo } from "react";
-import { router } from "expo-router";
-import { erc20Abi, formatUnits, parseUnits } from "viem";
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
+import { useCallback, useEffect, useMemo } from "react";
+import { erc20Abi, formatUnits, parseUnits } from "viem";
 import type { TToken } from "@/api/types/token";
-import { useBlockchains } from "@/hooks/queries/useBlockchains";
-import { useTokens } from "@/hooks/queries/useTokens";
-import { usePointPrice, useSubmitPointDeposit } from "@/hooks/queries/usePoints";
-import { useSmartContractByChain } from "@/hooks/queries/useSmartContracts";
-import { useIsAuthenticated } from "@/hooks/queries/useAuth";
-import { useWallet } from "@/hooks/useWallet";
 import { useTakumiWalletContract } from "@/contracts/hooks/useTakumiWalletContract";
+import { useIsAuthenticated } from "@/hooks/queries/useAuth";
+import { useBlockchains } from "@/hooks/queries/useBlockchains";
+import {
+  usePointPrice,
+  useSubmitPointDeposit,
+} from "@/hooks/queries/usePoints";
+import { useSmartContractByChain } from "@/hooks/queries/useSmartContracts";
+import { useTokens } from "@/hooks/queries/useTokens";
 import useRQGlobalState from "@/hooks/useRQGlobalState";
+import { useWallet } from "@/hooks/useWallet";
 
 const DEPOSIT_STATE_KEY = ["deposit", "state"] as const;
 const DEFAULT_CURRENCY = "IDR";
@@ -36,7 +39,12 @@ export function useDepositState() {
     initialData: initialDepositState,
   });
 
-  const { activeWallet, activeChain, getClientForActiveWallet, getPublicClientForActiveChain } = useWallet();
+  const {
+    activeWallet,
+    activeChain,
+    getClientForActiveWallet,
+    getPublicClientForActiveChain,
+  } = useWallet();
   const { isAuthenticated } = useIsAuthenticated();
   const { data: blockchains } = useBlockchains();
 
@@ -68,7 +76,8 @@ export function useDepositState() {
     currency: DEFAULT_CURRENCY,
   });
 
-  const { data: smartContract, isFetching: isContractFetching } = useSmartContractByChain(activeChain.chain.id);
+  const { data: smartContract, isFetching: isContractFetching } =
+    useSmartContractByChain(activeChain.chain.id);
   const contractAddress = smartContract?.address as `0x${string}` | undefined;
 
   const { depositPoints, waitForTransaction } = useTakumiWalletContract({
@@ -79,8 +88,15 @@ export function useDepositState() {
 
   useEffect(() => {
     if (stablecoinTokens && stablecoinTokens.length > 0) {
-      if (!selectedToken || !stablecoinTokens.some((t) => t.id === selectedToken?.id)) {
-        setState({ ...initialDepositState, ...state, selectedToken: stablecoinTokens[0] });
+      if (
+        !selectedToken ||
+        !stablecoinTokens.some((t) => t.id === selectedToken?.id)
+      ) {
+        setState({
+          ...initialDepositState,
+          ...state,
+          selectedToken: stablecoinTokens[0],
+        });
       }
     } else if (selectedToken) {
       setState({ ...initialDepositState, ...state, selectedToken: undefined });
@@ -132,19 +148,21 @@ export function useDepositState() {
   }, [pointPrice, amount, selectedToken]);
 
   // --- Wallet Balances ---
-  const { data: nativeBalance = BigInt(0), isFetching: isFetchingNativeBalance } =
-    useQuery({
-      queryKey: ["nativeBalance", activeWallet.address, activeChain.chain.id],
-      queryFn: async () => {
-        const publicClient = getPublicClientForActiveChain();
-        if (!publicClient || !activeWallet.address) return BigInt(0);
-        return publicClient.getBalance({
-          address: activeWallet.address as `0x${string}`,
-        });
-      },
-      enabled: !!activeWallet.address,
-      refetchInterval: 30_000,
-    });
+  const {
+    data: nativeBalance = BigInt(0),
+    isFetching: isFetchingNativeBalance,
+  } = useQuery({
+    queryKey: ["nativeBalance", activeWallet.address, activeChain.chain.id],
+    queryFn: async () => {
+      const publicClient = getPublicClientForActiveChain();
+      if (!publicClient || !activeWallet.address) return BigInt(0);
+      return publicClient.getBalance({
+        address: activeWallet.address as `0x${string}`,
+      });
+    },
+    enabled: !!activeWallet.address,
+    refetchInterval: 30_000,
+  });
 
   const { data: tokenBalance = BigInt(0), isFetching: isFetchingTokenBalance } =
     useQuery({
@@ -192,7 +210,9 @@ export function useDepositState() {
     const minimumPoints = pointPrice?.minimumPoints ?? 15000;
     const points = parseInt(amount, 10);
     if (isNaN(points) || points < minimumPoints) {
-      updateState({ error: `Minimum is ${minimumPoints.toLocaleString()} points` });
+      updateState({
+        error: `Minimum is ${minimumPoints.toLocaleString()} points`,
+      });
       return false;
     }
     if (!selectedToken) {
@@ -208,7 +228,14 @@ export function useDepositState() {
       return false;
     }
     return true;
-  }, [amount, selectedToken, contractAddress, tokenAmountNeeded, pointPrice, updateState]);
+  }, [
+    amount,
+    selectedToken,
+    contractAddress,
+    tokenAmountNeeded,
+    pointPrice,
+    updateState,
+  ]);
 
   const handleDeposit = useCallback(async () => {
     // Redirect to auth if not signed in
@@ -219,7 +246,10 @@ export function useDepositState() {
 
     // Warn if no contract found for this chain
     if (!contractAddress) {
-      updateState({ error: "Point deposits are not available on this network. Please switch to a supported chain." });
+      updateState({
+        error:
+          "Point deposits are not available on this network. Please switch to a supported chain.",
+      });
       return;
     }
 
@@ -237,7 +267,11 @@ export function useDepositState() {
 
     try {
       // Step 1: Check ERC20 allowance
-      updateState({ isLoading: true, transactionStatus: "Checking allowance...", error: undefined });
+      updateState({
+        isLoading: true,
+        transactionStatus: "Checking allowance...",
+        error: undefined,
+      });
 
       const currentAllowance = await publicClient.readContract({
         address: selectedToken.contractAddress as `0x${string}`,
@@ -248,7 +282,10 @@ export function useDepositState() {
 
       // Step 2: Approve if needed
       if (currentAllowance < tokenAmountNeeded.raw) {
-        updateState({ isLoading: true, transactionStatus: "Approving token spend..." });
+        updateState({
+          isLoading: true,
+          transactionStatus: "Approving token spend...",
+        });
 
         const approveHash = await walletClient.writeContract({
           address: selectedToken.contractAddress as `0x${string}`,
@@ -263,7 +300,10 @@ export function useDepositState() {
       }
 
       // Step 3: Call depositPoints on smart contract
-      updateState({ isLoading: true, transactionStatus: "Depositing to contract..." });
+      updateState({
+        isLoading: true,
+        transactionStatus: "Depositing to contract...",
+      });
 
       const txHash = await depositPoints.mutateAsync({
         tokenAddress: selectedToken.contractAddress as `0x${string}`,
@@ -273,11 +313,17 @@ export function useDepositState() {
       });
 
       // Step 4: Wait for transaction receipt
-      updateState({ isLoading: true, transactionStatus: "Waiting for confirmation..." });
+      updateState({
+        isLoading: true,
+        transactionStatus: "Waiting for confirmation...",
+      });
       await waitForTransaction(txHash);
 
       // Step 5: Submit to API for verification
-      updateState({ isLoading: true, transactionStatus: "Submitting for verification..." });
+      updateState({
+        isLoading: true,
+        transactionStatus: "Submitting for verification...",
+      });
 
       await submitDeposit.mutateAsync({
         refId,
@@ -292,7 +338,10 @@ export function useDepositState() {
       });
 
       // Step 6: Done -- navigate back
-      updateState({ isLoading: true, transactionStatus: "Points are being credited..." });
+      updateState({
+        isLoading: true,
+        transactionStatus: "Points are being credited...",
+      });
 
       await new Promise((resolve) => setTimeout(resolve, 1000));
       router.back();

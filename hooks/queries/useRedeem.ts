@@ -1,4 +1,9 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { redeemApi } from "@/api/endpoints/redeem";
 import type {
   TRedeemExecuteRequest,
@@ -71,7 +76,7 @@ export const useRedemptionHistory = (
       redeemApi.getHistory({ ...params, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
-      lastPage.hasMore ? lastPage.nextCursor ?? undefined : undefined,
+      lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
     enabled: options?.enabled !== false,
     staleTime: 5 * 60 * 1000,
     gcTime: 24 * 60 * 60 * 1000,

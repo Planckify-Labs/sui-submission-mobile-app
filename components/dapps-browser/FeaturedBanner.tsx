@@ -77,4 +77,3 @@ const FeaturedBanner = memo<FeaturedBannerProps>(function FeaturedBanner({
 });
 
 export default FeaturedBanner;
-

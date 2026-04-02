@@ -26,9 +26,7 @@ export function useUserAssetsWithBalances() {
 
   const selectedBlockchain = useMemo(() => {
     if (!blockchains || !activeNetwork) return null;
-    return blockchains.find(
-      (b) => b.chainId.toString() === activeNetwork,
-    );
+    return blockchains.find((b) => b.chainId.toString() === activeNetwork);
   }, [blockchains, activeNetwork]);
 
   const selectedChain = useMemo(() => {
@@ -78,7 +76,8 @@ export function useUserAssetsWithBalances() {
 
           if (
             !asset.contractAddress ||
-            asset.contractAddress === "0x0000000000000000000000000000000000000000"
+            asset.contractAddress ===
+              "0x0000000000000000000000000000000000000000"
           ) {
             // Native currency
             balance = await publicClient.getBalance({

@@ -1,4 +1,7 @@
-import type { TTransactionSearchParams, TTransactionType } from "@/api/types/transaction";
+import type {
+  TTransactionSearchParams,
+  TTransactionType,
+} from "@/api/types/transaction";
 
 export const transactionsQueryKeys = {
   all: ["transactions"] as const,
