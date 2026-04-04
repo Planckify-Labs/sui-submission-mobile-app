@@ -1,5 +1,6 @@
 import { Search, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigationReady } from "@/hooks/useNavigationReady";
 import {
   Pressable,
   ScrollView,
@@ -36,6 +37,7 @@ import {
 import { ALL_NETWORKS } from "@/utils/networkUtils";
 
 export default function AssetExplorer() {
+  const ready = useNavigationReady();
   const [showAddToken, setShowAddToken] = useState(false);
   const [tokenAddress, setTokenAddress] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -160,6 +162,18 @@ export default function AssetExplorer() {
     },
     [selectionMode, handleToggleAssetSelection, openWalletSelector],
   );
+
+  if (!ready) {
+    return (
+      <>
+        <StatusBar barStyle="dark-content" />
+        <SafeAreaView
+          className="flex-1 bg-light-main-container"
+          edges={["top"]}
+        />
+      </>
+    );
+  }
 
   return (
     <>

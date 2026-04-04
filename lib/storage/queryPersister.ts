@@ -26,13 +26,38 @@ const shouldExclude = (queryKey: readonly unknown[]): boolean => {
   );
 };
 
+/**
+ * Debounce helper — collapses rapid successive calls into a single call fired
+ * `delay` ms after the last invocation.  This prevents the JS thread from
+ * being blocked by repeated JSON.stringify + MMKV writes every time a query
+ * observer mounts during a screen navigation.
+ */
+function debounce<T extends (...args: any[]) => void>(fn: T, delay: number): T {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return ((...args: Parameters<T>) => {
+    if (timer !== null) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      fn(...args);
+    }, delay);
+  }) as T;
+}
+
+const writeToMMKV = (client: PersistedClient) => {
+  try {
+    queryCache.set(CACHE_KEY, JSON.stringify(client));
+  } catch {
+    // Silently ignore serialization failures (e.g. circular refs)
+  }
+};
+
+// Debounce writes by 2 s — navigation mounts multiple queries in quick
+// succession; batching them into one write keeps the JS thread free.
+const debouncedWrite = debounce(writeToMMKV, 2000);
+
 export const mmkvPersister: Persister = {
   persistClient(client: PersistedClient) {
-    try {
-      queryCache.set(CACHE_KEY, JSON.stringify(client));
-    } catch {
-      // Silently ignore serialization failures (e.g. circular refs)
-    }
+    debouncedWrite(client);
   },
   restoreClient() {
     try {

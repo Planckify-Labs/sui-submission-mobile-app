@@ -1,4 +1,5 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { useNavigationReady } from "@/hooks/useNavigationReady";
 import { Animated, Keyboard, StatusBar, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView, WebViewMessageEvent } from "react-native-webview";
@@ -26,6 +27,8 @@ interface TBrowserState {
 }
 
 export default function DappsBrowser() {
+  const ready = useNavigationReady();
+
   const {
     activeWallet,
     setActiveWallet,
@@ -366,14 +369,17 @@ export default function DappsBrowser() {
     setPendingSignRequest(null);
   };
 
-  const injectedJavaScript = `
+  // The provider script embeds a base64 logo and is ~600 lines — memoize so
+  // it is only built once per wallet address change, not on every re-render.
+  const injectedJavaScript = useMemo(
+    () => `
     ${getEthereumProviderScript()}
-    
+
     // Handle messages from React Native
     window.addEventListener('message', function(event) {
       try {
         const data = JSON.parse(event.data);
-        
+
         if (data.type === 'ethereum_response') {
           window._handleEthereumResponse(data);
         } else if (data.type === 'ethereum_update') {
@@ -383,16 +389,19 @@ export default function DappsBrowser() {
         console.error('Error handling message:', error);
       }
     });
-    
+
     // Update provider with current wallet state
     window._updateEthereumProvider({
       selectedAddress: '${activeWallet?.address || null}',
       chainId: '0x1',
       networkVersion: '1'
     });
-    
+
     true; // Required for injection
-  `;
+  `,
+    [activeWallet?.address],
+  );
+
   const [isAddressBarAutoFocus, setIsAddressBarAutoFocus] = useState(false);
 
   React.useEffect(() => {
@@ -401,6 +410,14 @@ export default function DappsBrowser() {
       setIsAddressBarAutoFocus(false);
     }
   }, [isAddressBarAutoFocus]);
+
+  if (!ready) {
+    return (
+      <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f5f6f9" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>

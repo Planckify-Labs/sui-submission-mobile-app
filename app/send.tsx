@@ -21,6 +21,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigationReady } from "@/hooks/useNavigationReady";
 import { erc20Abi, formatUnits, parseUnits } from "viem";
 import type { TToken } from "@/api/types/token";
 import ChainSelector from "@/components/common/ChainSelector";
@@ -36,6 +37,8 @@ import { useCreateTransaction } from "@/hooks/queries/useTransactions";
 import { useWallet } from "@/hooks/useWallet";
 
 export default function SendScreen() {
+  const ready = useNavigationReady();
+
   const {
     wallets,
     activeWallet,
@@ -404,6 +407,18 @@ export default function SendScreen() {
   const formatBalance = (rawBalance: bigint) => {
     return parseFloat(formatUnits(rawBalance, nativeDecimals)).toFixed(4);
   };
+
+  if (!ready) {
+    return (
+      <>
+        <StatusBar barStyle="dark-content" />
+        <SafeAreaView
+          className="flex-1 bg-light-main-container"
+          edges={["top"]}
+        />
+      </>
+    );
+  }
 
   return (
     <>

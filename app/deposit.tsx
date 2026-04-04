@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react-native";
 import React, { useCallback, useState } from "react";
+import { useNavigationReady } from "@/hooks/useNavigationReady";
 import {
   Platform,
   ScrollView,
@@ -28,6 +29,8 @@ import { useDepositState } from "@/hooks/deposit/useDepositState";
 import { useWallet } from "@/hooks/useWallet";
 
 export default function DepositScreen() {
+  const ready = useNavigationReady();
+
   const {
     wallets,
     activeWallet,
@@ -95,6 +98,19 @@ export default function DepositScreen() {
 
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 0 : bottom > 0 ? bottom : 0;
+
+  if (!ready) {
+    return (
+      <>
+        <StatusBar barStyle="dark-content" />
+        <SafeAreaView
+          className="flex-1 bg-light-main-container"
+          edges={["top"]}
+          style={{ paddingBottom: bottomOffset }}
+        />
+      </>
+    );
+  }
 
   return (
     <>
