@@ -2,6 +2,7 @@ import * as Clipboard from "expo-clipboard";
 import { router, useLocalSearchParams } from "expo-router";
 import {
   ArrowLeft,
+  BookUser,
   ChevronDown,
   ClipboardCopy,
   Info,
@@ -28,8 +29,10 @@ import ChainSelector from "@/components/common/ChainSelector";
 import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import OptimizedImage from "@/components/common/OptimizedImage";
 import PinConfirmationModal from "@/components/common/PinConfirmationModal";
+import ContactPickerModal from "@/components/address-book/ContactPickerModal";
 import TokenSelectorModal from "@/components/wallet/TokenSelectorModal";
 import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
+import { useAddressBook } from "@/hooks/useAddressBook";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 import { useBlockchains } from "@/hooks/queries/useBlockchains";
 import { useTokens } from "@/hooks/queries/useTokens";
@@ -77,6 +80,9 @@ export default function SendScreen() {
     undefined,
   );
   const [tokenModalVisible, setTokenModalVisible] = useState(false);
+  const [contactPickerVisible, setContactPickerVisible] = useState(false);
+
+  const { contacts: addressBookContacts } = useAddressBook();
 
   const { recipientAddress } = useLocalSearchParams();
 
@@ -508,17 +514,29 @@ export default function SendScreen() {
                   </TouchableOpacity>
                 </View>
 
-                {wallets.length > 1 && (
+                <View className="flex-row gap-2">
+                  {wallets.length > 1 && (
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      className="bg-light-primary-red/10 py-2 px-4 rounded-full"
+                      onPress={() => setRecipientModalVisible(true)}
+                    >
+                      <Text className="text-light-primary-red text-xs font-medium">
+                        My Wallets
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity
                     activeOpacity={0.7}
-                    className="bg-light-primary-red/10 py-2 px-4 rounded-full self-start"
-                    onPress={() => setRecipientModalVisible(true)}
+                    className="bg-light-primary-red/10 py-2 px-4 rounded-full flex-row items-center gap-1"
+                    onPress={() => setContactPickerVisible(true)}
                   >
+                    <BookUser size={12} color="#c71c4b" />
                     <Text className="text-light-primary-red text-xs font-medium">
-                      My Wallets
+                      Address Book
                     </Text>
                   </TouchableOpacity>
-                )}
+                </View>
               </View>
 
               <View className="mb-6">
@@ -662,6 +680,13 @@ export default function SendScreen() {
           title="Select Token"
         />
       )}
+
+      <ContactPickerModal
+        visible={contactPickerVisible}
+        contacts={addressBookContacts}
+        onClose={() => setContactPickerVisible(false)}
+        onSelect={(contact) => setRecipient(contact.address)}
+      />
     </>
   );
 }
