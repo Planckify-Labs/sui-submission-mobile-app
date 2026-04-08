@@ -8,10 +8,10 @@ export const ONBOARDING_SLIDE_DATA = [
     accentColor: "#c71c4b",
     title: "Meet Your AI Wallet Agent",
     description:
-      "Your personal assistant for managing crypto and shopping through natural conversations.",
+      "Your personal assistant for managing crypto and redeeming points through natural conversations.",
     features: [
       "Natural language transaction execution",
-      "Secure server-side wallet architecture",
+      "Optional wallet access, you decide what the agent can do",
       "Multi-chain blockchain support",
     ],
   },
@@ -35,13 +35,13 @@ export const ONBOARDING_SLIDE_DATA = [
     iconColor: "#7c3aed",
     iconBgColor: "#faf5ff",
     accentColor: "#7c3aed",
-    title: "Shop via Chat",
+    title: "Redeem via Chat",
     description:
-      "Browse products and complete purchases directly in your conversation.",
+      "Explore services and redeem your points directly in your conversation.",
     features: [
       "Full product catalog access",
       "Filter by category & price",
-      "One-command purchases",
+      "One-command redemption",
     ],
   },
 ];
