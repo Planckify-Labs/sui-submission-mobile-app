@@ -31,7 +31,7 @@ export const useBlockchainsWithStorage = (
         Date.now().toString(),
       );
 
-      queryClient.setQueryData(["blockchains"], response);
+      await queryClient.invalidateQueries({ queryKey: ["blockchains"] });
       return response;
     } catch (error) {
       console.error("Background refresh failed:", error);
