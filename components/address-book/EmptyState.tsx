@@ -10,7 +10,13 @@ export default function EmptyState({ isSearching }: EmptyStateProps) {
   return (
     <Animated.View
       entering={FadeIn.duration(400)}
-      style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40, paddingTop: 60 }}
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 40,
+        paddingTop: 60,
+      }}
     >
       <View
         style={{

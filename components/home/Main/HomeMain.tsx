@@ -10,7 +10,7 @@ import Header from "@/components/home/Main/Header";
 import PaymentSection, {
   PaymentSectionRef,
 } from "@/components/home/Main/PaymentSection";
-import RecommendationSection,{
+import RecommendationSection, {
   RecommendationSectionRef,
 } from "@/components/home/Main/RecommendationSection";
 import { useDepositPrefetch } from "@/hooks/deposit/useDepositPrefetch";

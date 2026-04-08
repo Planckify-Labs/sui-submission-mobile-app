@@ -1,5 +1,13 @@
+import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
-import { ArrowLeft, BookUser, Plus, Search, Shield, X } from "lucide-react-native";
+import {
+  ArrowLeft,
+  BookUser,
+  Plus,
+  Search,
+  Shield,
+  X,
+} from "lucide-react-native";
 import { useCallback, useRef, useState } from "react";
 import {
   Alert,
@@ -14,22 +22,42 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import * as Clipboard from "expo-clipboard";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import type { TCreateAddressBookDto } from "@/api/types/addressBook";
 import AddContactModal from "@/components/address-book/AddContactModal";
 import AddressBookItem from "@/components/address-book/AddressBookItem";
 import EmptyState from "@/components/address-book/EmptyState";
-import type { TCreateAddressBookDto } from "@/api/types/addressBook";
 import type { TAddressBookEntry } from "@/constants/types/addressBookTypes";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 import { useAddressBook } from "@/hooks/useAddressBook";
 
 export default function AddressBook() {
-  const { isAuthenticated, isLoading: isAuthLoading, hadPreviousSession } = useIsAuthenticated();
-  const { contacts, search, setSearch, add, update, remove, refetch, isRefetching, isAdding, isUpdating, addError } = useAddressBook();
+  const {
+    isAuthenticated,
+    isLoading: isAuthLoading,
+    hadPreviousSession,
+  } = useIsAuthenticated();
+  const {
+    contacts,
+    search,
+    setSearch,
+    add,
+    update,
+    remove,
+    refetch,
+    isRefetching,
+    isAdding,
+    isUpdating,
+    addError,
+  } = useAddressBook();
   const [showModal, setShowModal] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<TAddressBookEntry | null>(null);
+  const [editingEntry, setEditingEntry] = useState<TAddressBookEntry | null>(
+    null,
+  );
   const searchRef = useRef<TextInput>(null);
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 0 : bottom > 0 ? bottom : 16;
@@ -50,10 +78,14 @@ export default function AddressBook() {
 
   const handleDelete = useCallback(
     (id: string) => {
-      Alert.alert("Delete Contact", "Remove this contact from your address book?", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => remove(id) },
-      ]);
+      Alert.alert(
+        "Delete Contact",
+        "Remove this contact from your address book?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete", style: "destructive", onPress: () => remove(id) },
+        ],
+      );
     },
     [remove],
   );
@@ -102,7 +134,10 @@ export default function AddressBook() {
     return (
       <GestureHandlerRootView className="flex-1">
         <StatusBar barStyle="dark-content" />
-        <SafeAreaView edges={["top"]} className="flex-1 bg-light-main-container">
+        <SafeAreaView
+          edges={["top"]}
+          className="flex-1 bg-light-main-container"
+        >
           {/* Header */}
           <View className="px-4 pt-2 pb-4">
             <View className="flex-row items-center gap-3">
@@ -150,7 +185,8 @@ export default function AddressBook() {
                 Sign in to access your Address Book
               </Text>
               <Text className="text-light-matte-black/45 text-center text-sm leading-6">
-                Save and manage wallet addresses with friendly names. Sign in with Ethereum to get started.
+                Save and manage wallet addresses with friendly names. Sign in
+                with Ethereum to get started.
               </Text>
             </View>
 
@@ -166,7 +202,9 @@ export default function AddressBook() {
                 elevation: 8,
               }}
             >
-              <Text className="text-white font-bold text-base">Sign In With Ethereum</Text>
+              <Text className="text-white font-bold text-base">
+                Sign In With Ethereum
+              </Text>
             </TouchableOpacity>
 
             <View className="gap-2.5 w-full">
@@ -213,7 +251,10 @@ export default function AddressBook() {
                 <ArrowLeft size={18} color="#c71c4b" />
               </Pressable>
               <View className="flex-1">
-                <Text className="text-light-matte-black text-2xl font-bold tracking-tight" numberOfLines={1}>
+                <Text
+                  className="text-light-matte-black text-2xl font-bold tracking-tight"
+                  numberOfLines={1}
+                >
                   Address Book
                 </Text>
                 <Text className="text-light-matte-black/50 text-xs">
@@ -263,7 +304,11 @@ export default function AddressBook() {
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingTop: 4, paddingBottom: 24, flexGrow: 1 }}
+          contentContainerStyle={{
+            paddingTop: 4,
+            paddingBottom: 24,
+            flexGrow: 1,
+          }}
           ListEmptyComponent={<EmptyState isSearching={!!search} />}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"

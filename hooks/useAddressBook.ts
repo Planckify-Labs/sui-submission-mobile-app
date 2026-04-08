@@ -1,14 +1,17 @@
-import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { addressBookApi } from "@/api/endpoints/addressBook";
-import type { TCreateAddressBookDto, TUpdateAddressBookDto } from "@/api/types/addressBook";
-import type { TAddressBookEntry } from "@/constants/types/addressBookTypes";
+import type {
+  TCreateAddressBookDto,
+  TUpdateAddressBookDto,
+} from "@/api/types/addressBook";
 import { addressBookQueryKeys } from "@/constants/queryKeys/addressBookQueryKeys";
+import type { TAddressBookEntry } from "@/constants/types/addressBookTypes";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 import { useWallet } from "@/hooks/useWallet";
 import { storage } from "@/lib/storage/mmkv";
 
-const STALE_TIME = 5 * 60 * 1000;        // 5 min — skip network if cache is fresh
+const STALE_TIME = 5 * 60 * 1000; // 5 min — skip network if cache is fresh
 const OFFLINE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 h — gcTime / offline fallback
 
 // Per-wallet MMKV keys so each wallet's address book is stored independently
@@ -98,7 +101,8 @@ export function useAddressBook() {
     onMutate: async (dto) => {
       await queryClient.cancelQueries({ queryKey: listKey });
 
-      const previousContacts = queryClient.getQueryData<TAddressBookEntry[]>(listKey);
+      const previousContacts =
+        queryClient.getQueryData<TAddressBookEntry[]>(listKey);
 
       const optimisticEntry: TAddressBookEntry = {
         id: `optimistic-${Date.now()}`,
@@ -112,10 +116,10 @@ export function useAddressBook() {
         updatedAt: new Date().toISOString(),
       };
 
-      queryClient.setQueryData<TAddressBookEntry[]>(
-        listKey,
-        (current) => [...(current ?? []), optimisticEntry],
-      );
+      queryClient.setQueryData<TAddressBookEntry[]>(listKey, (current) => [
+        ...(current ?? []),
+        optimisticEntry,
+      ]);
 
       return { previousContacts };
     },
@@ -136,7 +140,9 @@ export function useAddressBook() {
     onSuccess: (_data, { id }) => {
       bustCache();
       queryClient.invalidateQueries({ queryKey: listKey });
-      queryClient.invalidateQueries({ queryKey: addressBookQueryKeys.detail(id) });
+      queryClient.invalidateQueries({
+        queryKey: addressBookQueryKeys.detail(id),
+      });
     },
   });
 
@@ -145,7 +151,8 @@ export function useAddressBook() {
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: listKey });
 
-      const previousContacts = queryClient.getQueryData<TAddressBookEntry[]>(listKey);
+      const previousContacts =
+        queryClient.getQueryData<TAddressBookEntry[]>(listKey);
 
       queryClient.setQueryData<TAddressBookEntry[]>(
         listKey,

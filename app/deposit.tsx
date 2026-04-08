@@ -1,6 +1,5 @@
 import { ChevronDown } from "lucide-react-native";
-import React, { useCallback, useRef, useState } from "react";
-import { useNavigationReady } from "@/hooks/useNavigationReady";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Platform,
   ScrollView,
@@ -9,7 +8,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import SingleLoadingSekeleton from "@/components/common/SingleLoadingSekeleton";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -18,9 +16,10 @@ import type { TToken } from "@/api/types/token";
 import ChainSelector, {
   type ChainSelectorRef,
 } from "@/components/common/ChainSelector";
-import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import DepositUnsupportedChainModal from "@/components/common/DepositUnsupportedChainModal";
+import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import PinConfirmationModal from "@/components/common/PinConfirmationModal";
+import SingleLoadingSekeleton from "@/components/common/SingleLoadingSekeleton";
 import {
   AmountInputSection,
   DepositButton,
@@ -30,8 +29,8 @@ import {
 import TokenSelectorModal from "@/components/wallet/TokenSelectorModal";
 import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
 import { useDepositState } from "@/hooks/deposit/useDepositState";
+import { useNavigationReady } from "@/hooks/useNavigationReady";
 import { useWallet } from "@/hooks/useWallet";
-import { useEffect } from "react";
 
 interface DepositContentProps {
   bottomOffset: number;
@@ -299,8 +298,16 @@ export default function DepositScreen() {
             {/* Header skeleton */}
             <View className="flex-row items-center justify-between mb-6">
               <View className="flex-row items-center gap-4">
-                <SingleLoadingSekeleton width={24} height={24} borderRadius={6} />
-                <SingleLoadingSekeleton width={110} height={22} borderRadius={6} />
+                <SingleLoadingSekeleton
+                  width={24}
+                  height={24}
+                  borderRadius={6}
+                />
+                <SingleLoadingSekeleton
+                  width={110}
+                  height={22}
+                  borderRadius={6}
+                />
               </View>
               <SingleLoadingSekeleton width={72} height={32} borderRadius={8} />
             </View>
@@ -308,30 +315,66 @@ export default function DepositScreen() {
             <View className="bg-light rounded-xl shadow-xs">
               {/* Wallet selector skeleton */}
               <View className="p-5 mb-2">
-                <SingleLoadingSekeleton width={50} height={14} borderRadius={4} style={{ marginBottom: 8 }} />
-                <SingleLoadingSekeleton width="100%" height={56} borderRadius={12} />
+                <SingleLoadingSekeleton
+                  width={50}
+                  height={14}
+                  borderRadius={4}
+                  style={{ marginBottom: 8 }}
+                />
+                <SingleLoadingSekeleton
+                  width="100%"
+                  height={56}
+                  borderRadius={12}
+                />
                 <View className="flex-row justify-end mt-2">
-                  <SingleLoadingSekeleton width={100} height={28} borderRadius={8} />
+                  <SingleLoadingSekeleton
+                    width={100}
+                    height={28}
+                    borderRadius={8}
+                  />
                 </View>
               </View>
 
               {/* Token selector skeleton */}
               <View className="px-5 mb-4">
-                <SingleLoadingSekeleton width={40} height={14} borderRadius={4} style={{ marginBottom: 8 }} />
-                <SingleLoadingSekeleton width="100%" height={56} borderRadius={12} />
+                <SingleLoadingSekeleton
+                  width={40}
+                  height={14}
+                  borderRadius={4}
+                  style={{ marginBottom: 8 }}
+                />
+                <SingleLoadingSekeleton
+                  width="100%"
+                  height={56}
+                  borderRadius={12}
+                />
               </View>
 
               {/* Amount input skeleton */}
               <View className="px-5 mb-4">
-                <SingleLoadingSekeleton width={45} height={14} borderRadius={4} style={{ marginBottom: 8 }} />
-                <SingleLoadingSekeleton width="100%" height={56} borderRadius={12} />
+                <SingleLoadingSekeleton
+                  width={45}
+                  height={14}
+                  borderRadius={4}
+                  style={{ marginBottom: 8 }}
+                />
+                <SingleLoadingSekeleton
+                  width="100%"
+                  height={56}
+                  borderRadius={12}
+                />
               </View>
 
               {/* Quick amount buttons skeleton */}
               <View className="px-5 mb-6">
                 <View className="flex-row flex-wrap gap-2">
                   {[60, 72, 60, 76, 72].map((w, i) => (
-                    <SingleLoadingSekeleton key={i} width={w} height={36} borderRadius={8} />
+                    <SingleLoadingSekeleton
+                      key={i}
+                      width={w}
+                      height={36}
+                      borderRadius={8}
+                    />
                   ))}
                 </View>
               </View>

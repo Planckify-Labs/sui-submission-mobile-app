@@ -187,7 +187,7 @@ const TokenSelectorModal = memo(function TokenSelectorModal({
       elevation: 10,
       opacity: fadeAnim,
     }),
-    [fadeAnim, translateY],
+    [fadeAnim, translateY, bottomOffset],
   );
 
   const SearchInput = useMemo(

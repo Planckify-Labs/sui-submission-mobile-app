@@ -101,7 +101,7 @@ export function useDepositState() {
     } else if (selectedToken) {
       setState({ ...initialDepositState, ...state, selectedToken: undefined });
     }
-  }, [stablecoinTokens]);
+  }, [stablecoinTokens, selectedToken, setState, state]);
 
   const updateState = useCallback(
     (partial: Partial<DepositState>) => {
@@ -130,7 +130,7 @@ export function useDepositState() {
     if (state?.error) {
       updateState({ error: undefined });
     }
-  }, [activeChain.chain.id]);
+  }, [state?.error, updateState]);
 
   // Calculate how many tokens needed for the requested points
   const tokenAmountNeeded = useMemo(() => {
@@ -383,6 +383,7 @@ export function useDepositState() {
     getPublicClientForActiveChain,
     amount,
     updateState,
+    isAuthenticated,
   ]);
 
   const resetState = useCallback(() => {

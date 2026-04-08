@@ -1,5 +1,6 @@
 import { BookUser, Search, X } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ListRenderItemInfo } from "react-native";
 import {
   Animated,
   Dimensions,
@@ -12,7 +13,6 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import type { ListRenderItemInfo } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { TAddressBookEntry } from "@/constants/types/addressBookTypes";
 
@@ -27,7 +27,14 @@ function getInitials(label: string): string {
 }
 
 function getAvatarColor(label: string): string {
-  const colors = ["#c71c4b", "#1c6bc7", "#1cb87e", "#c77a1c", "#6b1cc7", "#c71c8e"];
+  const colors = [
+    "#c71c4b",
+    "#1c6bc7",
+    "#1cb87e",
+    "#c77a1c",
+    "#6b1cc7",
+    "#c71c8e",
+  ];
   let hash = 0;
   for (let i = 0; i < label.length; i++) {
     hash = label.charCodeAt(i) + ((hash << 5) - hash);
@@ -50,7 +57,9 @@ export default function ContactPickerModal({
 }: ContactPickerModalProps) {
   const [search, setSearch] = useState("");
   const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const sheetTranslateY = useRef(new Animated.Value(SHEET_INITIAL_TRANSLATE_Y)).current;
+  const sheetTranslateY = useRef(
+    new Animated.Value(SHEET_INITIAL_TRANSLATE_Y),
+  ).current;
   const dragStartY = useRef(0);
   const hasAnimatedIn = useRef(false);
   const { bottom: safeAreaBottom } = useSafeAreaInsets();
@@ -59,8 +68,16 @@ export default function ContactPickerModal({
     backdropOpacity.setValue(0);
     sheetTranslateY.setValue(SHEET_INITIAL_TRANSLATE_Y);
     Animated.parallel([
-      Animated.timing(backdropOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, bounciness: 0 }),
+      Animated.timing(backdropOpacity, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.spring(sheetTranslateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        bounciness: 0,
+      }),
     ]).start(() => {
       hasAnimatedIn.current = true;
     });
@@ -68,8 +85,16 @@ export default function ContactPickerModal({
 
   const animateClose = useCallback(() => {
     Animated.parallel([
-      Animated.timing(backdropOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
-      Animated.timing(sheetTranslateY, { toValue: SHEET_INITIAL_TRANSLATE_Y, duration: 250, useNativeDriver: true }),
+      Animated.timing(backdropOpacity, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetTranslateY, {
+        toValue: SHEET_INITIAL_TRANSLATE_Y,
+        duration: 250,
+        useNativeDriver: true,
+      }),
     ]).start(() => {
       onClose();
     });
@@ -126,24 +151,34 @@ export default function ContactPickerModal({
             </Text>
           </View>
           <View className="flex-1">
-            <Text className="text-[15px] font-semibold text-light-matte-black" numberOfLines={1}>
+            <Text
+              className="text-[15px] font-semibold text-light-matte-black"
+              numberOfLines={1}
+            >
               {item.label}
             </Text>
             <Text
               className="text-xs text-light-matte-black/60"
-              style={{ fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" }}
+              style={{
+                fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+              }}
               numberOfLines={1}
             >
               {item.ensName ? item.ensName : shortAddress}
             </Text>
             {!!item.chainName && (
-              <Text className="text-[11px] text-light-matte-black/40 mt-0.5" numberOfLines={1}>
+              <Text
+                className="text-[11px] text-light-matte-black/40 mt-0.5"
+                numberOfLines={1}
+              >
                 {item.chainName}
               </Text>
             )}
           </View>
           <View className="px-2 py-1 bg-light-primary-red/10 rounded-lg ml-2">
-            <Text className="text-[10px] text-light-primary-red font-semibold">SELECT</Text>
+            <Text className="text-[10px] text-light-primary-red font-semibold">
+              SELECT
+            </Text>
           </View>
         </Pressable>
       );
@@ -154,11 +189,20 @@ export default function ContactPickerModal({
   const keyExtractor = useCallback((item: TAddressBookEntry) => item.id, []);
 
   return (
-    <Modal transparent visible={visible} animationType="none" onRequestClose={animateClose}>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={animateClose}
+    >
       <View style={{ flex: 1 }}>
         <TouchableWithoutFeedback onPress={animateClose}>
           <Animated.View
-            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", opacity: backdropOpacity }}
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              opacity: backdropOpacity,
+            }}
           />
         </TouchableWithoutFeedback>
 
@@ -185,9 +229,14 @@ export default function ContactPickerModal({
           <Pressable
             onPress={animateClose}
             className="w-full items-center pt-4 pb-2"
-            onTouchStart={(e) => { dragStartY.current = e.nativeEvent.pageY; }}
+            onTouchStart={(e) => {
+              dragStartY.current = e.nativeEvent.pageY;
+            }}
             onTouchEnd={(e) => {
-              if (e.nativeEvent.pageY - dragStartY.current > DRAG_CLOSE_THRESHOLD) {
+              if (
+                e.nativeEvent.pageY - dragStartY.current >
+                DRAG_CLOSE_THRESHOLD
+              ) {
                 animateClose();
               }
             }}
@@ -199,7 +248,9 @@ export default function ContactPickerModal({
           <View className="flex-row items-center justify-between px-6 pb-4">
             <View className="flex-row items-center gap-2">
               <BookUser size={20} color="#c71c4b" />
-              <Text className="text-xl font-bold text-light-matte-black">Address Book</Text>
+              <Text className="text-xl font-bold text-light-matte-black">
+                Address Book
+              </Text>
             </View>
             <Pressable
               onPress={animateClose}
@@ -211,7 +262,8 @@ export default function ContactPickerModal({
           </View>
 
           {/* Search */}
-          <View className="mx-6 mb-3 flex-row items-center bg-white rounded-xl px-4 border"
+          <View
+            className="mx-6 mb-3 flex-row items-center bg-white rounded-xl px-4 border"
             style={{ borderColor: "#c71c4b33" }}
           >
             <Search size={15} color="#20222c50" />
@@ -225,7 +277,10 @@ export default function ContactPickerModal({
               className="flex-1 ml-2 py-3 text-sm text-light-matte-black"
             />
             {!!search && (
-              <Pressable onPress={() => setSearch("")} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+              <Pressable
+                onPress={() => setSearch("")}
+                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+              >
                 <X size={14} color="#20222c60" />
               </Pressable>
             )}
@@ -252,7 +307,9 @@ export default function ContactPickerModal({
                   {search ? "No results found" : "No contacts saved"}
                 </Text>
                 <Text className="text-xs text-light-matte-black/50 text-center">
-                  {search ? "Try a different name or address" : "Add contacts in the Address Book"}
+                  {search
+                    ? "Try a different name or address"
+                    : "Add contacts in the Address Book"}
                 </Text>
               </View>
             }

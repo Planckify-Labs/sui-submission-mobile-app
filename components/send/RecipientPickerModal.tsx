@@ -1,5 +1,6 @@
 import { BookUser, Search, Wallet, X } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { SectionListData, SectionListRenderItemInfo } from "react-native";
 import {
   Animated,
   Dimensions,
@@ -12,7 +13,6 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import type { SectionListData, SectionListRenderItemInfo } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { TAddressBookEntry } from "@/constants/types/addressBookTypes";
 import type { TWallet } from "@/constants/types/walletTypes";
@@ -29,7 +29,14 @@ function getInitials(label: string): string {
 }
 
 function getAvatarColor(label: string): string {
-  const colors = ["#c71c4b", "#1c6bc7", "#1cb87e", "#c77a1c", "#6b1cc7", "#c71c8e"];
+  const colors = [
+    "#c71c4b",
+    "#1c6bc7",
+    "#1cb87e",
+    "#c77a1c",
+    "#6b1cc7",
+    "#c71c8e",
+  ];
   let hash = 0;
   for (let i = 0; i < label.length; i++) {
     hash = label.charCodeAt(i) + ((hash << 5) - hash);
@@ -60,7 +67,9 @@ export default function RecipientPickerModal({
 }: RecipientPickerModalProps) {
   const [search, setSearch] = useState("");
   const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const sheetTranslateY = useRef(new Animated.Value(SHEET_INITIAL_TRANSLATE_Y)).current;
+  const sheetTranslateY = useRef(
+    new Animated.Value(SHEET_INITIAL_TRANSLATE_Y),
+  ).current;
   const dragStartY = useRef(0);
   const hasAnimatedIn = useRef(false);
   const { bottom: safeAreaBottom } = useSafeAreaInsets();
@@ -69,16 +78,36 @@ export default function RecipientPickerModal({
     backdropOpacity.setValue(0);
     sheetTranslateY.setValue(SHEET_INITIAL_TRANSLATE_Y);
     Animated.parallel([
-      Animated.timing(backdropOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, bounciness: 0 }),
-    ]).start(() => { hasAnimatedIn.current = true; });
+      Animated.timing(backdropOpacity, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.spring(sheetTranslateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        bounciness: 0,
+      }),
+    ]).start(() => {
+      hasAnimatedIn.current = true;
+    });
   }, [backdropOpacity, sheetTranslateY]);
 
   const animateClose = useCallback(() => {
     Animated.parallel([
-      Animated.timing(backdropOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
-      Animated.timing(sheetTranslateY, { toValue: SHEET_INITIAL_TRANSLATE_Y, duration: 250, useNativeDriver: true }),
-    ]).start(() => { onClose(); });
+      Animated.timing(backdropOpacity, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetTranslateY, {
+        toValue: SHEET_INITIAL_TRANSLATE_Y,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onClose();
+    });
   }, [backdropOpacity, sheetTranslateY, onClose]);
 
   useEffect(() => {
@@ -98,19 +127,21 @@ export default function RecipientPickerModal({
     const otherWallets = wallets
       .map((wallet, index) => ({ type: "wallet" as const, wallet, index }))
       .filter(({ index }) => index !== activeWalletIndex)
-      .filter(({ wallet }) =>
-        !q ||
-        wallet.name?.toLowerCase().includes(q) ||
-        wallet.address.toLowerCase().includes(q),
+      .filter(
+        ({ wallet }) =>
+          !q ||
+          wallet.name?.toLowerCase().includes(q) ||
+          wallet.address.toLowerCase().includes(q),
       );
 
     const filteredContacts = [...contacts]
       .sort((a, b) => a.label.localeCompare(b.label))
-      .filter((c) =>
-        !q ||
-        c.label.toLowerCase().includes(q) ||
-        c.address.toLowerCase().includes(q) ||
-        (c.ensName?.toLowerCase().includes(q) ?? false),
+      .filter(
+        (c) =>
+          !q ||
+          c.label.toLowerCase().includes(q) ||
+          c.address.toLowerCase().includes(q) ||
+          (c.ensName?.toLowerCase().includes(q) ?? false),
       )
       .map((contact) => ({ type: "contact" as const, contact }));
 
@@ -138,19 +169,26 @@ export default function RecipientPickerModal({
         const { wallet, index } = item;
         return (
           <Pressable
-            onPress={() => handleSelect(wallet.address, wallet.name || `Wallet ${index + 1}`)}
+            onPress={() =>
+              handleSelect(wallet.address, wallet.name || `Wallet ${index + 1}`)
+            }
             className="flex-row items-center px-6 py-3 active:bg-light-main-container"
           >
             <View className="w-10 h-10 rounded-xl bg-light-primary-red/10 items-center justify-center mr-3">
               <Wallet size={18} color="#c71c4b" />
             </View>
             <View className="flex-1">
-              <Text className="text-[15px] font-semibold text-light-matte-black" numberOfLines={1}>
+              <Text
+                className="text-[15px] font-semibold text-light-matte-black"
+                numberOfLines={1}
+              >
                 {wallet.name || `Wallet ${index + 1}`}
               </Text>
               <Text
                 className="text-xs text-light-matte-black/60"
-                style={{ fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" }}
+                style={{
+                  fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+                }}
                 numberOfLines={1}
               >
                 {truncateAddress({ address: wallet.address, preset: "medium" })}
@@ -179,18 +217,26 @@ export default function RecipientPickerModal({
             </Text>
           </View>
           <View className="flex-1">
-            <Text className="text-[15px] font-semibold text-light-matte-black" numberOfLines={1}>
+            <Text
+              className="text-[15px] font-semibold text-light-matte-black"
+              numberOfLines={1}
+            >
               {contact.label}
             </Text>
             <Text
               className="text-xs text-light-matte-black/60"
-              style={{ fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" }}
+              style={{
+                fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+              }}
               numberOfLines={1}
             >
               {contact.ensName ?? shortAddress}
             </Text>
             {!!contact.chainName && (
-              <Text className="text-[11px] text-light-matte-black/40 mt-0.5" numberOfLines={1}>
+              <Text
+                className="text-[11px] text-light-matte-black/40 mt-0.5"
+                numberOfLines={1}
+              >
                 {contact.chainName}
               </Text>
             )}
@@ -220,11 +266,20 @@ export default function RecipientPickerModal({
   const isEmpty = sections.length === 0;
 
   return (
-    <Modal transparent visible={visible} animationType="none" onRequestClose={animateClose}>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={animateClose}
+    >
       <View style={{ flex: 1 }}>
         <TouchableWithoutFeedback onPress={animateClose}>
           <Animated.View
-            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", opacity: backdropOpacity }}
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              opacity: backdropOpacity,
+            }}
           />
         </TouchableWithoutFeedback>
 
@@ -250,9 +305,14 @@ export default function RecipientPickerModal({
           {/* Drag handle */}
           <Pressable
             className="w-full items-center pt-4 pb-2"
-            onTouchStart={(e) => { dragStartY.current = e.nativeEvent.pageY; }}
+            onTouchStart={(e) => {
+              dragStartY.current = e.nativeEvent.pageY;
+            }}
             onTouchEnd={(e) => {
-              if (e.nativeEvent.pageY - dragStartY.current > DRAG_CLOSE_THRESHOLD) {
+              if (
+                e.nativeEvent.pageY - dragStartY.current >
+                DRAG_CLOSE_THRESHOLD
+              ) {
                 animateClose();
               }
             }}
@@ -262,7 +322,9 @@ export default function RecipientPickerModal({
 
           {/* Header */}
           <View className="flex-row items-center justify-between px-6 pb-4">
-            <Text className="text-xl font-bold text-light-matte-black">Select Recipient</Text>
+            <Text className="text-xl font-bold text-light-matte-black">
+              Select Recipient
+            </Text>
             <Pressable
               onPress={animateClose}
               hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
@@ -288,7 +350,10 @@ export default function RecipientPickerModal({
               className="flex-1 ml-2 py-3 text-sm text-light-matte-black"
             />
             {!!search && (
-              <Pressable onPress={() => setSearch("")} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+              <Pressable
+                onPress={() => setSearch("")}
+                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+              >
                 <X size={14} color="#20222c60" />
               </Pressable>
             )}

@@ -1,5 +1,4 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { useNavigationReady } from "@/hooks/useNavigationReady";
 import { Animated, Keyboard, StatusBar, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView, WebViewMessageEvent } from "react-native-webview";
@@ -10,6 +9,7 @@ import BrowserNavigationControls from "@/components/dapps-browser/BrowserNavigat
 import DAppsHub from "@/components/dapps-browser/DAppsHub";
 import TransactionModal from "@/components/dapps-browser/TransactionModal";
 import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
+import { useNavigationReady } from "@/hooks/useNavigationReady";
 import { useWallet } from "@/hooks/useWallet";
 import {
   ethereumProvider,

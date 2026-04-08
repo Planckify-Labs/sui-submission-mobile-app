@@ -198,7 +198,6 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
       disabledWalletIndex,
       disabledLabel,
       handleWalletSelection,
-      isDappConnection,
     ],
   );
 

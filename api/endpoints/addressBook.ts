@@ -1,7 +1,10 @@
+import type {
+  TCreateAddressBookDto,
+  TUpdateAddressBookDto,
+} from "@/api/types/addressBook";
+import { apiCall } from "@/api/utils/api-helpers";
 import { api } from "@/constants/configs/ky";
 import type { TAddressBookEntry } from "@/constants/types/addressBookTypes";
-import type { TCreateAddressBookDto, TUpdateAddressBookDto } from "@/api/types/addressBook";
-import { apiCall } from "@/api/utils/api-helpers";
 
 export const addressBookApi = {
   getAll: () =>

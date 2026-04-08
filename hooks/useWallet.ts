@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { storage } from "@/lib/storage/mmkv";
 import { useCallback, useEffect, useMemo } from "react";
 import { InteractionManager } from "react-native";
 import type { Account, PublicClient, WalletClient } from "viem";
@@ -14,6 +13,7 @@ import type {
   TWallet,
   TWalletCreationParams,
 } from "@/constants/types/walletTypes";
+import { storage } from "@/lib/storage/mmkv";
 import * as walletService from "@/services/walletService";
 import { getPublicClient, getWalletClient } from "@/utils/clients";
 import { createWalletFromParams } from "@/utils/walletUtils";

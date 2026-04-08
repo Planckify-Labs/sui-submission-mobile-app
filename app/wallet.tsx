@@ -1,6 +1,12 @@
 import { router } from "expo-router";
 import { ChevronRight, Plus, Wallet as WalletIcon } from "lucide-react-native";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -111,7 +117,8 @@ export default function Wallet() {
   );
 
   const displayedWallets = useMemo(() => {
-    if (wallets.length <= 3 || activeWalletIndex < 3) return wallets.slice(0, 3);
+    if (wallets.length <= 3 || activeWalletIndex < 3)
+      return wallets.slice(0, 3);
     const result = wallets.slice(0, 3);
     result[0] = wallets[activeWalletIndex];
     return result;

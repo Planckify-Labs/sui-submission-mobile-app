@@ -70,7 +70,7 @@ export default function AgentMode() {
     }, 50);
 
     return () => clearTimeout(timeout);
-  }, [messages.length]);
+  }, []);
 
   const handleScrollToChat = useCallback(() => {
     scrollViewRef.current?.scrollTo({ x: screenWidth, animated: true });

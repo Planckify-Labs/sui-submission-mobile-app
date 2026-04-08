@@ -20,32 +20,32 @@ import { useProductsByCategories } from "@/hooks/queries/useProducts";
 type ListItem =
   | { type: "header"; data: { title: string } }
   | {
-    type: "searchBar";
-    data: { searchQuery: string; setSearchQuery: (query: string) => void };
-  }
+      type: "searchBar";
+      data: { searchQuery: string; setSearchQuery: (query: string) => void };
+    }
   | {
-    type: "banner";
-    data: {
-      title: string;
-      description: string;
-      buttonText: string;
-      onPress: () => void;
-    };
-  }
-  | {
-    type: "section";
-    data: {
-      id: string;
-      title: string;
-      viewAllPath: string;
-      items: Array<{
-        id: string;
-        name: string;
+      type: "banner";
+      data: {
+        title: string;
         description: string;
-        icon: string;
-      }>;
+        buttonText: string;
+        onPress: () => void;
+      };
+    }
+  | {
+      type: "section";
+      data: {
+        id: string;
+        title: string;
+        viewAllPath: string;
+        items: Array<{
+          id: string;
+          name: string;
+          description: string;
+          icon: string;
+        }>;
+      };
     };
-  };
 
 export default function ServiceScreen() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -95,12 +95,12 @@ export default function ServiceScreen() {
     productsByCategories.forEach((categoryData) => {
       const filteredProducts = searchQuery
         ? categoryData.products.filter(
-          (product) =>
-            product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            product.description
-              .toLowerCase()
-              .includes(searchQuery.toLowerCase()),
-        )
+            (product) =>
+              product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              product.description
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase()),
+          )
         : categoryData.products;
 
       if (filteredProducts.length > 0) {

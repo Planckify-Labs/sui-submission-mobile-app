@@ -11,7 +11,7 @@ import {
   searchItems,
 } from "../utils/api-helpers";
 
-const logTokenOperation = (operation: string, data?: any) => {
+const _logTokenOperation = (operation: string, data?: any) => {
   console.log(`Token API: ${operation}`, data || "");
 };
 

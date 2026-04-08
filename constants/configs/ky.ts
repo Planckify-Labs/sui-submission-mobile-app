@@ -1,15 +1,15 @@
 import { router } from "expo-router";
-import ky from "ky";
 import type { NormalizedOptions } from "ky";
+import ky from "ky";
+import { ApiConflictError } from "@/api/types/errors";
 import {
   clearTokens,
   getAccessToken,
   getAccessTokenForWallet,
   getAuthenticatedWalletAddress,
 } from "@/hooks/queries/useAuth";
-import * as walletService from "@/services/walletService";
-import { ApiConflictError } from "@/api/types/errors";
 import { storage } from "@/lib/storage/mmkv";
+import * as walletService from "@/services/walletService";
 
 interface ApiError {
   message?: string;
@@ -59,7 +59,8 @@ const createBaseConfig = () => ({
   fetch: (input: RequestInfo | URL, init?: RequestInit) => {
     if (
       init?.signal &&
-      typeof (init.signal as AbortSignal & { throwIfAborted?: () => void }).throwIfAborted !== "function"
+      typeof (init.signal as AbortSignal & { throwIfAborted?: () => void })
+        .throwIfAborted !== "function"
     ) {
       const { signal: _signal, ...restInit } = init;
       return fetch(input, restInit);

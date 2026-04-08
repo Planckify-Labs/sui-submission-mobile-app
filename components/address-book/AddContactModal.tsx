@@ -1,5 +1,9 @@
 import { Check, X } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type {
+  GestureResponderEvent,
+  PanResponderGestureState,
+} from "react-native";
 import {
   Animated,
   Dimensions,
@@ -14,7 +18,6 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import type { GestureResponderEvent, PanResponderGestureState } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { TCreateAddressBookDto } from "@/api/types/addressBook";
 import { ApiConflictError } from "@/api/types/errors";
@@ -26,7 +29,9 @@ const EXTRA_SPACE_ABOVE_KEYBOARD = 66;
 const SHEET_INITIAL_TRANSLATE_Y = 300;
 const DRAG_TO_CLOSE_THRESHOLD = 100;
 
-function resolveApiError(error: Error | null): { message: string; isDuplicate: boolean } | null {
+function resolveApiError(
+  error: Error | null,
+): { message: string; isDuplicate: boolean } | null {
   if (!error) return null;
   const isDuplicate = error instanceof ApiConflictError;
   return {
@@ -63,7 +68,9 @@ export default function AddContactModal({
   const [walletAddressError, setWalletAddressError] = useState("");
 
   const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const sheetTranslateY = useRef(new Animated.Value(SHEET_INITIAL_TRANSLATE_Y)).current;
+  const sheetTranslateY = useRef(
+    new Animated.Value(SHEET_INITIAL_TRANSLATE_Y),
+  ).current;
   const keyboardHeightAnimation = useRef(new Animated.Value(0)).current;
 
   const contactLabelInputRef = useRef<TextInput>(null);
@@ -112,12 +119,18 @@ export default function AddContactModal({
   const panResponderConfig = useMemo(
     () => ({
       onStartShouldSetPanResponder: () => true,
-      onPanResponderMove: (_event: GestureResponderEvent, gestureState: PanResponderGestureState) => {
+      onPanResponderMove: (
+        _event: GestureResponderEvent,
+        gestureState: PanResponderGestureState,
+      ) => {
         if (gestureState.dy > 0) {
           sheetTranslateY.setValue(gestureState.dy);
         }
       },
-      onPanResponderRelease: (_event: GestureResponderEvent, gestureState: PanResponderGestureState) => {
+      onPanResponderRelease: (
+        _event: GestureResponderEvent,
+        gestureState: PanResponderGestureState,
+      ) => {
         if (gestureState.dy > DRAG_TO_CLOSE_THRESHOLD) {
           animateClose();
         } else {
@@ -293,27 +306,35 @@ export default function AddContactModal({
           <ScrollView
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: safeAreaBottom }}
+            contentContainerStyle={{
+              paddingHorizontal: 24,
+              paddingBottom: safeAreaBottom,
+            }}
           >
             {/* Inline API error — message is always user-friendly, never a raw HTTP response */}
-            {resolveApiError(saveError ?? null) && (() => {
-              const apiError = resolveApiError(saveError ?? null)!;
-              return (
-                <View
-                  className="rounded-xl p-3 mb-4"
-                  style={{
-                    backgroundColor: apiError.isDuplicate ? "#c71c4b15" : "#20222c0a",
-                  }}
-                >
-                  <Text
-                    className="text-[13px] font-medium"
-                    style={{ color: apiError.isDuplicate ? "#c71c4b" : "#20222c99" }}
+            {resolveApiError(saveError ?? null) &&
+              (() => {
+                const apiError = resolveApiError(saveError ?? null)!;
+                return (
+                  <View
+                    className="rounded-xl p-3 mb-4"
+                    style={{
+                      backgroundColor: apiError.isDuplicate
+                        ? "#c71c4b15"
+                        : "#20222c0a",
+                    }}
                   >
-                    {apiError.message}
-                  </Text>
-                </View>
-              );
-            })()}
+                    <Text
+                      className="text-[13px] font-medium"
+                      style={{
+                        color: apiError.isDuplicate ? "#c71c4b" : "#20222c99",
+                      }}
+                    >
+                      {apiError.message}
+                    </Text>
+                  </View>
+                );
+              })()}
 
             {/* Contact name */}
             <View className="mb-4">
@@ -333,10 +354,15 @@ export default function AddContactModal({
                 editable={!isSaving}
                 returnKeyType="next"
                 className="bg-white rounded-xl px-4 py-[14px] text-[15px] text-light-matte-black"
-                style={{ borderWidth: 1, borderColor: contactLabelError ? "#e53e3e" : "#c71c4b33" }}
+                style={{
+                  borderWidth: 1,
+                  borderColor: contactLabelError ? "#e53e3e" : "#c71c4b33",
+                }}
               />
               {contactLabelError ? (
-                <Text className="text-[11px] text-red-500 mt-1">{contactLabelError}</Text>
+                <Text className="text-[11px] text-red-500 mt-1">
+                  {contactLabelError}
+                </Text>
               ) : (
                 <Text className="text-[11px] text-light-matte-black/30 mt-1 text-right">
                   {contactLabel.length}/32
@@ -369,7 +395,9 @@ export default function AddContactModal({
                 }}
               />
               {!!walletAddressError && (
-                <Text className="text-[11px] text-red-500 mt-1">{walletAddressError}</Text>
+                <Text className="text-[11px] text-red-500 mt-1">
+                  {walletAddressError}
+                </Text>
               )}
             </View>
 
@@ -456,7 +484,11 @@ export default function AddContactModal({
               >
                 <Check size={16} color="white" />
                 <Text className="text-[15px] font-semibold text-white">
-                  {isSaving ? "Saving..." : isEditMode ? "Save Changes" : "Add Contact"}
+                  {isSaving
+                    ? "Saving..."
+                    : isEditMode
+                      ? "Save Changes"
+                      : "Add Contact"}
                 </Text>
               </Pressable>
             </View>
@@ -465,7 +497,10 @@ export default function AddContactModal({
                 every input can be scrolled above the keyboard edge */}
             <Animated.View
               style={{
-                height: Animated.add(keyboardHeightAnimation, EXTRA_SPACE_ABOVE_KEYBOARD),
+                height: Animated.add(
+                  keyboardHeightAnimation,
+                  EXTRA_SPACE_ABOVE_KEYBOARD,
+                ),
               }}
             />
           </ScrollView>

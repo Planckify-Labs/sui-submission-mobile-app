@@ -23,7 +23,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigationReady } from "@/hooks/useNavigationReady";
 import { erc20Abi, formatUnits, parseUnits } from "viem";
 import type { TToken } from "@/api/types/token";
 import ChainSelector from "@/components/common/ChainSelector";
@@ -33,11 +32,12 @@ import PinConfirmationModal from "@/components/common/PinConfirmationModal";
 import RecipientPickerModal from "@/components/send/RecipientPickerModal";
 import TokenSelectorModal from "@/components/wallet/TokenSelectorModal";
 import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
-import { useAddressBook } from "@/hooks/useAddressBook";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 import { useBlockchains } from "@/hooks/queries/useBlockchains";
 import { useTokens } from "@/hooks/queries/useTokens";
 import { useCreateTransaction } from "@/hooks/queries/useTransactions";
+import { useAddressBook } from "@/hooks/useAddressBook";
+import { useNavigationReady } from "@/hooks/useNavigationReady";
 import { useWallet } from "@/hooks/useWallet";
 
 export default function SendScreen() {
@@ -658,7 +658,6 @@ export default function SendScreen() {
           title="Select Token"
         />
       )}
-
     </>
   );
 }

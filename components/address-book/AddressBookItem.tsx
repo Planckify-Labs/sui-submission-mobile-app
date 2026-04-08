@@ -70,12 +70,14 @@ const AddressBookItem = memo(function AddressBookItem({
       translateX.value = Math.min(0, Math.max(-ACTION_WIDTH, next));
     })
     .onEnd((e) => {
-      const shouldOpen =
-        !isOpen.value
-          ? e.translationX < -ACTION_WIDTH / 2
-          : e.translationX < ACTION_WIDTH / 2;
+      const shouldOpen = !isOpen.value
+        ? e.translationX < -ACTION_WIDTH / 2
+        : e.translationX < ACTION_WIDTH / 2;
       if (shouldOpen) {
-        translateX.value = withSpring(-ACTION_WIDTH, { damping: 18, stiffness: 180 });
+        translateX.value = withSpring(-ACTION_WIDTH, {
+          damping: 18,
+          stiffness: 180,
+        });
         isOpen.value = true;
       } else {
         translateX.value = withSpring(0, { damping: 18, stiffness: 180 });
@@ -115,7 +117,10 @@ const AddressBookItem = memo(function AddressBookItem({
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 60).duration(350).springify().damping(14)}
+      entering={FadeInDown.delay(index * 60)
+        .duration(350)
+        .springify()
+        .damping(14)}
       className="mb-3 mx-4"
     >
       {/* Action buttons behind the row — opacity driven by animation, position fixed */}
@@ -128,14 +133,18 @@ const AddressBookItem = memo(function AddressBookItem({
           className="flex-1 bg-light-matte-black rounded-2xl mr-1 items-center justify-center"
         >
           <Edit3 size={18} color="white" />
-          <Text className="text-white text-[10px] font-semibold mt-0.5">Edit</Text>
+          <Text className="text-white text-[10px] font-semibold mt-0.5">
+            Edit
+          </Text>
         </Pressable>
         <Pressable
           onPress={handleDelete}
           className="flex-1 bg-light-primary-red rounded-2xl items-center justify-center"
         >
           <Trash2 size={18} color="white" />
-          <Text className="text-white text-[10px] font-semibold mt-0.5">Delete</Text>
+          <Text className="text-white text-[10px] font-semibold mt-0.5">
+            Delete
+          </Text>
         </Pressable>
       </Animated.View>
 
@@ -154,7 +163,10 @@ const AddressBookItem = memo(function AddressBookItem({
               className="w-11 h-11 rounded-xl items-center justify-center mr-3"
               style={{ backgroundColor: `${avatarColor}18` }}
             >
-              <Text className="text-sm font-bold" style={{ color: avatarColor }}>
+              <Text
+                className="text-sm font-bold"
+                style={{ color: avatarColor }}
+              >
                 {initials}
               </Text>
             </View>
