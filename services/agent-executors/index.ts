@@ -14,13 +14,14 @@
  *
  * Tool names enumerated from
  *   takumi-agent-api/src/tools/registry.ts @ 2026-04-11
- * (11 tools total — if you add more on the server, grep for
+ * (15 tools total — if you add more on the server, grep for
  * `executor: 'mobile'` there and update both sides together).
  */
 
 export * from "./chainRouter";
 export * from "./types";
 
+import { POINTS_EXECUTORS } from "./points";
 import { READ_EXECUTORS } from "./reads";
 import { SIMULATE_EXECUTORS } from "./simulate";
 import type { MobileToolExecutor } from "./types";
@@ -41,6 +42,7 @@ export const EXECUTORS: Record<string, MobileToolExecutor> = {
   ...READ_EXECUTORS,
   ...SIMULATE_EXECUTORS,
   ...WRITE_EXECUTORS,
+  ...POINTS_EXECUTORS,
 };
 
 /**
@@ -53,23 +55,38 @@ export const EXECUTORS: Record<string, MobileToolExecutor> = {
  * block comment at the top of this file.
  */
 export const EXPECTED_MOBILE_TOOLS: ReadonlyArray<string> = [
-  // reads
+  // blockchain reads
   "get_balance",
   "get_wallet_balance",
   "read_contract",
   "get_transaction",
   "get_wallet_address",
   "get_supported_chains",
+  "get_wallet_tokens",
   // simulate
   "estimate_gas",
-  // writes
+  // blockchain writes
   "send_native_token",
   "transfer_erc20",
   "write_contract",
   "approve_erc20",
-  "execute_booking",
-  "cancel_booking",
-  "create_purchase",
+  // points reads — public (no JWT)
+  "get_redemption_catalog",
+  "search_redemption_catalog",
+  "get_product_details",
+  "get_product_input_fields",
+  "get_points_price",
+  // points reads — auth required
+  "get_redemption_categories",
+  "get_points_balance",
+  "get_points_history",
+  "get_redemption_status",
+  "get_redemption_history",
+  // points writes
+  "deposit_points",
+  "execute_redemption",
+  // points simulate — SIWE login flow (task 17)
+  "request_authentication",
 ];
 
 /**

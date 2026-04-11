@@ -1,12 +1,15 @@
 import { router } from "expo-router";
 import type { NormalizedOptions } from "ky";
 import ky from "ky";
+import * as SecureStore from "expo-secure-store";
 import { ApiConflictError } from "@/api/types/errors";
 import {
   clearTokens,
   getAccessToken,
   getAccessTokenForWallet,
   getAuthenticatedWalletAddress,
+  getRefreshToken,
+  getRefreshTokenForWallet,
 } from "@/hooks/queries/useAuth";
 import { storage } from "@/lib/storage/mmkv";
 import * as walletService from "@/services/walletService";
@@ -15,6 +18,25 @@ interface ApiError {
   message?: string;
   // Structured error code from the API (see jwt.strategy.ts / auth.service.ts)
   code?: string;
+}
+
+/**
+ * Structured error thrown on 401 when silent refresh failed. Attaches
+ * the HTTP response metadata so executor catch blocks — specifically
+ * `classifyPointsError()` in `services/agent-executors/utils.ts` — can
+ * read `err.response.status === 401` and return the canonical
+ * `"authentication_required"` reason that triggers the agent's
+ * `request_authentication` flow (protocol v1.1 §13). Previously the
+ * handler threw a plain `Error("Authentication expired. Please sign in
+ * again.")` which was unclassifiable downstream.
+ */
+class ApiHttpError extends Error {
+  public readonly response: { status: number; data: ApiError };
+  constructor(status: number, data: ApiError, message?: string) {
+    super(message ?? data.message ?? `HTTP ${status}`);
+    this.name = "ApiHttpError";
+    this.response = { status, data };
+  }
 }
 
 // Guard to prevent multiple concurrent 401 handlers from spamming redirects.
@@ -69,11 +91,125 @@ const createBaseConfig = () => ({
   },
 });
 
+// Key names duplicated here (rather than exported from useAuth.ts) to
+// avoid circular dependency when we write back the refreshed access
+// token. Kept in sync with `useAuth.ts`.
+const ACCESS_TOKEN_KEY = "takumipay_access_token";
+const accessKeyFor = (address: string) =>
+  `${ACCESS_TOKEN_KEY}_${address.toLowerCase()}`;
+
+/**
+ * Shared in-flight silent refresh promise. When multiple 401s race
+ * (several parallel points reads, say), they all await the same
+ * refresh attempt instead of each firing their own — otherwise the
+ * backend sees a storm of refresh requests and usually invalidates
+ * the refresh token after the first success.
+ */
+let refreshInFlight: Promise<string | null> | null = null;
+
+/**
+ * Attempt a silent JWT refresh using the refresh token stored for the
+ * currently active wallet. Returns the new access token on success or
+ * `null` if no refresh token is available / the refresh request was
+ * rejected / the refresh request threw.
+ *
+ * IMPORTANT: this function must never itself trigger `handleApiResponse`
+ * — we use a bare `fetch` and parse the body manually. Reusing the `api`
+ * ky instance would recurse on 401.
+ */
+async function attemptSilentRefresh(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      // Resolve the currently active wallet address to key the
+      // refresh against — matches the logic in `useRefreshToken`
+      // (see useAuth.ts).
+      const indexStr = storage.getString("active_wallet_index");
+      const idx = indexStr ? parseInt(indexStr, 10) : 0;
+      const wallets = await walletService.loadWalletsFromStorage();
+      const activeAddr = wallets?.[idx]?.address || null;
+      const activeAddrLower = activeAddr?.toLowerCase() || null;
+
+      let refreshToken: string | null = null;
+      if (activeAddrLower) {
+        refreshToken = await getRefreshTokenForWallet(activeAddrLower);
+      }
+      if (!refreshToken) {
+        const legacyRefresh = await getRefreshToken();
+        const authedWallet =
+          (await getAuthenticatedWalletAddress())?.toLowerCase() || null;
+        if (
+          legacyRefresh &&
+          activeAddrLower &&
+          authedWallet === activeAddrLower
+        ) {
+          refreshToken = legacyRefresh;
+        }
+      }
+
+      if (!refreshToken || !API_CONFIG.url) return null;
+
+      const refreshResponse = await fetch(`${API_CONFIG.url}/auth/refresh`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...(API_CONFIG.key ? { "X-API-Key": API_CONFIG.key } : {}),
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      if (!refreshResponse.ok) {
+        console.warn(
+          "[ky] silent refresh rejected with status",
+          refreshResponse.status,
+        );
+        return null;
+      }
+
+      const parsed = (await refreshResponse.json()) as {
+        access_token?: string;
+      };
+      if (!parsed.access_token) return null;
+
+      // Persist the new token (per-wallet + legacy slot) so
+      // subsequent `beforeRequest` hooks read it.
+      if (activeAddr) {
+        await SecureStore.setItemAsync(
+          accessKeyFor(activeAddr),
+          parsed.access_token,
+        );
+      }
+      await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, parsed.access_token);
+
+      // Re-open the 401 guard so future stale tokens get another
+      // refresh attempt / redirect.
+      reset401Guard();
+
+      return parsed.access_token;
+    } catch (err) {
+      console.warn("[ky] silent refresh threw:", err);
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
+
+/**
+ * Custom Request header used by `handleApiResponse` to mark a request
+ * that has already been retried once after a silent refresh. Prevents
+ * an infinite refresh/retry loop when the refresh succeeded but the
+ * server still rejects the new token.
+ */
+const RETRIED_HEADER = "x-silent-refresh-retried";
+
 const handleApiResponse = async (
   request: Request,
   _options: NormalizedOptions,
   response: Response,
-) => {
+): Promise<Response | void> => {
   if (!response.ok) {
     // Parse the body separately so our status-code throws below are never
     // accidentally swallowed by a catch that was only meant for JSON failures.
@@ -86,13 +222,50 @@ const handleApiResponse = async (
     }
 
     if (response.status === 401) {
+      const alreadyRetried = request.headers.get(RETRIED_HEADER) === "1";
+      // USER_NOT_FOUND: JWT is cryptographically valid but the user row was deleted
+      // (e.g. DB reset). The user needs to re-sign to recreate their account.
+      const isUserDeleted = error.code === "USER_NOT_FOUND";
+
+      // Attempt a one-shot silent refresh on the first 401 for this
+      // request — protocol v1.1 §13 requires "try refresh before
+      // surfacing authentication_required to the agent". We skip
+      // silent refresh for USER_NOT_FOUND because there's no user
+      // row to refresh against.
+      if (!alreadyRetried && !isUserDeleted) {
+        const newAccessToken = await attemptSilentRefresh();
+        if (newAccessToken) {
+          // Build a retry request with the new bearer + the guard
+          // header. We return the retry response back to ky, which
+          // will surface it to the caller as if the original
+          // succeeded — no recursion, handleApiResponse will run
+          // once more on the new response.
+          const retried = new Request(request.url, {
+            method: request.method,
+            headers: new Headers(request.headers),
+            body: request.body,
+            redirect: request.redirect,
+            credentials: request.credentials,
+            mode: request.mode,
+          });
+          retried.headers.set("Authorization", `Bearer ${newAccessToken}`);
+          retried.headers.set(RETRIED_HEADER, "1");
+          try {
+            return await fetch(retried);
+          } catch (retryErr) {
+            console.warn(
+              "[ky] silent-refresh retry fetch threw:",
+              retryErr,
+            );
+            // Fall through to the existing clear-tokens path below.
+          }
+        }
+      }
+
       if (!isHandling401) {
         isHandling401 = true;
 
-        // USER_NOT_FOUND: JWT is cryptographically valid but the user row was deleted
-        // (e.g. DB reset). The user needs to re-sign to recreate their account.
         // All other 401s mean the token itself is invalid/expired.
-        const isUserDeleted = error.code === "USER_NOT_FOUND";
         console.log(
           isUserDeleted
             ? "401 USER_NOT_FOUND - user row deleted, redirecting to re-auth without clearing tokens"
@@ -106,18 +279,32 @@ const handleApiResponse = async (
         router.replace("/auth");
       }
 
-      throw new Error("Authentication expired. Please sign in again.");
+      // Throw a structured error so agent executors can classify the
+      // 401 via `err.response.status` and return
+      // `authentication_required`, which in turn drives the
+      // `request_authentication` flow on the next agent turn.
+      throw new ApiHttpError(
+        401,
+        error,
+        "Authentication expired. Please sign in again.",
+      );
     } else if (response.status === 403) {
-      throw new Error(
+      throw new ApiHttpError(
+        403,
+        error,
         "Access forbidden. You don't have permission for this resource.",
       );
     } else if (response.status === 404) {
-      throw new Error("Resource not found.");
+      throw new ApiHttpError(404, error, "Resource not found.");
     } else if (response.status === 409) {
       throw new ApiConflictError();
     } else {
       console.error("API error:", error.message);
-      throw new Error("Something went wrong. Please try again.");
+      throw new ApiHttpError(
+        response.status,
+        error,
+        "Something went wrong. Please try again.",
+      );
     }
   }
   console.log(`API Response Status for ${request.url}:`, response.status);

@@ -1,6 +1,6 @@
 import { FlashList, ListRenderItemInfo } from "@shopify/flash-list";
 import { BlurView } from "expo-blur";
-import { SquarePen } from "lucide-react-native";
+import { AlertTriangle, RotateCcw, SquarePen } from "lucide-react-native";
 import React, {
   useCallback,
   useEffect,
@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
+  Pressable,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -32,6 +33,7 @@ import {
   assertRegistryParity,
   type ExecutorContext,
 } from "@/services/agent-executors";
+import { checkPointsAuth } from "@/services/agent-executors/pointsAuth";
 import {
   type AgentSession,
   type AgentSessionUIBindings,
@@ -106,10 +108,27 @@ export default function AgentMode() {
   );
   const [isStreaming, setIsStreaming] = useState(false);
 
+  // §10 — retryable / non-retryable SSE error UX. The spec splits errors
+  // into two buckets:
+  //   - retryable (model_error, max_iterations, tool_timeout) → "Try
+  //     again" affordance that re-POSTs the same session_id with the
+  //     last user message.
+  //   - non-retryable (session_error, internal_error) → prompt the user
+  //     to start a fresh conversation.
+  // Only one of these is ever set at a time; sending a new message or
+  // tapping the action clears it.
+  const [retryableError, setRetryableError] = useState<string | null>(null);
+  const [nonRetryableError, setNonRetryableError] = useState<string | null>(
+    null,
+  );
+
   // ── Refs used by the session (outside React render tree) ──────────
   const sessionIdRef = useRef<string | null>(null);
   const currentAssistantIdRef = useRef<string | null>(null);
   const activeSessionRef = useRef<AgentSession | null>(null);
+  // Stores the most recent user message text so a "Try again" tap can
+  // re-issue the same turn on the same `session_id`.
+  const lastUserMessageRef = useRef<string>("");
   const grantStoreRef = useRef<{
     address: `0x${string}`;
     store: PermissionGrantStore;
@@ -166,6 +185,30 @@ export default function AgentMode() {
     };
   }, [activeWallet, blockchains, activeChain?.chain.id]);
 
+  // Points / redemption auth hint for `wallet_context.points_authenticated`
+  // (protocol v1.1 §13). Read locally from secure storage on every
+  // wallet change, and just-in-time before each send via
+  // `sendTextMessage` — a fresh token from the `request_authentication`
+  // executor flips this to `true` on the next turn without requiring
+  // a full page reload.
+  const [pointsAuthenticated, setPointsAuthenticated] =
+    useState<boolean>(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const addr = activeWallet?.address as `0x${string}` | undefined;
+    if (!addr) {
+      setPointsAuthenticated(false);
+      return;
+    }
+    checkPointsAuth(addr).then((authed) => {
+      if (!cancelled) setPointsAuthenticated(authed);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWallet?.address]);
+
   // Wallet context sent on POST /chat — short-circuits if we don't yet
   // have an active wallet / chain resolved.
   const walletContext: WalletContext | null = useMemo(() => {
@@ -177,8 +220,9 @@ export default function AgentMode() {
       chain_name: activeChain.chain.name,
       chain_symbol: activeChain.chain.nativeCurrency.symbol,
       label: activeWallet?.name,
+      points_authenticated: pointsAuthenticated,
     };
-  }, [activeWallet, activeChain]);
+  }, [activeWallet, activeChain, pointsAuthenticated]);
 
   const chatListRef = useRef<any>(null);
 
@@ -283,15 +327,25 @@ export default function AgentMode() {
         setCurrentStatus(null);
       },
       showError: (message, retryable) => {
-        // Route session / transport errors to the console only —
-        // transient fetch glitches and internal dispatcher logs are
-        // not user-facing. The chat UI stays clean; genuine user-
-        // visible failures should be surfaced via a dedicated toast
-        // or the terminal `error` SSE event handled by the session
-        // factory itself.
+        // §10 — surface SSE error events as a chat-inline affordance.
+        // Retryable errors (model_error, max_iterations, tool_timeout)
+        // get a "Try again" button that re-POSTs the same session_id
+        // with the last user message. Non-retryable errors
+        // (session_error, internal_error) prompt the user to start a
+        // fresh conversation instead.
         console.error(
           `[AgentMode] session error (retryable=${retryable}): ${message}`,
         );
+        const fallback = retryable
+          ? "Something went wrong. Try again?"
+          : "Something went wrong. Please start a new conversation.";
+        if (retryable) {
+          setRetryableError(message?.length ? message : fallback);
+          setNonRetryableError(null);
+        } else {
+          setNonRetryableError(message?.length ? message : fallback);
+          setRetryableError(null);
+        }
         setCurrentStatus(null);
         setIsStreaming(false);
       },
@@ -301,6 +355,13 @@ export default function AgentMode() {
       },
       onReconnecting: (attempt) => {
         setCurrentStatus(`Reconnecting… (attempt ${attempt})`);
+      },
+      // §1 — adopt the server's authoritative `session_id` as soon as
+      // an SSE payload reveals it. Mirroring it back into
+      // `sessionIdRef` keeps task 06's "Try again" path on the same
+      // server-side session instead of minting a fresh one.
+      onSessionIdChanged: (id) => {
+        sessionIdRef.current = id;
       },
     }),
     [],
@@ -318,6 +379,19 @@ export default function AgentMode() {
         return;
       }
 
+      // Refresh `points_authenticated` just-in-time — a successful
+      // `request_authentication` executor in a previous turn may have
+      // stored new tokens after the last `checkPointsAuth` effect ran.
+      // This read is local (SecureStore) so it adds ~1ms per send.
+      const freshPointsAuth = await checkPointsAuth(walletContext.address);
+      if (freshPointsAuth !== pointsAuthenticated) {
+        setPointsAuthenticated(freshPointsAuth);
+      }
+      const sendWalletContext: WalletContext = {
+        ...walletContext,
+        points_authenticated: freshPointsAuth,
+      };
+
       const now = Date.now();
       const timeSinceLastSend = now - lastSendTimeRef.current;
       if (timeSinceLastSend < 1000) {
@@ -329,6 +403,13 @@ export default function AgentMode() {
       // Close any prior session first — a new turn opens its own stream.
       activeSessionRef.current?.stop();
       activeSessionRef.current = null;
+
+      // §10 — a successful new send invalidates any stale error state
+      // from a previous failed turn. Track the message so a future
+      // "Try again" tap can re-issue it on the same session_id.
+      lastUserMessageRef.current = trimmed;
+      setRetryableError(null);
+      setNonRetryableError(null);
 
       const userMessage: ChatMessage = {
         id: genId(),
@@ -350,7 +431,7 @@ export default function AgentMode() {
 
       const session = createAgentSession({
         session_id: sessionId,
-        wallet_context: walletContext,
+        wallet_context: sendWalletContext,
         // Server-side schema accepts `{role, content}` ModelMessages.
         messages: [{ role: "user", content: trimmed }],
         executorContext,
@@ -367,7 +448,13 @@ export default function AgentMode() {
         setCurrentStatus(null);
       }
     },
-    [walletContext, connectedWallet, executorContext, buildUiBindings],
+    [
+      walletContext,
+      connectedWallet,
+      executorContext,
+      buildUiBindings,
+      pointsAuthenticated,
+    ],
   );
 
   const handleSend = useCallback(async () => {
@@ -391,12 +478,32 @@ export default function AgentMode() {
     activeSessionRef.current = null;
     sessionIdRef.current = null;
     currentAssistantIdRef.current = null;
+    lastUserMessageRef.current = "";
     setMessages([]);
     setCurrentStatus(null);
     setInlinePreview(null);
     setApprovalState(null);
     setIsStreaming(false);
+    setRetryableError(null);
+    setNonRetryableError(null);
   }, []);
+
+  // §10 — "Try again" handler. Re-issues the last user turn on the
+  // *same* session_id (sessionIdRef stays intact across retries) so
+  // the server-side history is preserved and the agent loop simply
+  // gets another iteration. Spec explicitly forbids re-POSTing only
+  // the failed tool result or auto-retrying without user input.
+  const handleRetry = useCallback(() => {
+    const lastMessage = lastUserMessageRef.current;
+    if (!lastMessage) {
+      // No prior message captured — nothing to retry. Clear the error
+      // so the user is not stuck staring at a dead button.
+      setRetryableError(null);
+      return;
+    }
+    setRetryableError(null);
+    void sendTextMessage(lastMessage);
+  }, [sendTextMessage]);
 
   const chatMessages = messages;
 
@@ -452,7 +559,15 @@ export default function AgentMode() {
 
   const listFooterComponent = useMemo(() => {
     const hasPreview = inlinePreview !== null;
-    if (!isLoading && pendingTxCards.length === 0 && !hasPreview) {
+    const hasRetryableError = retryableError !== null;
+    const hasNonRetryableError = nonRetryableError !== null;
+    if (
+      !isLoading &&
+      pendingTxCards.length === 0 &&
+      !hasPreview &&
+      !hasRetryableError &&
+      !hasNonRetryableError
+    ) {
       return null;
     }
 
@@ -483,9 +598,82 @@ export default function AgentMode() {
             </Text>
           </View>
         )}
+
+        {hasRetryableError && retryableError ? (
+          <View
+            accessible
+            accessibilityRole="alert"
+            accessibilityLabel={`${retryableError}. Try again button available.`}
+            className="my-1.5 rounded-2xl border border-light-primary-red/30 bg-light-primary-red/5 px-3.5 py-3"
+          >
+            <View className="flex-row items-start gap-2">
+              <AlertTriangle size={16} color="#c71c4b" />
+              <Text
+                className="flex-1 text-sm text-light-matte-black leading-5"
+                numberOfLines={0}
+              >
+                {retryableError}
+              </Text>
+            </View>
+            <View className="flex-row mt-2.5">
+              <Pressable
+                onPress={handleRetry}
+                accessibilityRole="button"
+                accessibilityLabel="Try again"
+                className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-light-primary-red px-3 py-2 active:opacity-80"
+              >
+                <RotateCcw size={14} color="#ffffff" />
+                <Text className="text-xs font-semibold text-white text-center">
+                  Try again
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+        {hasNonRetryableError && nonRetryableError ? (
+          <View
+            accessible
+            accessibilityRole="alert"
+            accessibilityLabel={`${nonRetryableError}. Start new conversation button available.`}
+            className="my-1.5 rounded-2xl border border-gray-200 bg-gray-50 px-3.5 py-3"
+          >
+            <View className="flex-row items-start gap-2">
+              <AlertTriangle size={16} color="#6b7280" />
+              <Text
+                className="flex-1 text-sm text-light-matte-black leading-5"
+                numberOfLines={0}
+              >
+                {nonRetryableError}
+              </Text>
+            </View>
+            <View className="flex-row mt-2.5">
+              <Pressable
+                onPress={handleNewConversation}
+                accessibilityRole="button"
+                accessibilityLabel="Start new conversation"
+                className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 active:opacity-70"
+              >
+                <SquarePen size={14} color="#c71c4b" />
+                <Text className="text-xs font-semibold text-light-matte-black text-center">
+                  New conversation
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
       </View>
     );
-  }, [isLoading, pendingTxCards, inlinePreview, currentStatus]);
+  }, [
+    isLoading,
+    pendingTxCards,
+    inlinePreview,
+    currentStatus,
+    retryableError,
+    nonRetryableError,
+    handleRetry,
+    handleNewConversation,
+  ]);
 
   // ── Approval sheet handlers ───────────────────────────────────────
   const approvalGrantOptions = useMemo(() => {

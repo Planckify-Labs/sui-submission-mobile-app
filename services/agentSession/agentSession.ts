@@ -55,6 +55,11 @@ import type { SseClientHandle } from "./sseClient.ts";
  *     "Try again" button per §8.3.
  *   - `done(usage)` — final event handler. Session has ended; the
  *     chat screen should close the in-flight message bubble.
+ *   - `onSessionIdChanged(id)` — fired when the server's authoritative
+ *     `session_id` is observed for the first time on an inbound SSE
+ *     payload, OR whenever it differs from the previously-synced value.
+ *     The chat screen mirrors this back into its own `sessionIdRef` so
+ *     a §10 "Try again" tap re-POSTs on the right id (task 06).
  */
 export interface AgentSessionUIBindings {
   appendText: (delta: string) => void;
@@ -73,6 +78,7 @@ export interface AgentSessionUIBindings {
   showError?: (message: string, retryable: boolean) => void;
   done?: (usage: DonePayload["usage"]) => void;
   onReconnecting?: (attempt: number, delayMs: number) => void;
+  onSessionIdChanged?: (sessionId: string) => void;
 }
 
 // --- Session shape ----------------------------------------------------------
@@ -288,6 +294,13 @@ function syncServerSessionId(event: AgentEvent, session: AgentSession): void {
   const maybeId = (event.data as { session_id?: unknown } | null)?.session_id;
   if (typeof maybeId === "string" && maybeId && session.session_id !== maybeId) {
     session.session_id = maybeId;
+    // Bubble the new id up to the chat screen so its `sessionIdRef`
+    // (used by §10 "Try again" — task 06) follows the server's view.
+    try {
+      session.ui.onSessionIdChanged?.(maybeId);
+    } catch (err) {
+      console.warn(`[agentSession] onSessionIdChanged threw: ${String(err)}`);
+    }
   }
 }
 

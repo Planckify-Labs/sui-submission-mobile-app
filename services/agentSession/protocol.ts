@@ -29,6 +29,15 @@ export interface WalletContext {
   chain_name: string;
   chain_symbol: string;
   label?: string;
+  /**
+   * Whether the mobile has a stored access token for the points /
+   * redemption API keyed to this wallet address. Computed locally by
+   * `checkPointsAuth()` before every `POST /chat` — the server never
+   * mints or validates this flag, it's purely a hint that lets the
+   * agent skip `request_authentication` when the user is already
+   * signed in. Added in protocol v1.1 §13.
+   */
+  points_authenticated?: boolean;
 }
 
 // --- Tool classification ----------------------------------------------------

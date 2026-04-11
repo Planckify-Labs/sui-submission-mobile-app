@@ -235,6 +235,71 @@ describe("agentSession — event router", () => {
     assert.equal(stopped, true);
   });
 
+  it("adopts server-assigned session_id from tool_pending payload", async () => {
+    const session = makeSession(makeHotWallet());
+    assert.equal(session.session_id, "test-session");
+
+    const event: AgentEvent = {
+      event: "tool_pending",
+      data: {
+        session_id: "server-minted-uuid",
+        tool_call_id: "tool-sync-1",
+        name: "send_native_token",
+        input: { chain_id: 1, to: WALLET_ADDRESS, amount_wei: "1" },
+        meta: {
+          executor: "mobile",
+          capability: "write",
+          category: "blockchain_write",
+          human_summary: "Call send_native_token",
+        },
+      },
+    };
+    // Route via __testing so we don't actually dispatch the tool.
+    await __testing.routeEvent(event, session);
+    assert.equal(session.session_id, "server-minted-uuid");
+  });
+
+  it("adopts server-assigned session_id from done payload", async () => {
+    const session = makeSession(makeHotWallet());
+    const event: AgentEvent = {
+      event: "done",
+      data: {
+        session_id: "server-minted-done",
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      },
+    };
+    await __testing.routeEvent(event, session);
+    assert.equal(session.session_id, "server-minted-done");
+  });
+
+  it("session_id adoption is idempotent — same id is a noop", async () => {
+    const session = makeSession(makeHotWallet());
+    session.session_id = "already-synced";
+
+    // Wrap the setter to count writes.
+    let writes = 0;
+    let backing = session.session_id;
+    Object.defineProperty(session, "session_id", {
+      get: () => backing,
+      set: (v: string) => {
+        writes += 1;
+        backing = v;
+      },
+      configurable: true,
+    });
+
+    const event: AgentEvent = {
+      event: "done",
+      data: {
+        session_id: "already-synced",
+        usage: { prompt_tokens: 0, completion_tokens: 0 },
+      },
+    };
+    await __testing.routeEvent(event, session);
+    assert.equal(writes, 0, "no write when id already matches");
+    assert.equal(backing, "already-synced");
+  });
+
   it("error retryable=true does NOT stop the session", async () => {
     const session = makeSession(makeHotWallet());
     let stopped = false;
