@@ -156,6 +156,8 @@ const NetworkSelectorModal = () => {
                 shadowOpacity: 0.1,
                 shadowRadius: 10,
                 elevation: 10,
+                display: "flex",
+                flexDirection: "column",
               }}
             >
               <View
@@ -165,7 +167,7 @@ const NetworkSelectorModal = () => {
                 <View className="w-12 h-1 bg-gray-300 rounded-full" />
               </View>
 
-              <View className="px-5 pb-6">
+              <View className="flex-1 px-5 pb-6">
                 <View className="flex-row justify-between items-center mb-5">
                   <Text className="text-xl font-bold text-light-matte-black">
                     Networks
@@ -178,7 +180,7 @@ const NetworkSelectorModal = () => {
                   </Pressable>
                 </View>
 
-                <View className="flex-row items-center rounded-xl mb-5 px-3 h-12 bg-light">
+                <View className="flex-row items-center rounded-xl px-3 h-12 bg-light">
                   <Search size={18} color="#20222c60" />
                   <TextInput
                     className="flex-1 px-3 py-3 text-light-matte-black text-base"
@@ -198,9 +200,9 @@ const NetworkSelectorModal = () => {
                 </View>
 
                 <ScrollView
-                  className="max-h-[500px]"
+                  className="flex-1"
                   showsVerticalScrollIndicator={false}
-                  contentContainerStyle={{ paddingBottom: 20 }}
+                  contentContainerStyle={{ paddingTop: 10 }}
                 >
                   {isLoading ? (
                     <View className="items-center justify-center">
@@ -216,11 +218,10 @@ const NetworkSelectorModal = () => {
                     displayNetworks.map((item) => (
                       <Pressable
                         key={item.id}
-                        className={`flex-row items-center p-3.5 mb-3 rounded-xl ${
-                          activeNetwork === item.id
-                            ? "bg-light-primary-red/10"
-                            : "bg-light"
-                        }`}
+                        className={`flex-row items-center p-3.5 mb-3 rounded-xl ${activeNetwork === item.id
+                          ? "bg-light-primary-red/10"
+                          : "bg-light"
+                          }`}
                         onPress={() => {
                           selectNetwork(item.id, item.blockchainId);
                           handleClose();
