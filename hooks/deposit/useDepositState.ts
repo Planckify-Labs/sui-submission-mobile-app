@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo } from "react";
-import { erc20Abi, formatUnits, parseUnits } from "viem";
+import { erc20Abi, formatUnits, maxUint256, parseUnits } from "viem";
 import type { TToken } from "@/api/types/token";
 import { useTakumiWalletContract } from "@/contracts/hooks/useTakumiWalletContract";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
@@ -24,6 +24,11 @@ interface DepositState {
   isLoading: boolean;
   transactionStatus: string;
   error?: string;
+  // App-level record of which (wallet, chain, spender, token) tuples the user
+  // has explicitly chosen to trust via the "Trust this contract" checkbox.
+  // On-chain allowance alone can't express consent — a wallet with residual
+  // allowance from a prior flow should still see the modal until it opts in.
+  trustedSpenders?: Record<string, true>;
 }
 
 const initialDepositState: DepositState = {
@@ -31,7 +36,17 @@ const initialDepositState: DepositState = {
   amount: "",
   isLoading: false,
   transactionStatus: "",
+  trustedSpenders: {},
 };
+
+function buildTrustKey(
+  walletAddress: string,
+  chainId: number,
+  spender: string,
+  tokenAddress: string,
+): string {
+  return `${walletAddress.toLowerCase()}:${chainId}:${spender.toLowerCase()}:${tokenAddress.toLowerCase()}`;
+}
 
 export function useDepositState() {
   const { data: state, setNewData: setState } = useRQGlobalState<DepositState>({
@@ -237,7 +252,69 @@ export function useDepositState() {
     updateState,
   ]);
 
-  const handleDeposit = useCallback(async () => {
+  const checkApprovalNeeded = useCallback(async (): Promise<{
+    ok: boolean;
+    needsApproval: boolean;
+  }> => {
+    if (!validateInputs()) return { ok: false, needsApproval: false };
+    if (!selectedToken || !tokenAmountNeeded || !contractAddress) {
+      return { ok: false, needsApproval: false };
+    }
+    if (!activeWallet.address) {
+      updateState({ error: "Wallet not connected" });
+      return { ok: false, needsApproval: false };
+    }
+    const trustKey = buildTrustKey(
+      activeWallet.address,
+      activeChain.chain.id,
+      contractAddress,
+      selectedToken.contractAddress,
+    );
+    const isTrusted = !!state?.trustedSpenders?.[trustKey];
+    // Until the user explicitly trusts this spender for this wallet, always
+    // prompt — on-chain allowance alone is not consent and residual allowance
+    // from prior flows must not silently skip the modal.
+    if (!isTrusted) {
+      return { ok: true, needsApproval: true };
+    }
+    const publicClient = getPublicClientForActiveChain();
+    if (!publicClient) {
+      updateState({ error: "Wallet not connected" });
+      return { ok: false, needsApproval: false };
+    }
+    try {
+      const currentAllowance = (await publicClient.readContract({
+        address: selectedToken.contractAddress as `0x${string}`,
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [
+          activeWallet.address as `0x${string}`,
+          contractAddress,
+        ],
+      })) as bigint;
+      return {
+        ok: true,
+        needsApproval: currentAllowance < tokenAmountNeeded.raw,
+      };
+    } catch (err) {
+      updateState({ error: "Could not read token allowance." });
+      return { ok: false, needsApproval: false };
+    }
+  }, [
+    validateInputs,
+    selectedToken,
+    tokenAmountNeeded,
+    contractAddress,
+    getPublicClientForActiveChain,
+    activeWallet.address,
+    activeChain.chain.id,
+    state?.trustedSpenders,
+    updateState,
+  ]);
+
+  const handleDeposit = useCallback(async (options?: {
+    approvalMode?: "exact" | "unlimited";
+  }) => {
     // Redirect to auth if not signed in
     if (!isAuthenticated) {
       router.push("/auth");
@@ -280,8 +357,44 @@ export function useDepositState() {
         args: [walletClient.account.address, contractAddress],
       });
 
-      // Step 2: Approve if needed
-      if (currentAllowance < tokenAmountNeeded.raw) {
+      // Persist the user's trust choice so future deposits from this wallet
+      // can skip the modal when on-chain allowance is still sufficient.
+      if (options?.approvalMode === "unlimited") {
+        const trustKey = buildTrustKey(
+          activeWallet.address,
+          activeChain.chain.id,
+          contractAddress,
+          selectedToken.contractAddress,
+        );
+        updateState({
+          trustedSpenders: {
+            ...(state?.trustedSpenders ?? {}),
+            [trustKey]: true,
+          },
+        });
+      }
+
+      // Step 2: Decide the approve target.
+      //
+      // ERC-20 `approve(spender, value)` overwrites the current allowance
+      // (EIP-20), so when the user explicitly picks a mode we always write
+      // that exact value — "exact" can therefore reduce a residual
+      // unlimited allowance down to just the amount this deposit needs.
+      // Without an explicit mode (trusted + allowance sufficient path), we
+      // only top up when the current allowance falls short.
+      let approvalAmount: bigint | null = null;
+      if (options?.approvalMode === "unlimited") {
+        approvalAmount = currentAllowance === maxUint256 ? null : maxUint256;
+      } else if (options?.approvalMode === "exact") {
+        approvalAmount =
+          currentAllowance === tokenAmountNeeded.raw
+            ? null
+            : tokenAmountNeeded.raw;
+      } else if (currentAllowance < tokenAmountNeeded.raw) {
+        approvalAmount = tokenAmountNeeded.raw;
+      }
+
+      if (approvalAmount !== null) {
         updateState({
           isLoading: true,
           transactionStatus: "Approving token spend...",
@@ -291,7 +404,7 @@ export function useDepositState() {
           address: selectedToken.contractAddress as `0x${string}`,
           abi: erc20Abi,
           functionName: "approve",
-          args: [contractAddress, tokenAmountNeeded.raw],
+          args: [contractAddress, approvalAmount],
           chain: walletClient.chain,
           account: walletClient.account,
         });
@@ -376,6 +489,7 @@ export function useDepositState() {
     tokenAmountNeeded,
     activeBackendChain,
     activeWallet,
+    activeChain.chain.id,
     depositPoints,
     submitDeposit,
     waitForTransaction,
@@ -384,6 +498,7 @@ export function useDepositState() {
     amount,
     updateState,
     isAuthenticated,
+    state?.trustedSpenders,
   ]);
 
   const resetState = useCallback(() => {
@@ -403,6 +518,8 @@ export function useDepositState() {
     isAuthenticated,
     hasContract: !!contractAddress,
     isContractFetching,
+    contractAddress,
+    smartContract,
     // Balances
     nativeBalance,
     nativeBalanceFormatted,
@@ -415,6 +532,7 @@ export function useDepositState() {
     setAmount,
     setQuickAmount,
     handleDeposit,
+    checkApprovalNeeded,
     resetState,
   };
 }

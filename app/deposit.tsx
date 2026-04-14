@@ -20,6 +20,7 @@ import DepositUnsupportedChainModal from "@/components/common/DepositUnsupported
 import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import PinConfirmationModal from "@/components/common/PinConfirmationModal";
 import SingleLoadingSekeleton from "@/components/common/SingleLoadingSekeleton";
+import SpendingApprovalModal from "@/components/common/SpendingApprovalModal";
 import {
   AmountInputSection,
   DepositButton,
@@ -55,6 +56,7 @@ function DepositContent({ bottomOffset }: DepositContentProps) {
     isAuthenticated,
     hasContract,
     isContractFetching,
+    contractAddress,
     nativeBalanceFormatted,
     tokenBalanceFormatted,
     hasInsufficientNative,
@@ -64,6 +66,7 @@ function DepositContent({ bottomOffset }: DepositContentProps) {
     setAmount,
     setQuickAmount,
     handleDeposit,
+    checkApprovalNeeded,
   } = useDepositState();
 
   const chainSelectorRef = useRef<ChainSelectorRef>(null);
@@ -71,6 +74,7 @@ function DepositContent({ bottomOffset }: DepositContentProps) {
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [tokenModalVisible, setTokenModalVisible] = useState(false);
   const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [approvalModalVisible, setApprovalModalVisible] = useState(false);
   const [unsupportedChainModalVisible, setUnsupportedChainModalVisible] =
     useState(false);
 
@@ -100,18 +104,34 @@ function DepositContent({ bottomOffset }: DepositContentProps) {
     [setSelectedToken],
   );
 
-  const handleDepositPress = useCallback(() => {
+  const handleDepositPress = useCallback(async () => {
     if (isAuthenticated === false) {
       handleDeposit(); // redirects to /auth
       return;
     }
-    setPinModalVisible(true);
-  }, [isAuthenticated, handleDeposit]);
+    const preflight = await checkApprovalNeeded();
+    if (!preflight.ok) return;
+    if (preflight.needsApproval) {
+      setApprovalModalVisible(true);
+    } else {
+      setPinModalVisible(true);
+    }
+  }, [isAuthenticated, handleDeposit, checkApprovalNeeded]);
 
   const handlePinSubmit = useCallback(
     async (_pin: string) => {
       setPinModalVisible(false);
       await handleDeposit();
+    },
+    [handleDeposit],
+  );
+
+  const handleApprovalConfirm = useCallback(
+    async (isUnlimited?: boolean) => {
+      setApprovalModalVisible(false);
+      await handleDeposit({
+        approvalMode: isUnlimited ? "unlimited" : "exact",
+      });
     },
     [handleDeposit],
   );
@@ -268,6 +288,20 @@ function DepositContent({ bottomOffset }: DepositContentProps) {
         onConfirm={handlePinSubmit}
         title="Confirm Deposit"
       />
+
+      {selectedToken && contractAddress && tokenAmountNeeded && (
+        <SpendingApprovalModal
+          visible={approvalModalVisible}
+          onClose={() => setApprovalModalVisible(false)}
+          onApprove={handleApprovalConfirm}
+          onCancel={() => setApprovalModalVisible(false)}
+          token={selectedToken}
+          spenderAddress={contractAddress}
+          amount={tokenAmountNeeded.raw.toString()}
+          spenderName="Takumi Wallet"
+          isInternalContract
+        />
+      )}
 
       <DepositUnsupportedChainModal
         visible={unsupportedChainModalVisible}

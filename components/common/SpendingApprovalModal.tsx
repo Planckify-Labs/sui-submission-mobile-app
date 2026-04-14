@@ -57,6 +57,9 @@ const SpendingApprovalModal: React.FC<SpendingApprovalModalProps> = ({
 
   useEffect(() => {
     if (visible) {
+      // Reset trust checkbox to unchecked each time the modal opens so a
+      // previously-selected "trust" doesn't silently carry over.
+      setUnlimitedAllowance(false);
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
