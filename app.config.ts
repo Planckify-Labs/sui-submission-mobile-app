@@ -21,24 +21,22 @@ const getScheme = () => {
   return "takumiwallet";
 };
 
-// TWV-2026-055 — EAS Update code signing is REQUIRED in production.
-// The production channel's private signing key lives in AWS KMS (or an
-// HSM); the CI role is sign-only. Two-person approval is enforced via
-// the KMS IAM policy. See `docs/runbooks/eas-update-signing.md` for the
-// ceremony. Do NOT inline the private key anywhere in this file, the
-// repo, or CI env vars. A checked-in private key is an emergency.
+// TODO(TWV-2026-055) — EAS Update code signing is DEFERRED.
+// The original plan (see `docs/runbooks/eas-update-signing.md`) wires the
+// production OTA channel to an AWS KMS-backed signing key with two-person
+// approval so the client can refuse tampered update manifests. The public
+// cert was never produced, so the signing block is disabled to unblock
+// shipping. Before EAS Update is actually used in production, run the
+// key ceremony, commit `certs/eas-update-prod.pem`, bump the
+// `keyid` below to the rotation month, and re-enable the block in the
+// `updates` config. Until then, OTA updates are NOT cryptographically
+// verified — treat `eas update` as off-limits for the production channel.
 //
-// The public certificate + metadata below are referenced per the Expo
-// docs: https://docs.expo.dev/eas-update/code-signing/. The bundle
-// refuses any manifest whose signature does not verify against the
-// shipped certificate; client-side additionally rejects non-monotonic
-// timestamps (see `services/security/updateVerifier.ts`).
-
-const CODE_SIGNING_CERTIFICATE = "./certs/eas-update-prod.pem";
-const CODE_SIGNING_METADATA = {
-  keyid: "eas-update-prod-2026",
-  alg: "rsa-v1_5-sha256",
-} as const;
+// const CODE_SIGNING_CERTIFICATE = "./certs/eas-update-prod.pem";
+// const CODE_SIGNING_METADATA = {
+//   keyid: "eas-update-prod-2026",
+//   alg: "rsa-v1_5-sha256",
+// } as const;
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -48,15 +46,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   runtimeVersion: { policy: "fingerprint" },
   updates: {
     fallbackToCacheTimeout: 0,
-    // Only the production binary requires code signing. Dev / Preview
-    // build without signing so engineers can still iterate, but those
-    // variants are never shipped to end users.
-    ...(IS_DEV || IS_PREVIEW
-      ? {}
-      : {
-          codeSigningCertificate: CODE_SIGNING_CERTIFICATE,
-          codeSigningMetadata: CODE_SIGNING_METADATA,
-        }),
+    // TODO(TWV-2026-055) — re-enable once the signing cert is committed:
+    // ...(IS_DEV || IS_PREVIEW
+    //   ? {}
+    //   : {
+    //       codeSigningCertificate: CODE_SIGNING_CERTIFICATE,
+    //       codeSigningMetadata: CODE_SIGNING_METADATA,
+    //     }),
   },
   orientation: "portrait",
   icon: "./assets/images/takumipay-logo.png",
