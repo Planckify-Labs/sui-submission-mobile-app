@@ -113,7 +113,9 @@ function HistoricalReceipt({
 
   const isFailed = state === "output-error" || output.status === "failed";
   const transactionId =
-    typeof output.transaction_id === "string" ? output.transaction_id : undefined;
+    typeof output.transaction_id === "string"
+      ? output.transaction_id
+      : undefined;
   const onViewDetails = () => {
     if (!transactionId) return;
     router.push(`/activity-detail?transferId=${transactionId}`);

@@ -30,7 +30,23 @@ export async function loadWalletsFromStorage(): Promise<TWallet[]> {
     });
 
     const results = await Promise.all(walletPromises);
-    cachedWallets = results.filter(Boolean) as TWallet[];
+    const loaded = results.filter(Boolean) as TWallet[];
+
+    // Namespace backfill — wallets saved before the multi-chain refactor
+    // don't carry `namespace`. Everything on record predates non-EVM support
+    // so stamping "eip155" is safe. Persist back once so the next boot is a
+    // pure read.
+    let needsPersist = false;
+    for (const w of loaded) {
+      if (!w.namespace) {
+        w.namespace = "eip155";
+        needsPersist = true;
+      }
+    }
+    cachedWallets = loaded;
+    if (needsPersist) {
+      void saveWalletsToStorage(loaded);
+    }
 
     return [...cachedWallets];
   } catch (error) {

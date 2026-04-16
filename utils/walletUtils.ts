@@ -30,6 +30,7 @@ export function createWalletFromPrivateKey(
     balance: "0",
     source: "Imported",
     type: "PrivateKey",
+    namespace: "eip155",
   };
 }
 
@@ -47,6 +48,7 @@ export function createWalletFromMnemonic(
     balance: "0",
     source: "Created",
     type: "SeedPhrase",
+    namespace: "eip155",
   };
 }
 
@@ -69,6 +71,7 @@ export function createWalletFromParams(
       balance: "0",
       source: "Social",
       type: "Social",
+      namespace: "eip155",
       socialAccount: {
         provider: params.provider || "Unknown",
         email: params.socialAccount?.email || "",

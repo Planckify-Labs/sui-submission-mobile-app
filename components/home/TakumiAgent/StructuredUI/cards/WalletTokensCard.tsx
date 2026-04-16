@@ -64,7 +64,8 @@ function formatBalance(display: string | undefined): string {
   const num = Number(display);
   if (!Number.isFinite(num)) return display;
   if (num === 0) return "0";
-  if (num >= 1) return num.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  if (num >= 1)
+    return num.toLocaleString(undefined, { maximumFractionDigits: 4 });
   // Small balances: keep up to 6 significant digits.
   return num.toLocaleString(undefined, { maximumSignificantDigits: 6 });
 }
@@ -126,7 +127,10 @@ function TokenRowItem({ token }: { token: TokenRow }) {
         >
           {token.symbol ?? "—"}
           {token.is_native ? (
-            <Text className="text-[10px] text-gray-500 font-normal"> · native</Text>
+            <Text className="text-[10px] text-gray-500 font-normal">
+              {" "}
+              · native
+            </Text>
           ) : null}
         </Text>
         {token.name ? (
@@ -234,7 +238,10 @@ const WalletTokensCard: React.FC<
       ? [{ chain_id: payload.chain_id, tokens: payload.tokens }]
       : [];
 
-  const totalTokens = groups.reduce((sum, g) => sum + (g.tokens?.length ?? 0), 0);
+  const totalTokens = groups.reduce(
+    (sum, g) => sum + (g.tokens?.length ?? 0),
+    0,
+  );
   const anyBalance = groups.some((g) => hasAnyBalance(g.tokens ?? []));
 
   return (
@@ -258,7 +265,8 @@ const WalletTokensCard: React.FC<
           Balances will appear once the wallet has funds on this chain.
         </Text>
       ) : null}
-      {Array.isArray(payload.chain_errors) && payload.chain_errors.length > 0 ? (
+      {Array.isArray(payload.chain_errors) &&
+      payload.chain_errors.length > 0 ? (
         <View className="mt-2 rounded-xl bg-light-primary-red/5 border border-light-primary-red/20 px-2.5 py-1.5">
           <Text className="text-[10px] uppercase tracking-wide text-light-primary-red font-bold">
             Couldn't reach {payload.chain_errors.length} chain(s)

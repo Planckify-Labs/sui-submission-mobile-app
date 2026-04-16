@@ -1144,11 +1144,7 @@ export default function AgentMode() {
   const listFooterComponent = useMemo(() => {
     const hasRetryableError = retryableError !== null;
     const hasNonRetryableError = nonRetryableError !== null;
-    if (
-      !isLoading &&
-      !hasRetryableError &&
-      !hasNonRetryableError
-    ) {
+    if (!isLoading && !hasRetryableError && !hasNonRetryableError) {
       return null;
     }
 

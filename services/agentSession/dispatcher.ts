@@ -72,7 +72,9 @@ export async function handleToolPending(
       state: "input-available",
     });
   } catch (err) {
-    console.warn(`[agentSession] upsertToolPart(pending) threw: ${String(err)}`);
+    console.warn(
+      `[agentSession] upsertToolPart(pending) threw: ${String(err)}`,
+    );
   }
 
   const wallet = getConnectedWallet(session);

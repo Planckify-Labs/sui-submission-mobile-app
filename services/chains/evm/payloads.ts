@@ -1,0 +1,106 @@
+import type { AccessList, TypedDataDefinition } from "viem";
+
+export type EvmConnectPayload = {
+  requestedAccounts: number;
+  chainId: number;
+};
+
+export type EvmSignMessagePayload = {
+  message: string;
+  display: "utf8" | "hex";
+  address: `0x${string}`;
+};
+
+export type EvmSignTypedDataPayload = {
+  typedData: TypedDataDefinition;
+  address: `0x${string}`;
+  method: "eth_signTypedData" | "eth_signTypedData_v3" | "eth_signTypedData_v4";
+};
+
+type EvmTxCommon = {
+  to: `0x${string}`;
+  from: `0x${string}`;
+  value?: bigint;
+  data?: `0x${string}`;
+  gas?: bigint;
+  nonce?: number;
+  chainId: number;
+};
+
+export type EvmSendTxPayload =
+  | (EvmTxCommon & { type: 0; gasPrice?: bigint })
+  | (EvmTxCommon & { type: 1; gasPrice?: bigint; accessList?: AccessList })
+  | (EvmTxCommon & {
+      type: 2;
+      maxFeePerGas?: bigint;
+      maxPriorityFeePerGas?: bigint;
+      accessList?: AccessList;
+    });
+
+export type EvmSwitchChainPayload = { chainId: number };
+
+export type EvmAddChainPayload = {
+  chainId: number;
+  chainName: string;
+  nativeCurrency: { name: string; symbol: string; decimals: number };
+  rpcUrls: string[];
+  blockExplorerUrls?: string[];
+  iconUrls?: string[];
+};
+
+export type EvmWatchAssetPayload =
+  | {
+      standard: "ERC20";
+      address: `0x${string}`;
+      symbol: string;
+      decimals: number;
+      image?: string;
+      chainId: number;
+    }
+  | {
+      standard: "ERC721" | "ERC1155";
+      address: `0x${string}`;
+      tokenId?: string;
+      symbol?: string;
+      image?: string;
+      chainId: number;
+    };
+
+export type EvmBatchCallsPayload = {
+  version: "1.0";
+  chainId: number;
+  from: `0x${string}`;
+  calls: Array<{
+    to: `0x${string}`;
+    value?: bigint;
+    data?: `0x${string}`;
+    gas?: bigint;
+  }>;
+  capabilities?: Record<string, unknown>;
+};
+
+export type EvmAuthorizationPayload = {
+  delegator: `0x${string}`;
+  chainId: number;
+  nonce: number;
+  expiresAt?: number;
+};
+
+export type GasEstimate = {
+  dApp: {
+    gas?: bigint;
+    maxFeePerGas?: bigint;
+    maxPriorityFeePerGas?: bigint;
+    gasPrice?: bigint;
+  };
+  wallet: {
+    gas: bigint;
+    maxFeePerGas?: bigint;
+    maxPriorityFeePerGas?: bigint;
+    gasPrice?: bigint;
+  };
+  recommended: "wallet" | "dApp";
+  rationale: string;
+};
+
+export type FeeSource = "native" | "sponsored" | { erc20: `0x${string}` };
