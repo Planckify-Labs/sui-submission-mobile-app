@@ -10,9 +10,86 @@ import "fastestsmallesttextencoderdecoder";
 // the TextEncoder/TextDecoder shim, and BEFORE any `@solana/kit` import.
 // Hermes' WebCrypto ships without Ed25519; without this shim,
 // `subtle.generateKey({name:'Ed25519'}, …)` throws at runtime and the
-// Solana signing path silently breaks TWV-2026-046 parity. Enforced by
-// the self-check below.
-import "@solana/webcrypto-ed25519-polyfill";
+// Solana signing path silently breaks TWV-2026-046 parity.
+//
+// `@noble/ed25519` (the hash backend the polyfill uses) calls
+// `crypto.subtle.digest('SHA-512', …)` via its `etc.sha512Async` hook.
+// Hermes does not implement `subtle.digest`, so we install a pure-JS
+// SHA-512 (@noble/hashes) BEFORE the polyfill is called. Any later
+// mutation of `etc.sha512Async` would silently re-introduce the
+// `subtle.digest` dependency, so reviewers should catch edits that
+// drop this block.
+import * as ed25519 from "@noble/ed25519";
+import { sha512 } from "@noble/hashes/sha2";
+ed25519.etc.sha512Async = async (...messages: Uint8Array[]) => {
+  let total = 0;
+  for (const m of messages) total += m.length;
+  const joined = new Uint8Array(total);
+  let off = 0;
+  for (const m of messages) {
+    joined.set(m, off);
+    off += m.length;
+  }
+  return sha512(joined);
+};
+ed25519.etc.sha512Sync = (...messages: Uint8Array[]) => {
+  let total = 0;
+  for (const m of messages) total += m.length;
+  const joined = new Uint8Array(total);
+  let off = 0;
+  for (const m of messages) {
+    joined.set(m, off);
+    off += m.length;
+  }
+  return sha512(joined);
+};
+
+// The react-native entry of this package does NOT auto-install — it
+// only exports `install()`. Call it explicitly here so the polyfill
+// actually runs. Enforced by the self-check below.
+import { install as installEd25519Polyfill } from "@solana/webcrypto-ed25519-polyfill";
+installEd25519Polyfill();
+
+// The v2.0.0 polyfill compares `algorithm !== "Ed25519"` with strict
+// string equality, but `@solana/keys` (and Firefox) pass the algorithm
+// as `{ name: "Ed25519" }` per the WebCrypto spec. When the object
+// form is used, the polyfill skips its Ed25519 branch, falls through
+// to the native `generateKey`/`importKey` — which doesn't exist on
+// Hermes — and throws `TypeError: No native ... function exists`.
+// Normalise the algorithm argument to the string form the polyfill
+// expects so both call styles reach the polyfill's implementation.
+(() => {
+  const subtle = (globalThis.crypto as Crypto | undefined)?.subtle as
+    | (SubtleCrypto & {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        generateKey: (...args: any[]) => Promise<any>;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        importKey: (...args: any[]) => Promise<any>;
+      })
+    | undefined;
+  if (!subtle) return;
+  const normalizeAlg = (algorithm: unknown): unknown => {
+    if (
+      algorithm &&
+      typeof algorithm === "object" &&
+      "name" in (algorithm as Record<string, unknown>) &&
+      (algorithm as { name: unknown }).name === "Ed25519"
+    ) {
+      return "Ed25519";
+    }
+    return algorithm;
+  };
+  const origGenerateKey = subtle.generateKey.bind(subtle);
+  subtle.generateKey = (algorithm: unknown, ...rest: unknown[]) =>
+    origGenerateKey(normalizeAlg(algorithm), ...rest);
+  const origImportKey = subtle.importKey.bind(subtle);
+  subtle.importKey = (
+    format: unknown,
+    keyData: unknown,
+    algorithm: unknown,
+    ...rest: unknown[]
+  ) => origImportKey(format, keyData, normalizeAlg(algorithm), ...rest);
+})();
 
 if (typeof globalThis.crypto?.getRandomValues !== "function") {
   // Fail loud. A missing CSPRNG at boot is a seed-entropy incident —

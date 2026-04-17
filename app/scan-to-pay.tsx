@@ -11,6 +11,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  isValidSolanaAddress,
+} from "@/utils/walletUtils";
 
 export default function ScanToPay() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -29,21 +32,35 @@ export default function ScanToPay() {
     if (scanned) return;
 
     setScanned(true);
-    const dataFromBarCode = result.data;
-    console.log("Scanned data:", dataFromBarCode);
+    // Strip common URI prefixes used by wallet QR codes so the raw
+    // address regex matches. `solana:<addr>?...` is the Solana Pay
+    // convention; EVM wallets sometimes use `ethereum:<addr>@<chainId>`.
+    const raw = result.data.trim();
+    const withoutScheme = raw
+      .replace(/^solana:/i, "")
+      .replace(/^ethereum:/i, "")
+      .split("?")[0]
+      .split("@")[0];
 
     const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
-    if (ethAddressRegex.test(dataFromBarCode)) {
+    if (ethAddressRegex.test(withoutScheme)) {
       router.replace({
         pathname: "/send",
-        params: { recipientAddress: dataFromBarCode },
+        params: { recipientAddress: withoutScheme },
       });
-    } else {
-      console.error(
-        "Invalid QR Code: The scanned QR code does not contain a valid wallet address.",
-      );
-      setScanned(false);
+      return;
     }
+    if (isValidSolanaAddress(withoutScheme)) {
+      router.replace({
+        pathname: "/send",
+        params: { recipientAddress: withoutScheme },
+      });
+      return;
+    }
+    console.error(
+      "Invalid QR Code: The scanned QR code does not contain a valid wallet address.",
+    );
+    setScanned(false);
   };
 
   if (hasPermission === null) {

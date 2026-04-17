@@ -1,6 +1,6 @@
 import { router } from "expo-router";
-import { ChevronRight } from "lucide-react-native";
-import React, { useEffect, useRef } from "react";
+import { ChevronRight, KeyRound, Plus, ShieldCheck } from "lucide-react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,6 +14,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import ImportPrivateKeySheet from "@/components/wallet/create/ImportPrivateKeySheet";
+import ImportSeedPhraseSheet from "@/components/wallet/create/ImportSeedPhraseSheet";
+import { useWallet } from "@/hooks/useWallet";
 import {
   configureGoogleSignIn,
   useGoogleSignIn,
@@ -28,10 +31,51 @@ export default function Login() {
   const { height } = useWindowDimensions();
   const scrollViewRef = useRef<ScrollView>(null);
   const googleSignIn = useGoogleSignIn();
+  const { addWallets } = useWallet();
+  const [creating, setCreating] = useState(false);
+  const [seedSheetVisible, setSeedSheetVisible] = useState(false);
+  const [pkSheetVisible, setPkSheetVisible] = useState(false);
 
   // Configure Google Sign-In on mount
   useEffect(() => {
     configureGoogleSignIn();
+  }, []);
+
+  const handleCreateWallet = useCallback(async () => {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const minted = await bootstrapFirstLoginWallets();
+      if (minted.length === 0) {
+        Alert.alert("Create Failed", "Could not create a wallet. Please try again.");
+        return;
+      }
+      await addWallets(minted);
+      router.replace("/");
+    } catch (error) {
+      console.error("create wallet failed:", error);
+      Alert.alert("Create Failed", "Could not create a wallet. Please try again.");
+    } finally {
+      setCreating(false);
+    }
+  }, [creating, addWallets]);
+
+  const handleSeedWalletsAdded = useCallback(() => {
+    setSeedSheetVisible(false);
+    router.replace("/");
+  }, []);
+
+  const handlePrivateKeyWalletAdded = useCallback(
+    (_: unknown) => {
+      setPkSheetVisible(false);
+      router.replace("/");
+    },
+    [],
+  );
+
+  const handleImportSeedPhraseInstead = useCallback(() => {
+    setPkSheetVisible(false);
+    setSeedSheetVisible(true);
   }, []);
 
   const handleGoogleSignIn = async () => {
@@ -116,14 +160,14 @@ export default function Login() {
               </Text>
             </View>
 
-            <View className="bg-light rounded-3xl p-6 shadow-md- mb-8">
+            <View className="bg-light rounded-3xl p-6 shadow-md- mb-4">
               <Text className="text-light-matte-black/80 font-medium mb-4">
                 GET STARTED
               </Text>
 
               <TouchableOpacity
                 activeOpacity={0.7}
-                className="bg-light border border-light-matte-black/10 py-4 px-5 rounded-xl flex-row items-center justify-between"
+                className="bg-light border border-light-matte-black/10 py-4 px-5 rounded-xl flex-row items-center justify-between mb-3"
                 onPress={handleGoogleSignIn}
                 disabled={googleSignIn.isPending}
               >
@@ -146,6 +190,77 @@ export default function Login() {
                 </View>
                 <ChevronRight color="#20222c" size={18} />
               </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                className="bg-light-primary-red py-4 px-5 rounded-xl flex-row items-center justify-between"
+                onPress={handleCreateWallet}
+                disabled={creating}
+              >
+                <View className="flex-row items-center">
+                  <View className="w-11 h-11 bg-light/20 rounded-full items-center justify-center mr-3">
+                    {creating ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <Plus color="#ffffff" size={20} />
+                    )}
+                  </View>
+                  <Text className="text-light font-semibold">
+                    {creating ? "Creating wallet…" : "Create New Wallet"}
+                  </Text>
+                </View>
+                <ChevronRight color="#ffffff" size={18} />
+              </TouchableOpacity>
+            </View>
+
+            <View className="bg-light rounded-3xl p-6 shadow-md- mb-8">
+              <Text className="text-light-matte-black/80 font-medium mb-4">
+                IMPORT EXISTING WALLET
+              </Text>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                className="bg-light border border-light-matte-black/10 py-4 px-5 rounded-xl flex-row items-center justify-between mb-3"
+                onPress={() => setSeedSheetVisible(true)}
+                disabled={creating}
+              >
+                <View className="flex-row items-center">
+                  <View className="w-11 h-11 bg-light-primary-red/10 rounded-full items-center justify-center mr-3">
+                    <ShieldCheck color="#c71c4b" size={20} />
+                  </View>
+                  <View>
+                    <Text className="text-light-matte-black font-medium">
+                      Import Seed Phrase
+                    </Text>
+                    <Text className="text-light-matte-black/50 text-xs">
+                      12 or 24 words — derives every chain
+                    </Text>
+                  </View>
+                </View>
+                <ChevronRight color="#20222c" size={18} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                className="bg-light border border-light-matte-black/10 py-4 px-5 rounded-xl flex-row items-center justify-between"
+                onPress={() => setPkSheetVisible(true)}
+                disabled={creating}
+              >
+                <View className="flex-row items-center">
+                  <View className="w-11 h-11 bg-light-primary-red/10 rounded-full items-center justify-center mr-3">
+                    <KeyRound color="#c71c4b" size={20} />
+                  </View>
+                  <View>
+                    <Text className="text-light-matte-black font-medium">
+                      Import Private Key
+                    </Text>
+                    <Text className="text-light-matte-black/50 text-xs">
+                      One chain — EVM or Solana
+                    </Text>
+                  </View>
+                </View>
+                <ChevronRight color="#20222c" size={18} />
+              </TouchableOpacity>
             </View>
 
             <View className="items-center mt-auto">
@@ -156,6 +271,18 @@ export default function Login() {
             </View>
           </View>
         </ScrollView>
+
+        <ImportSeedPhraseSheet
+          visible={seedSheetVisible}
+          onClose={() => setSeedSheetVisible(false)}
+          onWalletsAdded={handleSeedWalletsAdded}
+        />
+        <ImportPrivateKeySheet
+          visible={pkSheetVisible}
+          onClose={() => setPkSheetVisible(false)}
+          onWalletAdded={handlePrivateKeyWalletAdded}
+          onImportSeedPhraseInstead={handleImportSeedPhraseInstead}
+        />
       </SafeAreaView>
     </>
   );

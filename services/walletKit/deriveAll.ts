@@ -36,19 +36,41 @@ export async function deriveWalletsFromMnemonic(
 ): Promise<TWallet[]> {
   const results: TWallet[] = [];
   for (const ns of namespaces) {
-    const kit = walletKitRegistry.get(ns);
+    let kit;
+    try {
+      kit = walletKitRegistry.get(ns);
+    } catch (err) {
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.warn(
+          `[deriveWalletsFromMnemonic] no kit registered for namespace=${ns}:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+      continue;
+    }
     const name = nameFor?.(ns);
     try {
       const wallet = await kit.createWalletFromMnemonic({
         mnemonic,
         name,
       });
-      if (wallet) results.push(wallet);
-    } catch {
-      // Fail closed for this namespace but allow partial success so a
-      // future misbehaving kit (e.g. Sui) doesn't block EVM + Solana.
-      // Intentionally no logging — the input mnemonic must never reach
-      // a console / crash-reporter sink.
+      if (wallet) {
+        results.push(wallet);
+      } else if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.warn(
+          `[deriveWalletsFromMnemonic] kit.createWalletFromMnemonic returned null for namespace=${ns}`,
+        );
+      }
+    } catch (err) {
+      // Fail closed for this namespace but allow partial success. Log
+      // only the error message (no mnemonic, no key bytes) so the root
+      // cause is visible in dev builds without leaking secret material.
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.warn(
+          `[deriveWalletsFromMnemonic] kit threw for namespace=${ns}:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
     }
   }
   return results;

@@ -8,6 +8,7 @@ import AddressDisplay from "@/components/wallet/AddressDisplay";
 import type { TWallet } from "@/constants/types/walletTypes";
 import { useWallet } from "@/hooks/useWallet";
 import { chainCacheKey } from "@/hooks/useWallet.helpers";
+import { walletKitRegistry } from "@/services/walletKit/registry";
 import { authenticateUser } from "@/utils/authUtils";
 import { copyToClipboard } from "@/utils/helperUtils";
 
@@ -39,11 +40,34 @@ export default function WalletDetails({
   // §6.2: resolve the kit for the active wallet once; every balance +
   // formatting call flows through it so this component stays
   // namespace-agnostic.
-  const { activeChain, getActiveWalletKit } = useWallet();
+  const { wallets, activeChain, getActiveWalletKit } = useWallet();
   const kit = useMemo(
     () => (wallet?.namespace ? getActiveWalletKit() : null),
     [getActiveWalletKit, wallet?.namespace],
   );
+
+  // Paired wallets = rows sharing the same seedPhrase as the active
+  // wallet. One account = N derived wallets (EVM + Solana today), so
+  // we show every paired address here. Fall back to just this wallet
+  // when seedPhrase is absent (imported private-key row).
+  const pairedWallets = useMemo(() => {
+    if (!wallet) return [] as TWallet[];
+    const seed = wallet.seedPhrase;
+    if (typeof seed !== "string" || seed.length === 0) return [wallet];
+    const group = wallets.filter((w) => w.seedPhrase === seed);
+    return group.length > 0 ? group : [wallet];
+  }, [wallet, wallets]);
+
+  const displayNameForNamespace = useCallback((ns: string | undefined) => {
+    if (!ns) return "";
+    try {
+      const k = walletKitRegistry.get(ns as never);
+      if (k.displayName) return k.displayName;
+    } catch {
+      // kit missing — fall through
+    }
+    return ns === "eip155" ? "Ethereum" : ns.charAt(0).toUpperCase() + ns.slice(1);
+  }, []);
 
   // Balance is only meaningful when the active chain's namespace
   // matches the active wallet's namespace (e.g. wallet is Solana,
@@ -143,10 +167,19 @@ export default function WalletDetails({
           </View>
         </View>
 
-        <AddressDisplay
-          address={wallet.address}
-          onCopy={() => copyToClipboard(wallet.address, "Address")}
-        />
+        {pairedWallets.map((w) => (
+          <AddressDisplay
+            key={`${w.namespace}-${w.address}`}
+            address={w.address}
+            chainLabel={displayNameForNamespace(w.namespace)}
+            onCopy={() =>
+              copyToClipboard(
+                w.address,
+                `${displayNameForNamespace(w.namespace)} Address`,
+              )
+            }
+          />
+        ))}
 
         <Suspense fallback={<LazyLoadingPlaceholder />}>
           <LazyWalletInfoDisplay

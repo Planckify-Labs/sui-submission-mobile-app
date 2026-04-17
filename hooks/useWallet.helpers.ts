@@ -11,6 +11,8 @@
 
 import type { ChainConfig } from "@/constants/configs/chainConfig";
 import type { TBlockchain } from "@/api/types/blockchain";
+import type { TWallet } from "@/constants/types/walletTypes";
+import type { Namespace } from "@/services/chains/types";
 
 /**
  * `TBlockchain` may gain a `namespace` field in a future API revision.
@@ -41,6 +43,113 @@ function resolveNamespace(b: BlockchainWithMaybeNamespace): "eip155" | "solana" 
  * here, mirroring the §7.5 "data-shape mapping" exception used by
  * `buildChainConfigFromBlockchain`.
  */
+/**
+ * An "account" is a set of TWallet rows derived from the same BIP-39
+ * mnemonic. Each row inside represents a single namespace (EVM, Solana,
+ * …). Private-key imports have no shared seed, so they collapse to a
+ * single-row account keyed by their address.
+ *
+ * The rest of the UI treats accounts — not individual wallet rows — as
+ * the unit a user selects. The active wallet row within a selected
+ * account is derived from the active chain's namespace (`walletFor`).
+ */
+export type WalletAccount = {
+  /** Stable key for React lists. Derived from the first wallet's address. */
+  id: string;
+  /** Display name with per-namespace suffixes stripped (e.g. "Main Wallet"). */
+  name: string;
+  /** Rows that belong to this account, in insertion order (EVM → Solana). */
+  wallets: TWallet[];
+};
+
+// Strip namespace-specific suffixes added by `defaultWalletNameFor`
+// (e.g. "Main Wallet · ETH" → "Main Wallet"). Falls back to the
+// original name when no known suffix is present.
+function canonicalAccountName(name: string): string {
+  return name.replace(/\s*[·•|-]\s*(ETH|SOL|SOLANA|ETHEREUM)\s*$/i, "").trim() ||
+    name;
+}
+
+/**
+ * Groups a flat wallet list into accounts. Wallets sharing a
+ * `seedPhrase` collapse into one account; non-seeded wallets (private-
+ * key imports) each form a single-row account keyed by their address.
+ * Input order is preserved.
+ */
+export function groupWalletsIntoAccounts(wallets: TWallet[]): WalletAccount[] {
+  const accountsBySeed = new Map<string, WalletAccount>();
+  const accountOrder: string[] = [];
+  const accountsById = new Map<string, WalletAccount>();
+
+  for (const w of wallets) {
+    const seed = typeof w.seedPhrase === "string" && w.seedPhrase.length > 0
+      ? w.seedPhrase
+      : null;
+    if (seed) {
+      const existing = accountsBySeed.get(seed);
+      if (existing) {
+        existing.wallets.push(w);
+        continue;
+      }
+      const id = w.address;
+      const account: WalletAccount = {
+        id,
+        name: canonicalAccountName(w.name || "Wallet"),
+        wallets: [w],
+      };
+      accountsBySeed.set(seed, account);
+      accountsById.set(id, account);
+      accountOrder.push(id);
+      continue;
+    }
+    // No seed → its own single-row account.
+    const id = w.address;
+    const account: WalletAccount = {
+      id,
+      name: canonicalAccountName(w.name || "Wallet"),
+      wallets: [w],
+    };
+    accountsById.set(id, account);
+    accountOrder.push(id);
+  }
+
+  return accountOrder
+    .map((id) => accountsById.get(id))
+    .filter((a): a is WalletAccount => !!a);
+}
+
+/**
+ * Finds the wallet row inside `account` that matches `namespace`. Falls
+ * back to the first row when no exact match exists — relevant for
+ * private-key imports whose namespace may not match the active chain.
+ */
+export function walletForNamespace(
+  account: WalletAccount,
+  namespace: Namespace,
+): TWallet {
+  return (
+    account.wallets.find((w) => w.namespace === namespace) ?? account.wallets[0]
+  );
+}
+
+/**
+ * Given a flat wallet list and an account id, returns the row that
+ * represents the account's active selection for the given namespace.
+ * Used by `setActiveAccount` to translate an account click into the
+ * correct `TWallet` index.
+ */
+export function walletIndexForAccountAndNamespace(
+  wallets: TWallet[],
+  accountId: string,
+  namespace: Namespace,
+): number {
+  const accounts = groupWalletsIntoAccounts(wallets);
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account) return -1;
+  const target = walletForNamespace(account, namespace);
+  return wallets.findIndex((w) => w.address === target.address);
+}
+
 export function chainCacheKey(chain: ChainConfig): string {
   if (chain.namespace === "eip155") {
     return `eip155:${chain.chain.id}`;

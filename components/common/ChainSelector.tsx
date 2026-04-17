@@ -85,7 +85,8 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
 
-  const { activeChain, changeActiveChain } = useWallet();
+  const { activeChain, changeActiveChain, changeActiveChainToConfig } =
+    useWallet();
   const [modalVisible, setModalVisible] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
@@ -207,17 +208,19 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
 
   const handleChainSelect = useCallback(
     async (row: ChainRowItem) => {
-      // EVM dispatch flows through the existing numeric-chainId path so
-      // the agent-busy gate inside `changeActiveChain` stays untouched.
-      // Non-EVM rows are skipped until backend `Blockchain` rows land
-      // for Solana (spec §1035 follow-up) — we still close the modal so
-      // the interaction feels responsive.
+      // EVM dispatch flows through the existing numeric-chainId path
+      // (backend blockchains feed). Solana rows aren't in the backend
+      // feed yet, so they dispatch the static `ChainConfig` directly
+      // via `changeActiveChainToConfig` — which shares the same
+      // agent-busy gate.
       if (row.namespace === "eip155" && typeof row.evmChainId === "number") {
         await changeActiveChain(row.evmChainId);
+      } else {
+        await changeActiveChainToConfig(row.config);
       }
       closeModal();
     },
-    [changeActiveChain, closeModal],
+    [changeActiveChain, changeActiveChainToConfig, closeModal],
   );
 
   const openModal = useCallback(() => {

@@ -181,7 +181,14 @@ export async function createSolanaWalletFromMnemonic(
   mnemonic: string,
   name?: string,
 ): Promise<TWallet | null> {
-  if (!isValidMnemonic(mnemonic)) return null;
+  if (!isValidMnemonic(mnemonic)) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn(
+        "[createSolanaWalletFromMnemonic] isValidMnemonic rejected input (word count / wordlist)",
+      );
+    }
+    return null;
+  }
   try {
     const seed = mnemonicToSolanaPrivateKey(mnemonic);
     const keyPair = await createKeyPairFromPrivateKeyBytes(seed, false);
@@ -202,7 +209,13 @@ export async function createSolanaWalletFromMnemonic(
         derivationPath: DEFAULT_SOLANA_PATH,
       },
     };
-  } catch {
+  } catch (err) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn(
+        "[createSolanaWalletFromMnemonic] derivation threw:",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
     return null;
   }
 }

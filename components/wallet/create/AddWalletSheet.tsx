@@ -40,6 +40,7 @@ import React, {
   useState,
 } from "react";
 import {
+  ActivityIndicator,
   Animated,
   BackHandler,
   Dimensions,
@@ -53,7 +54,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { TWallet } from "@/constants/types/walletTypes";
-import CreateWalletSheet from "./CreateWalletSheet";
+import { useWallet } from "@/hooks/useWallet";
+import { bootstrapFirstLoginWallets } from "@/services/walletKit/bootstrap";
 import ImportPrivateKeySheet from "./ImportPrivateKeySheet";
 import ImportSeedPhraseSheet from "./ImportSeedPhraseSheet";
 import {
@@ -80,6 +82,7 @@ type PickerCardProps = {
   subtitle: string;
   onPress: () => void;
   testID?: string;
+  disabled?: boolean;
 };
 
 const PickerCard: React.FC<PickerCardProps> = memo(function PickerCard({
@@ -88,17 +91,20 @@ const PickerCard: React.FC<PickerCardProps> = memo(function PickerCard({
   subtitle,
   onPress,
   testID,
+  disabled,
 }: PickerCardProps) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={title}
       accessibilityHint={subtitle}
+      accessibilityState={{ disabled: !!disabled }}
       testID={testID}
       // min 56pt tap target → comfortably above the 44pt iOS / 48dp
       // Android floor for the whole card surface.
-      className="flex-row items-center bg-light rounded-2xl px-4 py-4 mb-3"
+      className={`flex-row items-center bg-light rounded-2xl px-4 py-4 mb-3 ${disabled ? "opacity-60" : ""}`}
     >
       <View className="w-11 h-11 rounded-full bg-light-primary-red/10 items-center justify-center mr-3">
         {icon}
@@ -122,6 +128,9 @@ const AddWalletSheet: React.FC<Props> = memo(function AddWalletSheet({
   onWalletAdded,
 }: Props) {
   const [step, setStep] = useState<AddWalletStep>("picker");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const { addWallets } = useWallet();
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 16;
 
@@ -232,13 +241,30 @@ const AddWalletSheet: React.FC<Props> = memo(function AddWalletSheet({
     setStep("picker");
   }, []);
 
-  const handleCreateWalletAdded = useCallback(
-    (wallets: TWallet[]) => {
-      onWalletAdded(wallets);
+  // "Create new wallet" → silently auto-mint one wallet per registered
+  // kit from a single CSPRNG mnemonic (spec §14.3). No seed reveal, no
+  // verify step, no namespace picker. Backup lives on wallet.tsx as a
+  // follow-up settings flow.
+  const handleCreatePressed = useCallback(async () => {
+    if (creating) return;
+    setCreateError(null);
+    setCreating(true);
+    try {
+      const minted = await bootstrapFirstLoginWallets();
+      if (minted.length === 0) {
+        setCreateError("Could not create a wallet — please try again.");
+        return;
+      }
+      await addWallets(minted);
+      onWalletAdded(minted);
+      setCreating(false);
       handleClose();
-    },
-    [onWalletAdded, handleClose],
-  );
+    } catch {
+      setCreateError("Could not create a wallet — please try again.");
+    } finally {
+      setCreating(false);
+    }
+  }, [creating, addWallets, onWalletAdded, handleClose]);
 
   const handleSeedWalletsAdded = useCallback(
     (wallets: TWallet[]) => {
@@ -261,16 +287,9 @@ const AddWalletSheet: React.FC<Props> = memo(function AddWalletSheet({
   }, []);
 
   // ── Render: mutual exclusion between picker modal and sub-sheets ──
-  if (step === "create") {
-    return (
-      <CreateWalletSheet
-        visible={visible}
-        onClose={handleSubSheetClose}
-        onWalletAdded={handleCreateWalletAdded}
-      />
-    );
-  }
-
+  // "create" is no longer a sub-sheet step — it's an inline auto-mint
+  // triggered from the picker card. Only "seed" and "pk" route to
+  // dedicated sub-sheets.
   if (step === "seed") {
     return (
       <ImportSeedPhraseSheet
@@ -347,17 +366,30 @@ const AddWalletSheet: React.FC<Props> = memo(function AddWalletSheet({
               <View className="px-4 pt-2">
                 <PickerCard
                   testID="add-wallet-card-create"
-                  icon={<Plus size={22} color="#c71c4b" />}
-                  title="Create new wallet"
-                  subtitle="Generate a fresh multi-chain wallet"
-                  onPress={() => setStep("create")}
+                  icon={
+                    creating ? (
+                      <ActivityIndicator size="small" color="#c71c4b" />
+                    ) : (
+                      <Plus size={22} color="#c71c4b" />
+                    )
+                  }
+                  title={creating ? "Creating wallet…" : "Create new wallet"}
+                  subtitle="Generates a wallet on every supported chain"
+                  onPress={handleCreatePressed}
+                  disabled={creating}
                 />
+                {createError ? (
+                  <Text className="text-light-primary-red text-xs mb-2 px-1">
+                    {createError}
+                  </Text>
+                ) : null}
                 <PickerCard
                   testID="add-wallet-card-seed"
                   icon={<ShieldCheck size={22} color="#c71c4b" />}
                   title="Import seed phrase"
                   subtitle="12 or 24 words"
                   onPress={() => setStep("seed")}
+                  disabled={creating}
                 />
                 <PickerCard
                   testID="add-wallet-card-pk"
@@ -365,6 +397,7 @@ const AddWalletSheet: React.FC<Props> = memo(function AddWalletSheet({
                   title="Import private key"
                   subtitle="One chain, one key"
                   onPress={() => setStep("pk")}
+                  disabled={creating}
                 />
               </View>
             </Animated.View>

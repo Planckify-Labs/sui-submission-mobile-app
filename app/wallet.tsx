@@ -1,13 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import {
-  AlertTriangle,
   ChevronRight,
   Info,
   Plus,
   Shield,
   Wallet as WalletIcon,
-  X,
 } from "lucide-react-native";
 import React, {
   useCallback,
@@ -39,7 +37,11 @@ import WalletDetails from "@/components/wallet/WalletDetails";
 import WalletSwitcherModal from "@/components/wallet/WalletSwitcherModal";
 import { TWallet } from "@/constants/types/walletTypes";
 import { useWallet } from "@/hooks/useWallet";
-import { chainCacheKey } from "@/hooks/useWallet.helpers";
+import {
+  chainCacheKey,
+  walletForNamespace,
+  type WalletAccount,
+} from "@/hooks/useWallet.helpers";
 
 const CARD_WIDTH = 160;
 
@@ -49,28 +51,25 @@ export default function Wallet() {
   const [refreshing, setRefreshing] = useState(false);
   const [showWalletInfo, setShowWalletInfo] = useState(false);
   const [showSwitcherModal, setShowSwitcherModal] = useState(false);
-  // Task 26 / §14.4: one sheet instance, three entry points ("+",
-  // empty-state CTA, WalletSwitcherModal's onAddWallet). Lifting
-  // visibility here so all three triggers flip the same flag.
+  // One sheet instance, three entry points ("+", empty-state CTA,
+  // WalletSwitcherModal's onAddWallet). Lifting visibility here so all
+  // three triggers flip the same flag. Backup UX moved to a separate
+  // wallet-settings flow (not prompted during creation).
   const [addWalletSheetVisible, setAddWalletSheetVisible] = useState(false);
-  // §14.3 soft backup banner: local React state only until the verify-
-  // words settings flow lands (spec Q6 / Task 26 rules). Resets each
-  // app launch — deliberate, per spec; a persisted dismissed flag would
-  // get in the way of the real UX when the verification surface ships.
-  const [bannerDismissed, setBannerDismissed] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const detailsOpacity = useRef(new Animated.Value(1)).current;
   const queryClient = useQueryClient();
 
   const {
     wallets,
+    accounts,
     activeWallet,
-    activeWalletIndex,
+    activeAccount,
     activeChain,
     isLoading,
-    setActiveWallet,
+    setActiveAccount,
     loadWallets,
-    renameWallet,
+    renameAccount,
     getActiveWalletKit,
   } = useWallet();
 
@@ -145,8 +144,8 @@ export default function Wallet() {
   // rerouted users who deleted every wallet; removed per spec so the
   // inline "Add wallet" card can greet them instead.
 
-  const handleWalletSwitch = useCallback(
-    async (index: number) => {
+  const handleAccountSwitch = useCallback(
+    async (accountId: string) => {
       Animated.sequence([
         Animated.timing(detailsOpacity, {
           toValue: 0.5,
@@ -161,46 +160,61 @@ export default function Wallet() {
       ]).start();
 
       await deferredTask(async () => {
-        setActiveWallet(index);
+        setActiveAccount(accountId);
         setShowWalletInfo(false);
       }, "Switching wallet");
     },
-    [setActiveWallet, deferredTask, detailsOpacity],
+    [setActiveAccount, deferredTask, detailsOpacity],
   );
 
-  const renderCompactWalletItem = useCallback(
-    ({ item }: { item: TWallet }) => {
-      const originalIndex = wallets.findIndex(
-        (w) => w.address === item.address,
-      );
+  // The card surface stays wallet-shaped (balance, address pill, etc.)
+  // so we render each account by picking its wallet row for the active
+  // chain namespace and overriding the name to the canonical account
+  // name (e.g. "Main Wallet" instead of "Main Wallet · ETH").
+  const renderCompactAccountItem = useCallback(
+    ({ item }: { item: WalletAccount }) => {
+      const pick = walletForNamespace(item, activeChain.namespace);
+      const display: TWallet = { ...pick, name: item.name };
+      const isActive = activeAccount?.id === item.id;
       return (
         <WalletCompactCard
-          wallet={item}
-          isActive={originalIndex === activeWalletIndex}
-          onPress={() => handleWalletSwitch(originalIndex)}
+          wallet={display}
+          isActive={isActive}
+          onPress={() => handleAccountSwitch(item.id)}
           allowRename={true}
           onRename={async (newName: string) => {
-            await renameWallet(originalIndex, newName);
+            // Rename both rows in the account in a single save so the
+            // user sees ONE biometric prompt, not one per namespace.
+            await renameAccount(item.id, newName);
             loadWallets();
           }}
         />
       );
     },
-    [wallets, activeWalletIndex, handleWalletSwitch, renameWallet, loadWallets],
+    [
+      activeChain.namespace,
+      activeAccount?.id,
+      handleAccountSwitch,
+      renameAccount,
+      loadWallets,
+    ],
   );
 
   const keyExtractor = useCallback(
-    (item: TWallet, index: number) => item.address || `wallet-${index}`,
+    (item: WalletAccount) => item.id,
     [],
   );
 
-  const displayedWallets = useMemo(() => {
-    if (wallets.length <= 3 || activeWalletIndex < 3)
-      return wallets.slice(0, 3);
-    const result = wallets.slice(0, 3);
-    result[0] = wallets[activeWalletIndex];
+  // Show at most 3 accounts in the horizontal strip, preferring the
+  // active one up front when there are more.
+  const displayedAccounts = useMemo(() => {
+    if (accounts.length <= 3) return accounts;
+    const activeIdx = accounts.findIndex((a) => a.id === activeAccount?.id);
+    if (activeIdx < 3) return accounts.slice(0, 3);
+    const result = accounts.slice(0, 3);
+    result[0] = accounts[activeIdx];
     return result;
-  }, [wallets, activeWalletIndex]);
+  }, [accounts, activeAccount?.id]);
 
   const getItemLayout = useCallback(
     (_: any, index: number) => ({
@@ -223,16 +237,6 @@ export default function Wallet() {
       </SafeAreaView>
     );
   }
-
-  // §14.3 soft banner: shown whenever any wallet carries an auto-mint
-  // `seedPhrase` that the user hasn't backed up yet. The verify-words
-  // settings flow that would flip this off is a follow-up — until then
-  // the dismiss is local state (see `bannerDismissed` above).
-  const hasUnbackedUpMnemonic = useMemo(
-    () => wallets.some((w) => typeof w.seedPhrase === "string" && w.seedPhrase.length > 0),
-    [wallets],
-  );
-  const showBackupBanner = hasUnbackedUpMnemonic && !bannerDismissed;
 
   // Empty-state render (§14.4) — no auto-redirect. Users who have
   // deleted every wallet land here and see an inline CTA that opens the
@@ -320,29 +324,6 @@ export default function Wallet() {
             />
           }
         >
-          {showBackupBanner && (
-            <View className="mx-4 mt-2 mb-3 bg-light-primary-red/10 border border-light-primary-red/20 rounded-2xl px-4 py-3 flex-row items-center">
-              <View className="w-8 h-8 rounded-full bg-light-primary-red/15 items-center justify-center mr-3">
-                <AlertTriangle size={16} color="#c71c4b" />
-              </View>
-              <Text
-                className="flex-1 text-light-matte-black text-sm font-medium"
-                numberOfLines={2}
-              >
-                Back up your recovery phrase
-              </Text>
-              <TouchableOpacity
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Dismiss backup banner"
-                onPress={() => setBannerDismissed(true)}
-                className="w-7 h-7 items-center justify-center ml-2"
-              >
-                <X size={16} color="#20222c" />
-              </TouchableOpacity>
-            </View>
-          )}
-
           <View className="mb-6 mx-4">
             <View className="flex-row items-center justify-between mb-2">
               <Text
@@ -366,15 +347,16 @@ export default function Wallet() {
               </TouchableOpacity>
             </View>
             <Text className="text-light-matte-black/50 text-sm">
-              You have {wallets.length} wallets
+              You have {accounts.length}{" "}
+              {accounts.length === 1 ? "account" : "accounts"}
             </Text>
           </View>
 
           <View className="mb-4">
             <FlatList
               ref={flatListRef}
-              data={displayedWallets}
-              renderItem={renderCompactWalletItem}
+              data={displayedAccounts}
+              renderItem={renderCompactAccountItem}
               keyExtractor={keyExtractor}
               getItemLayout={getItemLayout}
               horizontal
@@ -407,13 +389,13 @@ export default function Wallet() {
               </View>
               <View className="flex-1">
                 <Text className="text-light-matte-black/50 text-xs mb-0.5">
-                  Active Wallet
+                  Active Account
                 </Text>
                 <Text
                   className="text-light-matte-black font-semibold text-base"
                   numberOfLines={1}
                 >
-                  {activeWallet.name}
+                  {activeAccount?.name ?? activeWallet.name}
                 </Text>
                 <Text
                   className="text-light-matte-black/60 text-xs mt-0.5"
@@ -521,9 +503,25 @@ export default function Wallet() {
         <WalletSwitcherModal
           visible={showSwitcherModal}
           onClose={() => setShowSwitcherModal(false)}
-          wallets={wallets}
-          activeWalletIndex={activeWalletIndex}
-          onSelectWallet={handleWalletSwitch}
+          // Feed the switcher one representative row per account so it
+          // renders accounts, not raw EVM/Solana pairs. The row's name
+          // is the canonical account name; the address matches the
+          // active chain's namespace. Selecting by list index maps back
+          // to the matching account id.
+          wallets={accounts.map((a) => {
+            const pick = walletForNamespace(a, activeChain.namespace);
+            return { ...pick, name: a.name };
+          })}
+          activeWalletIndex={
+            accounts.findIndex((a) => a.id === activeAccount?.id) >= 0
+              ? accounts.findIndex((a) => a.id === activeAccount?.id)
+              : 0
+          }
+          onSelectWallet={(index: number) => {
+            const target = accounts[index];
+            if (!target) return;
+            handleAccountSwitch(target.id);
+          }}
           onAddWallet={() => {
             // Close the switcher first so the sheet doesn't stack on
             // top of another modal — WalletSwitcherModal already calls

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Alert, InteractionManager } from "react-native";
 import type { Account, PublicClient, WalletClient } from "viem";
 import { usePerformance } from "@/components/providers/PerformanceProvider";
@@ -15,12 +15,20 @@ import type {
 } from "@/constants/types/walletTypes";
 import { useAgentBusy } from "@/hooks/useAgentBusy";
 import { storage } from "@/lib/storage/mmkv";
+import type { Namespace } from "@/services/chains/types";
 import * as walletService from "@/services/walletService";
+import { deriveWalletsFromMnemonic } from "@/services/walletKit/deriveAll";
 import { walletKitRegistry } from "@/services/walletKit/registry";
 import type { WalletKitAdapter } from "@/services/walletKit/types";
 import { getPublicClient, getWalletClient } from "@/utils/clients";
 import { createWalletFromParams } from "@/utils/walletUtils";
-import { buildChainConfigFromBlockchain } from "./useWallet.helpers";
+import {
+  buildChainConfigFromBlockchain,
+  groupWalletsIntoAccounts,
+  walletForNamespace,
+  walletIndexForAccountAndNamespace,
+  type WalletAccount,
+} from "./useWallet.helpers";
 import { useBlockchainsWithStorage } from "./useBlockchainsWithStorage";
 
 export function useWallet() {
@@ -67,6 +75,24 @@ export function useWallet() {
     () => wallets[activeWalletIndex] || ({} as TWallet),
     [wallets, activeWalletIndex],
   );
+
+  // Group TWallet rows derived from the same seed into a single
+  // "account" entity. UI surfaces render the grouped list; the active
+  // TWallet row inside an account is picked by the active chain's
+  // namespace (see `activeAccount` + auto-switch effect below).
+  const accounts = useMemo<WalletAccount[]>(
+    () => groupWalletsIntoAccounts(wallets),
+    [wallets],
+  );
+
+  const activeAccount = useMemo<WalletAccount | null>(() => {
+    if (!activeWallet?.address) return null;
+    return (
+      accounts.find((a) =>
+        a.wallets.some((w) => w.address === activeWallet.address),
+      ) ?? null
+    );
+  }, [accounts, activeWallet?.address]);
 
   const saveWalletsMutation = useMutation({
     mutationFn: async (updatedWallets: TWallet[]) => {
@@ -200,6 +226,22 @@ export function useWallet() {
       setActiveWalletInternal(index);
     },
     [activeWalletIndex, agentBusy, setActiveWalletInternal, wallets],
+  );
+
+  // Account-scoped setter: picks the wallet row inside the account that
+  // matches the active chain's namespace. Falls back to `setActiveWallet`
+  // so the busy-gate / chat-continuity prompts still fire when relevant.
+  const setActiveAccount = useCallback(
+    (accountId: string, opts?: { source?: "agent" | "generic" }) => {
+      const idx = walletIndexForAccountAndNamespace(
+        wallets,
+        accountId,
+        activeChain.namespace,
+      );
+      if (idx < 0) return;
+      setActiveWallet(idx, opts);
+    },
+    [wallets, activeChain.namespace, setActiveWallet],
   );
 
   const addWallet = useCallback(
@@ -382,6 +424,50 @@ export function useWallet() {
     [agentBusy, changeActiveChainInternal],
   );
 
+  // Direct ChainConfig setter — used by namespaces that aren't yet
+  // represented in the backend `blockchains` feed (e.g. Solana in
+  // v2.3; backend rows are a follow-up). Shares the same agent-busy
+  // gate so switching between EVM and Solana mid-agent-task still
+  // prompts the user.
+  const changeActiveChainToConfig = useCallback(
+    async (chain: ChainConfig): Promise<boolean> => {
+      const commit = async () => {
+        try {
+          await setActiveChainMutation.mutateAsync(chain);
+          return true;
+        } catch (error) {
+          console.error("Failed to set active chain from config:", error);
+          return false;
+        }
+      };
+      if (!agentBusy.isBusy) return commit();
+      return new Promise<boolean>((resolve) => {
+        Alert.alert(
+          "Takumi Agent is working",
+          agentBusy.copy ??
+            "An agent task is in progress. Switching chain will cancel it.",
+          [
+            {
+              text: "Keep waiting",
+              style: "cancel",
+              onPress: () => resolve(false),
+            },
+            {
+              text: "Cancel task & switch",
+              style: "destructive",
+              onPress: async () => {
+                await agentBusy.cancel();
+                resolve(await commit());
+              },
+            },
+          ],
+          { onDismiss: () => resolve(false) },
+        );
+      });
+    },
+    [agentBusy, setActiveChainMutation],
+  );
+
   const getWalletAccount = useCallback(
     async (walletIndex: number) => {
       if (walletIndex < 0 || walletIndex >= wallets.length) return null;
@@ -445,6 +531,28 @@ export function useWallet() {
     [wallets, updateWallet],
   );
 
+  // Rename every TWallet row inside an account in a SINGLE save — one
+  // biometric prompt, one write. Without this, the UI had to loop
+  // `renameWallet` per row and the user got prompted per namespace
+  // (2× for an EVM + Solana pair), with confusing intermediate state
+  // between prompts.
+  const renameAccount = useCallback(
+    async (accountId: string, newName: string): Promise<boolean> => {
+      const account = accounts.find((a) => a.id === accountId);
+      if (!account) return false;
+      const targetAddresses = new Set(
+        account.wallets.map((w) => w.address.toLowerCase()),
+      );
+      const updated = wallets.map((w) =>
+        targetAddresses.has(w.address.toLowerCase())
+          ? { ...w, name: newName }
+          : w,
+      );
+      return await saveWallets(updated);
+    },
+    [accounts, wallets, saveWallets],
+  );
+
   useEffect(() => {
     InteractionManager.runAfterInteractions(() => {
       loadWallets();
@@ -459,13 +567,92 @@ export function useWallet() {
     };
   }, [loadWallets, loadActiveChain, queryClient]);
 
+  // Phantom-style account backfill: for every mnemonic that already
+  // owns at least one wallet, ensure a wallet exists on every
+  // registered kit (EVM, Solana, …). Pre-Solana users who imported a
+  // seed on EVM will see their paired Solana address show up once.
+  //
+  // Runs at most once per hook lifetime, after wallets are loaded and
+  // quiet. Implementation notes:
+  //   - `onceRef` prevents ANY repeat, even if wallets change mid-
+  //     session (rename, add, delete). Those flows already maintain
+  //     pairing invariants themselves (addWallets de-dupes).
+  //   - `InteractionManager.runAfterInteractions` pushes the derive
+  //     + save off the first-paint critical path so touch handlers on
+  //     home don't starve while WebCrypto spins up the polyfill.
+  const backfillOnceRef = useRef(false);
+  useEffect(() => {
+    if (backfillOnceRef.current) return;
+    if (isLoading) return;
+    if (wallets.length === 0) return;
+    backfillOnceRef.current = true;
+
+    const task = InteractionManager.runAfterInteractions(async () => {
+      try {
+        const bySeed = new Map<string, Set<Namespace>>();
+        for (const w of wallets) {
+          const seed = w.seedPhrase;
+          if (typeof seed !== "string" || seed.length === 0) continue;
+          const set = bySeed.get(seed) ?? new Set<Namespace>();
+          set.add(w.namespace);
+          bySeed.set(seed, set);
+        }
+        if (bySeed.size === 0) return;
+        const registered = walletKitRegistry
+          .getAll()
+          .map((kit) => kit.namespace);
+        const derived: TWallet[] = [];
+        for (const [seed, have] of bySeed) {
+          const missing = registered.filter((ns) => !have.has(ns));
+          if (missing.length === 0) continue;
+          const minted = await deriveWalletsFromMnemonic(seed, missing);
+          derived.push(...minted);
+        }
+        if (derived.length > 0) await addWallets(derived);
+      } catch (err) {
+        if (__DEV__) console.warn("[useWallet] backfill failed:", err);
+        backfillOnceRef.current = false; // let a future load retry
+      }
+    });
+
+    return () => {
+      if (typeof task === "object" && task && "cancel" in task) {
+        (task as { cancel: () => void }).cancel();
+      }
+    };
+  }, [wallets, isLoading, addWallets]);
+
+  // Chain-scoped active wallet: when the active chain's namespace
+  // changes (or wallets update), keep `activeWallet` pointing at the
+  // row inside the current account that matches the chain's namespace.
+  // EVM ↔ Solana flips behind the scenes; the user sees one account.
+  useEffect(() => {
+    if (!activeAccount) return;
+    if (activeWallet?.namespace === activeChain.namespace) return;
+    const target = walletForNamespace(activeAccount, activeChain.namespace);
+    if (!target) return;
+    const idx = wallets.findIndex((w) => w.address === target.address);
+    if (idx < 0 || idx === activeWalletIndex) return;
+    setActiveWalletInternal(idx);
+  }, [
+    activeAccount,
+    activeChain.namespace,
+    activeWallet?.namespace,
+    wallets,
+    activeWalletIndex,
+    setActiveWalletInternal,
+  ]);
+
   return {
     wallets,
+    accounts,
     activeWallet,
+    activeAccount,
     activeWalletIndex,
     isLoading,
     activeChain,
     setActiveWallet,
+    setActiveAccount,
     loadWallets,
     saveWallets,
     addWallet,
@@ -473,11 +660,13 @@ export function useWallet() {
     updateWallet,
     removeWallet,
     changeActiveChain,
+    changeActiveChainToConfig,
     getWalletAccount,
     getClientForActiveWallet,
     getPublicClientForActiveChain,
     getActiveWalletKit,
     getKitForWallet,
     renameWallet,
+    renameAccount,
   };
 }

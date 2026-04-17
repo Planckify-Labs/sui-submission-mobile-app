@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { Copy } from "lucide-react-native";
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Animated,
   Modal,
@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ChainConfig } from "@/constants/configs/chainConfig";
 import { takumipayLogoBase64 } from "@/constants/takumipay";
 import { TWallet } from "@/constants/types/walletTypes";
+import { useWallet } from "@/hooks/useWallet";
 import { copyToClipboard } from "@/utils/helperUtils";
 import Chip from "../../common/Chip";
 
@@ -46,6 +47,58 @@ export default function RecievePaymentModal({
     return 0;
   };
   const bottomOffset = getBottomOffset();
+
+  // The Receive modal is account-scoped, not chain-scoped: if the
+  // active wallet shares a `seedPhrase` with other rows (EVM + Solana
+  // pair) we surface all of them as tabs so the user can flip the QR
+  // without leaving the sheet. Imported private-key rows collapse to a
+  // single tab since they live on one chain only.
+  const { wallets } = useWallet();
+  const pairedWallets = useMemo<TWallet[]>(() => {
+    const seed = activeWallet.seedPhrase;
+    if (typeof seed !== "string" || seed.length === 0) return [activeWallet];
+    const group = wallets.filter((w) => w.seedPhrase === seed);
+    return group.length > 0 ? group : [activeWallet];
+  }, [activeWallet, wallets]);
+
+  const [tabNamespace, setTabNamespace] = useState<string>(
+    activeChain.namespace,
+  );
+
+  // Keep the tab in sync with the paired set: if the active chain's
+  // namespace has a paired wallet, default to it; otherwise fall back
+  // to the first paired wallet's namespace.
+  useEffect(() => {
+    const match = pairedWallets.find(
+      (w) => w.namespace === activeChain.namespace,
+    );
+    setTabNamespace(
+      match ? activeChain.namespace : pairedWallets[0]?.namespace ?? activeChain.namespace,
+    );
+  }, [activeChain.namespace, pairedWallets]);
+
+  const displayWallet: TWallet =
+    pairedWallets.find((w) => w.namespace === tabNamespace) ??
+    pairedWallets[0] ??
+    activeWallet;
+
+  const tabLabelFor = (ns: string): string =>
+    ns === "eip155"
+      ? "Ethereum"
+      : ns === "solana"
+      ? "Solana"
+      : ns.charAt(0).toUpperCase() + ns.slice(1);
+
+  const chainPillLabel =
+    displayWallet.namespace === "eip155"
+      ? activeChain.namespace === "eip155"
+        ? activeChain.chain.name
+        : "Ethereum"
+      : displayWallet.namespace === "solana"
+      ? activeChain.namespace === "solana"
+        ? `Solana ${activeChain.cluster === "devnet" ? "Devnet" : "Mainnet"}`
+        : "Solana"
+      : tabLabelFor(displayWallet.namespace);
   return (
     <Modal
       transparent
@@ -103,12 +156,42 @@ export default function RecievePaymentModal({
               </Pressable>
             </View>
 
+            {pairedWallets.length > 1 && (
+              <View className="flex-row bg-light-main-container rounded-full p-1 mb-4">
+                {pairedWallets.map((w) => {
+                  const active = w.namespace === tabNamespace;
+                  return (
+                    <Pressable
+                      key={w.namespace}
+                      onPress={() => setTabNamespace(w.namespace)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${tabLabelFor(w.namespace)} address`}
+                      accessibilityState={{ selected: active }}
+                      className={`flex-1 py-2 items-center rounded-full ${
+                        active ? "bg-light" : ""
+                      }`}
+                    >
+                      <Text
+                        className={`text-sm font-semibold ${
+                          active
+                            ? "text-light-primary-red"
+                            : "text-light-matte-black/60"
+                        }`}
+                      >
+                        {tabLabelFor(w.namespace)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+
             <View className="bg-white rounded-3xl p-6 shadow-sm mb-5">
               <View className="items-center mb-6 h-64">
                 <View className="bg-light-main-container/50 p-4 rounded-2xl aspect-square grow">
                   {isModalAnimationComplete && (
                     <QRCodeStyled
-                      data={activeWallet.address}
+                      data={displayWallet.address}
                       style={{ backgroundColor: "rgb(245 246 249 / 0.5)" }}
                       padding={0}
                       className="w-full h-full"
@@ -155,13 +238,11 @@ export default function RecievePaymentModal({
               <View className="items-center mb-4">
                 <View className="bg-light-primary-red/10 px-3 py-1 rounded-full mb-2">
                   <Text className="text-light-primary-red text-xs font-medium">
-                    {activeChain.namespace === "eip155"
-                      ? activeChain.chain.name
-                      : activeChain.cluster}
+                    {chainPillLabel}
                   </Text>
                 </View>
                 <Text className="text-light-matte-black font-medium text-base">
-                  {activeWallet.name || "My Wallet"}
+                  {displayWallet.name || activeWallet.name || "My Wallet"}
                 </Text>
               </View>
 
@@ -170,14 +251,14 @@ export default function RecievePaymentModal({
                   <Text className="text-light-matte-black/70 text-xs font-medium">
                     WALLET ADDRESS
                   </Text>
-                  <Chip label={activeWallet?.source} size="small" />
+                  <Chip label={displayWallet?.source} size="small" />
                 </View>
                 <Text
                   className="text-light-matte-black text-sm font-medium"
                   numberOfLines={1}
                   ellipsizeMode="middle"
                 >
-                  {activeWallet.address}
+                  {displayWallet.address}
                 </Text>
               </View>
             </View>
@@ -185,7 +266,9 @@ export default function RecievePaymentModal({
             <View className="flex-row gap-4">
               <Pressable
                 className="flex-1 bg-light-main-container p-4 rounded-xl"
-                onPress={() => copyToClipboard(activeWallet.address, "Address")}
+                onPress={() =>
+                  copyToClipboard(displayWallet.address, "Address")
+                }
               >
                 <View className="flex-row items-center justify-center gap-2">
                   <Copy size={18} color="#c71c4b" className="mr-2" />
