@@ -48,12 +48,19 @@
 import { entropyToMnemonic, validateMnemonic } from "@scure/bip39";
 import { wordlist as englishWordlist } from "@scure/bip39/wordlists/english";
 import {
+  createKeyPairFromPrivateKeyBytes,
+  createSignerFromKeyPair,
+  type KeyPairSigner,
+} from "@solana/kit";
+import {
   type HDAccount,
   mnemonicToAccount,
   type PrivateKeyAccount,
   privateKeyToAccount,
 } from "viem/accounts";
 import { TWallet } from "@/constants/types/walletTypes";
+import { parseSolanaPrivateKey } from "@/services/chains/solana/codec";
+import { mnemonicToSolanaPrivateKey } from "@/services/chains/solana/derivation";
 import {
   signingSecureGet,
   signingSecureSet,
@@ -262,9 +269,82 @@ export function getAccountForWallet(
   }
 }
 
+// Review gate — TWV-2026-070 (Ed25519 signer dwell + polyfill).
+// Design note: docs/wallet-security-task/65_solana_signer_design_note.md.
+//
+// This function is the SINGLE blessed JS-heap dwell site for Solana
+// private-key material, analogous to getAccountForWallet for EVM.
+// Invariants:
+//   - 32-byte seed reconstructed only here; immediately fed to
+//     createKeyPairFromPrivateKeyBytes(bytes, { extractable: false }).
+//   - The resulting CryptoKey is NOT extractable — the public surface
+//     of KeyPairSigner cannot leak the private half.
+//   - Cache by address in solanaSignerCache; clearAccountCache wipes
+//     both caches on lock/logout/removal.
+//   - Never log signer internals. No console.log of `bytes` or `kp`.
+// Any PR that:
+//   - adds a new createKeyPairFromPrivateKeyBytes call outside here,
+//   - returns the raw Uint8Array seed from a public helper,
+//   - extends solanaSignerCache dwell,
+// MUST cite TWV-2026-070.
+
+const solanaSignerCache: Record<string, KeyPairSigner> = {};
+
+export async function getSolanaSignerForWallet(
+  wallet: TWallet,
+): Promise<KeyPairSigner | null> {
+  if (wallet.namespace !== "solana") return null;
+  const cached = solanaSignerCache[wallet.address];
+  if (cached) return cached;
+
+  try {
+    // Derive the 32-byte ed25519 seed. Strict preference order:
+    //   1. `wallet.privateKey` (base58) — both seed-phrase and
+    //      private-key Solana wallets store the base58-encoded 32-byte
+    //      seed here (see `createSolanaWalletFromMnemonic` /
+    //      `createSolanaWalletFromPrivateKey` in `utils/walletUtils.ts`).
+    //      This keeps this dwell site independent of BIP-39 derivation.
+    //   2. `wallet.seedPhrase` (mnemonic) — defensive fallback for any
+    //      hypothetical row that carries a mnemonic but no `privateKey`
+    //      (e.g. future shared-mnemonic rows whose private-key field is
+    //      intentionally left empty). Mirrors the EVM dwell site's
+    //      seed-phrase branch shape.
+    // The raw `seed` binding is a local `const` that never escapes this
+    // function scope — no closure captures, no return of the bytes.
+    let seed: Uint8Array | null = null;
+    if (wallet.privateKey) {
+      try {
+        seed = parseSolanaPrivateKey(wallet.privateKey);
+      } catch (_e) {
+        if (__DEV__)
+          console.error("[TWV-2026-070] Solana privateKey parse failed");
+        return null;
+      }
+    } else if (wallet.seedPhrase) {
+      seed = mnemonicToSolanaPrivateKey(wallet.seedPhrase);
+    }
+    if (!seed) return null;
+
+    // `extractable: false` is enforced by the kit API — the second
+    // positional arg is the extractable flag; we pass `false` so the
+    // resulting CryptoKey pair cannot leak the private half via
+    // `subtle.exportKey`.
+    const kp = await createKeyPairFromPrivateKeyBytes(seed, false);
+    const signer = await createSignerFromKeyPair(kp);
+    solanaSignerCache[wallet.address] = signer;
+    return signer;
+  } catch (_e) {
+    if (__DEV__) console.error("[TWV-2026-070] signer reconstruction failed");
+    return null;
+  }
+}
+
 export function clearAccountCache(): void {
   Object.keys(accountCache).forEach((key) => {
     delete accountCache[key];
+  });
+  Object.keys(solanaSignerCache).forEach((key) => {
+    delete solanaSignerCache[key];
   });
 }
 

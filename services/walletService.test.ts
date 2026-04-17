@@ -1,14 +1,16 @@
 /**
  * Source-level invariants for walletService — TWV-2026-002 (CSPRNG
- * mnemonic generation) and TWV-2026-060 (serialised auth-gated writes).
+ * mnemonic generation), TWV-2026-060 (serialised auth-gated writes),
+ * and TWV-2026-070 (Solana Ed25519 signer dwell + extractable: false).
  *
- * A full behavioural test requires booting the whole RN module graph
- * (expo-secure-store, @/constants/*, MMKV). We assert the invariants
- * via source inspection + the standalone `@scure/bip39` path that
- * doesn't need the RN runtime.
+ * The source-inspection suites below don't need the RN module graph.
+ * The TWV-2026-070 behavioural suite DOES boot `walletService.ts`, so
+ * it has to be run via the EVM resolver hook that stubs
+ * `expo-secure-store` and the mmkv storage helper:
  *
- * Run from mobile-app root:
- *   node --test --experimental-strip-types services/walletService.test.ts
+ *   node --test --experimental-strip-types \
+ *        --import ./services/walletKit/evm/_test-resolver.mjs \
+ *        services/walletService.test.ts
  */
 
 import assert from "node:assert/strict";
@@ -17,6 +19,16 @@ import { describe, it } from "node:test";
 
 import { entropyToMnemonic, validateMnemonic } from "@scure/bip39";
 import { wordlist as englishWordlist } from "@scure/bip39/wordlists/english";
+
+import type { TWallet } from "../constants/types/walletTypes.ts";
+import {
+  createSolanaWalletFromMnemonic,
+  createWalletFromMnemonic,
+} from "../utils/walletUtils.ts";
+import {
+  clearAccountCache,
+  getSolanaSignerForWallet,
+} from "./walletService.ts";
 
 const src = readFileSync(
   new URL("./walletService.ts", import.meta.url),
@@ -124,5 +136,143 @@ describe("walletService — single-flight guards (no prompt cascade)", () => {
     );
     assert.ok(errorBlock);
     assert.doesNotMatch(errorBlock[0], /cachedWallets\s*=\s*null/);
+  });
+});
+
+/* --------------------------------------------------------------------
+ * TWV-2026-070 — Solana signer dwell + cache.
+ *
+ * Source-level invariants first (match the style of the other suites
+ * above), then a small behavioural suite exercising the real dwell
+ * function via an in-memory Solana wallet produced by the golden-vector
+ * creator in `utils/walletUtils.ts`.
+ * ------------------------------------------------------------------ */
+
+describe("walletService — TWV-2026-070 source invariants", () => {
+  it("cites the TWV-2026-070 review gate in a header block", () => {
+    assert.match(src, /Review gate\s+—\s+TWV-2026-070/);
+  });
+
+  it("declares the solanaSignerCache as module-local state", () => {
+    assert.match(
+      src,
+      /const\s+solanaSignerCache:\s*Record<string,\s*KeyPairSigner>\s*=\s*\{\}/,
+    );
+  });
+
+  it("exports getSolanaSignerForWallet with the Namespace guard first", () => {
+    assert.match(
+      src,
+      /export async function getSolanaSignerForWallet[\s\S]*?if \(wallet\.namespace !== "solana"\) return null/,
+    );
+  });
+
+  it("the dwell site calls createKeyPairFromPrivateKeyBytes with extractable=false", () => {
+    assert.match(
+      src,
+      /createKeyPairFromPrivateKeyBytes\(\s*seed\s*,\s*false\s*\)/,
+    );
+  });
+
+  it("failure logs are gated on __DEV__ and do NOT log seed / kp / signer bytes", () => {
+    const fn = src.match(
+      /export async function getSolanaSignerForWallet[\s\S]*?^}/m,
+    );
+    assert.ok(fn, "dwell function source block must be present");
+    const body = fn[0];
+    assert.match(body, /if \(__DEV__\)\s*\n?\s*console\.error/);
+    // Never pass the raw key variables as arguments to a log call. We
+    // scan for `console.<level>(... <ident> ...)` forms where the ident
+    // is one of the three forbidden bindings, but not embedded inside a
+    // string literal. We keep it conservative: strip string literals
+    // from the body and then regex for the identifier tokens.
+    const stripped = body
+      .replace(/"(?:\\.|[^"\\])*"/g, '""')
+      .replace(/'(?:\\.|[^'\\])*'/g, "''")
+      .replace(/`(?:\\.|[^`\\])*`/g, "``");
+    assert.doesNotMatch(
+      stripped,
+      /console\.(log|error|warn)\([^)]*\b(seed|kp|signer)\b[^)]*\)/,
+    );
+  });
+
+  it("clearAccountCache wipes BOTH accountCache and solanaSignerCache", () => {
+    const clear = src.match(/export function clearAccountCache[\s\S]*?^}/m);
+    assert.ok(clear);
+    assert.match(clear[0], /accountCache/);
+    assert.match(clear[0], /solanaSignerCache/);
+  });
+});
+
+// BIP-39 canonical test mnemonic. The base58 address below is Phantom-
+// verified for SLIP-0010 derivation at the default Solana path
+// (`m/44'/501'/0'/0'`) — cross-checked by
+// `services/chains/solana/derivation.test.ts`.
+const TEST_MNEMONIC =
+  "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+const EXPECTED_SOLANA_ADDRESS = "HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk";
+const EVM_TEST_MNEMONIC =
+  "test test test test test test test test test test test junk";
+
+describe("getSolanaSignerForWallet — TWV-2026-070 behavioural", () => {
+  it("returns null for an EVM wallet (namespace guard)", async () => {
+    const evmWallet = createWalletFromMnemonic(EVM_TEST_MNEMONIC);
+    assert.equal(evmWallet.namespace, "eip155");
+    const signer = await getSolanaSignerForWallet(evmWallet);
+    assert.equal(
+      signer,
+      null,
+      "EVM namespace must not produce a Solana signer",
+    );
+  });
+
+  it("returns a signer whose .address equals wallet.address for a Solana mnemonic wallet", async () => {
+    clearAccountCache();
+    const wallet = (await createSolanaWalletFromMnemonic(
+      TEST_MNEMONIC,
+    )) as TWallet;
+    assert.ok(wallet, "golden-vector mnemonic must produce a wallet");
+    assert.equal(wallet.namespace, "solana");
+    assert.equal(wallet.address, EXPECTED_SOLANA_ADDRESS);
+
+    const signer = await getSolanaSignerForWallet(wallet);
+    assert.ok(signer, "expected a KeyPairSigner for a Solana wallet");
+    assert.equal(signer.address, wallet.address);
+  });
+
+  it("caches the signer — second call returns the SAME instance", async () => {
+    clearAccountCache();
+    const wallet = (await createSolanaWalletFromMnemonic(
+      TEST_MNEMONIC,
+    )) as TWallet;
+    const sig1 = await getSolanaSignerForWallet(wallet);
+    const sig2 = await getSolanaSignerForWallet(wallet);
+    assert.ok(sig1 && sig2);
+    assert.equal(
+      Object.is(sig1, sig2),
+      true,
+      "cache hit must be reference-equal",
+    );
+  });
+
+  it("clearAccountCache() wipes the Solana cache — subsequent call returns a NEW instance", async () => {
+    clearAccountCache();
+    const wallet = (await createSolanaWalletFromMnemonic(
+      TEST_MNEMONIC,
+    )) as TWallet;
+    const sig1 = await getSolanaSignerForWallet(wallet);
+    assert.ok(sig1);
+
+    clearAccountCache();
+
+    const sig3 = await getSolanaSignerForWallet(wallet);
+    assert.ok(sig3);
+    assert.equal(
+      Object.is(sig1, sig3),
+      false,
+      "post-clear call must build a fresh signer",
+    );
+    // The re-built signer still addresses the same wallet.
+    assert.equal(sig3.address, wallet.address);
   });
 });

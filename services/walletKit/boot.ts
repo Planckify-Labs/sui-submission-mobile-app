@@ -12,12 +12,10 @@
  *   - No conditional registration: every kit available in the codebase
  *     registers unconditionally. Which wallet rows a user has is
  *     orthogonal to which kits the registry knows about.
- *
- * Task 12 will add the Solana kit registration as a one-line diff at the
- * marked insertion point below.
  */
 
 import { createEvmWalletKit } from "./evm/EvmWalletKit";
+import { createSolanaWalletKit } from "./solana/SolanaWalletKit";
 import { walletKitRegistry } from "./registry";
 
 let booted = false;
@@ -25,7 +23,8 @@ let booted = false;
 export function bootWalletKits(): void {
   if (booted) return;
   walletKitRegistry.register(createEvmWalletKit());
-  // Solana kit registers here once Task 12 lands.
+  // Solana registers here.
+  walletKitRegistry.register(createSolanaWalletKit());
   booted = true;
 }
 

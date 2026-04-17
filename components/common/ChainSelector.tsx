@@ -23,15 +23,62 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { supportedChains } from "@/constants/configs/chainConfig";
+import type { ChainConfig } from "@/constants/configs/chainConfig";
 import { useTokens } from "@/hooks/queries/useTokens";
 import { useBlockchainsWithStorage } from "@/hooks/useBlockchainsWithStorage";
 import { useWallet } from "@/hooks/useWallet";
+import type { Namespace } from "@/services/chains/types";
+import { walletKitRegistry } from "@/services/walletKit/registry";
 
 const { height } = Dimensions.get("window");
 const MODAL_HEIGHT = height * 0.67;
 
 export interface ChainSelectorRef {
   open: () => void;
+}
+
+// Shape rendered per row — unified across EVM + Solana so the row
+// component stays namespace-agnostic.
+type ChainRowItem = {
+  key: string;
+  namespace: Namespace;
+  label: string;
+  symbol: string;
+  iconUrl: string | undefined;
+  isTestnet: boolean;
+  // EVM-only selection handle; Solana rows dispatch via `cluster`.
+  evmChainId?: number;
+  solanaCluster?: "mainnet-beta" | "devnet";
+  // Underlying config for equality checks against `activeChain`.
+  config: ChainConfig;
+};
+
+function capitalize(ns: string): string {
+  return ns.charAt(0).toUpperCase() + ns.slice(1);
+}
+
+// Hard-coded for `eip155`: per spec §6.2 the EVM kit has no
+// `displayName` and the picker surfaces the chain family as "Ethereum".
+// For any other namespace we defer to the registered kit's
+// `displayName` (e.g. Solana → "Solana"), falling back to a capitalised
+// namespace literal if a namespace has chains but no kit registered.
+function sectionTitleForNamespace(ns: Namespace): string {
+  if (ns === "eip155") return "Ethereum";
+  try {
+    const kit = walletKitRegistry.get(ns);
+    return kit.displayName ?? capitalize(ns);
+  } catch {
+    return capitalize(ns);
+  }
+}
+
+// In-group sort: non-testnets first (stable within each partition).
+function sortWithinGroup<T extends { isTestnet: boolean }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => {
+    if (a.isTestnet === b.isTestnet) return 0;
+    return a.isTestnet ? 1 : -1;
+  });
 }
 
 const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
@@ -43,8 +90,6 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
 
-  console.log("activeChain", activeChain.iconUrl);
-
   const { data: blockchains, isLoading: isLoadingBlockchains } =
     useBlockchainsWithStorage({ isActive: true });
 
@@ -55,25 +100,92 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
 
   const isLoading = isLoadingBlockchains || isLoadingTokens;
 
-  const allChains = useMemo(() => {
-    if (!blockchains || !nativeTokens) return [];
+  // Group rows by namespace, ordered by registry insertion order
+  // (EVM-first / Solana-second per `bootWalletKits`). Any namespace
+  // that has chains but no registered kit is appended at the end.
+  const grouped = useMemo<Map<Namespace, ChainRowItem[]>>(() => {
+    const order: Namespace[] = walletKitRegistry
+      .getAll()
+      .map((kit) => kit.namespace);
 
-    return blockchains.map((blockchain) => {
-      return {
-        chain: {
-          id: blockchain.chainId,
-          name: blockchain.name,
-          nativeCurrency: {
-            name: blockchain.tokens?.[0]?.name,
-            symbol: blockchain.tokens?.[0]?.symbol,
-            decimals: blockchain.tokens?.[0]?.decimals,
-          },
-        },
-        iconUrl: blockchain.tokens?.[0]?.logoUrl,
-        isTestnet: false,
-        blockchainId: blockchain.id,
-      };
-    });
+    const groups = new Map<Namespace, ChainRowItem[]>();
+    for (const ns of order) groups.set(ns, []);
+
+    // EVM rows are data-driven from the backend blockchain list so
+    // they pick up freshly-added chains without a mobile release.
+    if (blockchains && nativeTokens) {
+      for (const blockchain of blockchains) {
+        const token = blockchain.tokens?.[0];
+        const evmConfig: ChainConfig = {
+          namespace: "eip155",
+          chain: {
+            id: blockchain.chainId,
+            name: blockchain.name,
+            nativeCurrency: {
+              name: token?.name || "Ether",
+              symbol: token?.symbol || "",
+              decimals: token?.decimals || 18,
+            },
+            rpcUrls: {
+              default: { http: [blockchain.rpcUrl] },
+              public: { http: [blockchain.rpcUrl] },
+            },
+          } as ChainConfig extends { namespace: "eip155"; chain: infer C }
+            ? C
+            : never,
+          iconUrl: token?.logoUrl,
+          isTestnet:
+            blockchain.name.toLowerCase().includes("testnet") ||
+            blockchain.name.toLowerCase().includes("sepolia") ||
+            blockchain.name.toLowerCase().includes("goerli") ||
+            blockchain.name.toLowerCase().includes("mumbai"),
+        };
+        const row: ChainRowItem = {
+          key: `eip155:${blockchain.chainId}`,
+          namespace: "eip155",
+          label: blockchain.name,
+          symbol: token?.symbol ?? "",
+          iconUrl: token?.logoUrl,
+          isTestnet: Boolean(evmConfig.isTestnet),
+          evmChainId: blockchain.chainId,
+          config: evmConfig,
+        };
+        const bucket = groups.get("eip155");
+        if (bucket) bucket.push(row);
+        else groups.set("eip155", [row]);
+      }
+    }
+
+    // Non-EVM rows come from the static `supportedChains` config so
+    // Solana entries render even before the backend starts returning
+    // them. Grouping ensures each namespace renders under its own
+    // section header.
+    for (const cfg of supportedChains) {
+      if (cfg.namespace === "eip155") continue;
+      if (cfg.namespace === "solana") {
+        const row: ChainRowItem = {
+          key: `solana:${cfg.cluster}`,
+          namespace: "solana",
+          label: `Solana ${cfg.cluster === "devnet" ? "Devnet" : "Mainnet"}`,
+          symbol: "",
+          iconUrl: cfg.iconUrl,
+          isTestnet: Boolean(cfg.isTestnet),
+          solanaCluster: cfg.cluster,
+          config: cfg,
+        };
+        const bucket = groups.get("solana");
+        if (bucket) bucket.push(row);
+        else groups.set("solana", [row]);
+      }
+    }
+
+    // Re-key with sorted-in-group rows while preserving group order.
+    const final = new Map<Namespace, ChainRowItem[]>();
+    for (const [ns, rows] of groups) {
+      if (rows.length === 0) continue;
+      final.set(ns, sortWithinGroup(rows));
+    }
+    return final;
   }, [blockchains, nativeTokens]);
 
   const closeModal = useCallback(() => {
@@ -94,8 +206,15 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
   }, [fadeAnim, translateY]);
 
   const handleChainSelect = useCallback(
-    async (chainId: number) => {
-      await changeActiveChain(chainId);
+    async (row: ChainRowItem) => {
+      // EVM dispatch flows through the existing numeric-chainId path so
+      // the agent-busy gate inside `changeActiveChain` stays untouched.
+      // Non-EVM rows are skipped until backend `Blockchain` rows land
+      // for Solana (spec §1035 follow-up) — we still close the modal so
+      // the interaction feels responsive.
+      if (row.namespace === "eip155" && typeof row.evmChainId === "number") {
+        await changeActiveChain(row.evmChainId);
+      }
       closeModal();
     },
     [changeActiveChain, closeModal],
@@ -148,37 +267,33 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
     }),
   ).current;
 
+  const isRowActive = useCallback(
+    (row: ChainRowItem): boolean => {
+      if (row.namespace === "eip155" && activeChain.namespace === "eip155") {
+        return activeChain.chain.id === row.evmChainId;
+      }
+      if (row.namespace === "solana" && activeChain.namespace === "solana") {
+        return activeChain.cluster === row.solanaCluster;
+      }
+      return false;
+    },
+    [activeChain],
+  );
+
   const renderChainItem = useCallback(
-    (chain: {
-      chain: {
-        id: number;
-        name: string;
-        nativeCurrency: {
-          name: string | undefined;
-          symbol: string | undefined;
-          decimals: number | undefined;
-        };
-      };
-      iconUrl: string | undefined;
-      isTestnet: boolean;
-      blockchainId: string;
-    }) => {
-      // TODO(task-16): `ChainSelector` gains namespace grouping; compare
-      // via kit-aware identity once Solana entries are rendered.
-      const isActive =
-        activeChain.namespace === "eip155" &&
-        activeChain.chain.id === chain.chain.id;
+    (row: ChainRowItem) => {
+      const isActive = isRowActive(row);
 
       return (
         <Pressable
-          key={chain.chain.id}
+          key={row.key}
           className={`flex-row items-center p-4 mb-2 rounded-xl ${
             isActive ? "bg-light-primary-red/10" : "bg-light"
           }`}
-          onPress={() => handleChainSelect(chain.chain.id)}
+          onPress={() => handleChainSelect(row)}
         >
           <Image
-            source={{ uri: chain.iconUrl }}
+            source={{ uri: row.iconUrl }}
             style={{ width: 24, height: 24 }}
             className="mr-3 rounded-full"
             defaultSource={require("@/assets/images/takumipay-logo.png")}
@@ -186,14 +301,14 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
 
           <View className="flex-1">
             <Text className="text-light-matte-black font-bold">
-              {chain.chain.name}
+              {row.label}
             </Text>
             <Text className="text-light-matte-black/70 text-sm">
-              {chain.chain.nativeCurrency.symbol || "N/A"}
+              {row.symbol || "N/A"}
             </Text>
           </View>
 
-          {chain.isTestnet && (
+          {row.isTestnet && (
             <View className="bg-yellow-500/20 px-2 py-1 rounded-full mr-2">
               <Text className="text-yellow-700 text-xs font-medium">
                 Testnet
@@ -201,17 +316,21 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
             </View>
           )}
 
-          {activeChain.namespace === "eip155" &&
-            activeChain.chain.id === chain.chain.id && (
-              <View className="w-6 h-6 rounded-full bg-light-primary-red/10 items-center justify-center">
-                <Check size={14} color="#c71c4b" strokeWidth={3} />
-              </View>
-            )}
+          {isActive && (
+            <View className="w-6 h-6 rounded-full bg-light-primary-red/10 items-center justify-center">
+              <Check size={14} color="#c71c4b" strokeWidth={3} />
+            </View>
+          )}
         </Pressable>
       );
     },
-    [activeChain, handleChainSelect],
+    [isRowActive, handleChainSelect],
   );
+
+  const activeLabel =
+    activeChain.namespace === "eip155"
+      ? activeChain.chain.name
+      : `Solana ${activeChain.cluster === "devnet" ? "Devnet" : "Mainnet"}`;
 
   return (
     <>
@@ -228,9 +347,7 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
           defaultSource={require("@/assets/images/takumipay-logo.png")}
         />
         <Text className="text-light-matte-black text-xs font-medium mr-2">
-          {activeChain.namespace === "eip155"
-            ? activeChain.chain.name
-            : activeChain.cluster}
+          {activeLabel}
         </Text>
         <ChevronDown size={16} color="#c71c4b" />
       </Pressable>
@@ -294,7 +411,14 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
                         </Text>
                       </View>
                     ) : (
-                      allChains.map(renderChainItem)
+                      Array.from(grouped.entries()).map(([ns, rows]) => (
+                        <View key={ns} className="mb-2">
+                          <Text className="text-light-matte-black/60 text-xs font-semibold uppercase mb-2 mt-2">
+                            {sectionTitleForNamespace(ns)}
+                          </Text>
+                          {rows.map(renderChainItem)}
+                        </View>
+                      ))
                     )}
                   </ScrollView>
                 </View>

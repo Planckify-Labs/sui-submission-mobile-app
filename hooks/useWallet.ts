@@ -4,7 +4,6 @@ import { Alert, InteractionManager } from "react-native";
 import type { Account, PublicClient, WalletClient } from "viem";
 import { usePerformance } from "@/components/providers/PerformanceProvider";
 import {
-  assertEvmChain,
   type ChainConfig,
   supportedChains,
 } from "@/constants/configs/chainConfig";
@@ -17,8 +16,11 @@ import type {
 import { useAgentBusy } from "@/hooks/useAgentBusy";
 import { storage } from "@/lib/storage/mmkv";
 import * as walletService from "@/services/walletService";
+import { walletKitRegistry } from "@/services/walletKit/registry";
+import type { WalletKitAdapter } from "@/services/walletKit/types";
 import { getPublicClient, getWalletClient } from "@/utils/clients";
 import { createWalletFromParams } from "@/utils/walletUtils";
+import { buildChainConfigFromBlockchain } from "./useWallet.helpers";
 import { useBlockchainsWithStorage } from "./useBlockchainsWithStorage";
 
 export function useWallet() {
@@ -273,40 +275,11 @@ export function useWallet() {
           return false;
         }
 
-        // TODO(task-13): build the correct `ChainConfig` variant per
-        // backend `Blockchain.namespace` — Solana rows should produce
-        // the `namespace: "solana"` shape with `cluster` + `rpcUrl`.
-        // For now every backend row collapses to EVM, matching pre-v2.3
-        // behavior.
-        const apiChain: ChainConfig = {
-          namespace: "eip155",
-          chain: {
-            id: blockchain.chainId,
-            name: blockchain.name,
-            nativeCurrency: {
-              name: blockchain.tokens?.[0]?.name || "Ether",
-              symbol: blockchain.tokens?.[0]?.symbol || "ETH",
-              decimals: blockchain.tokens?.[0]?.decimals || 18,
-            },
-            rpcUrls: {
-              default: { http: [blockchain.rpcUrl] },
-              public: { http: [blockchain.rpcUrl] },
-            },
-            blockExplorers: blockchain.blockExplorer
-              ? {
-                  default: {
-                    name: blockchain.name,
-                    url: blockchain.blockExplorer,
-                  },
-                }
-              : undefined,
-          },
-          iconUrl: blockchain.tokens?.[0]?.logoUrl,
-          isTestnet:
-            blockchain.name.toLowerCase().includes("testnet") ||
-            blockchain.name.toLowerCase().includes("sepolia") ||
-            blockchain.name.toLowerCase().includes("goerli"),
-        };
+        // Namespace branch — the one place a namespace `if` is allowed
+        // per §7.5 because it's mapping backend `Blockchain` rows into
+        // the `ChainConfig` discriminated union (data shape), not
+        // dispatching behavior. Dispatch stays in `WalletKitAdapter`.
+        const apiChain = buildChainConfigFromBlockchain(blockchain);
 
         await setActiveChainMutation.mutateAsync(apiChain);
         return true;
@@ -378,22 +351,38 @@ export function useWallet() {
     queryClient.invalidateQueries({ queryKey: [QKEY_Wallets.activeChain] });
   }, [queryClient]);
 
+  // Legacy viem-typed accessors (§7.5). Kept for callers that still
+  // have viem-shaped code; new callers should reach for
+  // `getActiveWalletKit()` instead. Both early-return `null` when the
+  // active chain isn't EVM so non-EVM screens no-op gracefully rather
+  // than throwing.
   const getClientForActiveWallet = useCallback((): WalletClient | null => {
     if (!activeWallet?.address) return null;
+    if (activeChain.namespace !== "eip155") return null;
 
     const account = walletService.getAccountForWallet(activeWallet);
     if (!account) return null;
 
-    // TODO(task-05): move viem client construction into `EvmWalletKit`.
-    const evmChain = assertEvmChain(activeChain);
-    return getWalletClient(account as Account, evmChain.chain);
+    return getWalletClient(account as Account, activeChain.chain);
   }, [activeWallet, activeChain]);
 
-  const getPublicClientForActiveChain = useCallback((): PublicClient => {
-    // TODO(task-05): move viem client construction into `EvmWalletKit`.
-    const evmChain = assertEvmChain(activeChain);
-    return getPublicClient(evmChain.chain);
+  const getPublicClientForActiveChain = useCallback((): PublicClient | null => {
+    if (activeChain.namespace !== "eip155") return null;
+    return getPublicClient(activeChain.chain);
   }, [activeChain]);
+
+  // Namespace-aware kit accessors (§7.5). These are the preferred entry
+  // points for screens — they return the registered
+  // `WalletKitAdapter` for the active namespace / the given wallet,
+  // keeping dispatch out of UI code.
+  const getActiveWalletKit = useCallback((): WalletKitAdapter => {
+    if (!activeWallet?.namespace) throw new Error("No active wallet");
+    return walletKitRegistry.get(activeWallet.namespace);
+  }, [activeWallet]);
+
+  const getKitForWallet = useCallback((w: TWallet): WalletKitAdapter => {
+    return walletKitRegistry.get(w.namespace);
+  }, []);
 
   const renameWallet = useCallback(
     async (index: number, newName: string) => {
@@ -434,6 +423,8 @@ export function useWallet() {
     getWalletAccount,
     getClientForActiveWallet,
     getPublicClientForActiveChain,
+    getActiveWalletKit,
+    getKitForWallet,
     renameWallet,
   };
 }

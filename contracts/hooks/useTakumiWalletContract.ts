@@ -34,6 +34,11 @@ export function useTakumiWalletContract({
   const walletClient = getClientForActiveWallet();
 
   const readContract = useMemo(() => {
+    // Defensive null-check added alongside the §7.5 guard relaxation:
+    // `getPublicClientForActiveChain` now returns `null` on non-EVM
+    // chains (instead of throwing). This contract is EVM-only, so
+    // skipping instantiation on Solana is the correct no-op.
+    if (!publicClient) return null;
     return getContract({
       address: contractAddress,
       abi: AbiTakumiWallet,

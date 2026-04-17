@@ -131,9 +131,18 @@ export function createEvmWalletKit(): WalletKitAdapter {
     },
 
     // ── Display ─────────────────────────────────────────────────────
+    // Shape is `"<amount> <symbol>"` — mirrors the Solana kit
+    // (`"0.0123 SOL"`) so `app/send.tsx` and `app/wallet.tsx` can
+    // display the kit output directly without re-reading
+    // `chain.nativeCurrency.symbol`. Callers that need just the number
+    // (e.g. the amount input field) strip the symbol via
+    // `.split(" ")[0]` — see §7.6 / §7.7.
     formatNativeAmount(raw: bigint, chain: ChainConfig): string {
       assertEvm(chain);
-      return formatUnits(raw, chain.chain.nativeCurrency.decimals);
+      const human = parseFloat(
+        formatUnits(raw, chain.chain.nativeCurrency.decimals),
+      ).toFixed(4);
+      return `${human} ${chain.chain.nativeCurrency.symbol}`;
     },
     parseNativeAmount(human: string, chain: ChainConfig): bigint {
       assertEvm(chain);

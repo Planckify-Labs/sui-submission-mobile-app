@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { ChevronRight, CirclePlus, Key, Wallet } from "lucide-react-native";
+import { ChevronRight } from "lucide-react-native";
 import React, { useEffect, useRef } from "react";
 import {
   ActivityIndicator,
@@ -18,6 +18,11 @@ import {
   configureGoogleSignIn,
   useGoogleSignIn,
 } from "@/hooks/queries/useGoogleAuth";
+import {
+  loadWalletsFromStorage,
+  saveWalletsToStorage,
+} from "@/services/walletService";
+import { bootstrapFirstLoginWallets } from "@/services/walletKit/bootstrap";
 
 export default function Login() {
   const { height } = useWindowDimensions();
@@ -39,6 +44,16 @@ export default function Login() {
         `Welcome!\n\nUser ID: ${result.user.id}\nEmail: ${result.user.email || "N/A"}\nName: ${result.user.name || "N/A"}\nRole: ${result.user.role}`,
         [{ text: "OK" }],
       );
+
+      // Spec §14.1 / §14.8: login is auth-only. Wallet bootstrap runs
+      // post-auth when the user has zero wallets in secure storage.
+      const wallets = await loadWalletsFromStorage();
+      if (wallets.length === 0) {
+        const minted = await bootstrapFirstLoginWallets();
+        if (minted.length > 0) await saveWalletsToStorage(minted);
+      }
+
+      router.replace("/");
     } catch (error: any) {
       console.error("Google sign-in error:", error);
       if (error.message !== "Sign in cancelled") {
@@ -108,25 +123,6 @@ export default function Login() {
 
               <TouchableOpacity
                 activeOpacity={0.7}
-                className="bg-light-primary-red mb-3 py-4 px-5 pl-6 rounded-xl flex-row items-center justify-between"
-                onPress={() => router.push("/wallet-setup")}
-              >
-                <View className="flex-row items-center gap-3">
-                  <CirclePlus color="#fff" size={30} className="mr-3" />
-                  <View>
-                    <Text className="text-light font-bold text-lg">
-                      Create New Wallet
-                    </Text>
-                    <Text className="text-light/80 text-xs">
-                      Generate a secure wallet
-                    </Text>
-                  </View>
-                </View>
-                <ChevronRight color="#fff" size={20} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={0.7}
                 className="bg-light border border-light-matte-black/10 py-4 px-5 rounded-xl flex-row items-center justify-between"
                 onPress={handleGoogleSignIn}
                 disabled={googleSignIn.isPending}
@@ -150,44 +146,6 @@ export default function Login() {
                 </View>
                 <ChevronRight color="#20222c" size={18} />
               </TouchableOpacity>
-            </View>
-
-            <View className="bg-light rounded-3xl p-6 shadow-md- mb-6">
-              <Text className="text-light-matte-black/80 font-medium mb-4">
-                IMPORT EXISTING WALLET
-              </Text>
-
-              <View className="flex-row gap-3">
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  className="flex-1 border border-light-matte-black/10 p-4 rounded-xl"
-                  onPress={() => router.push("/import-seed-phrase")}
-                >
-                  <View className="items-center">
-                    <View className="bg-light-primary-red/10 p-2 rounded-lg mb-2">
-                      <Key color="#c71c4b" size={20} />
-                    </View>
-                    <Text className="text-light-matte-black font-medium text-sm">
-                      Seed Phrase
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  className="flex-1 border border-light-matte-black/10 p-4 rounded-xl"
-                  onPress={() => router.push("/import-private-key")}
-                >
-                  <View className="items-center">
-                    <View className="bg-light-primary-red/10 p-2 rounded-lg mb-2">
-                      <Wallet color="#c71c4b" size={20} />
-                    </View>
-                    <Text className="text-light-matte-black font-medium text-sm">
-                      Private Key
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
             </View>
 
             <View className="items-center mt-auto">

@@ -21,6 +21,13 @@ const WalletInfo = ({ activeWallet }: TWalletInfoProps) => {
       try {
         setIsLoading(true);
         const publicClient = getPublicClientForActiveChain();
+        // §7.5: returns `null` on non-EVM chains. This component is
+        // EVM-only today; Task 14/15 will dispatch via
+        // `getActiveWalletKit().getNativeBalance` uniformly.
+        if (!publicClient) {
+          setBalance(BigInt(0));
+          return;
+        }
         const walletBalance = await publicClient.getBalance({
           address: activeWallet.address as `0x${string}`,
         });

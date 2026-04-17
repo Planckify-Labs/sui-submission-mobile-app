@@ -155,7 +155,6 @@ export default function RecievePaymentModal({
               <View className="items-center mb-4">
                 <View className="bg-light-primary-red/10 px-3 py-1 rounded-full mb-2">
                   <Text className="text-light-primary-red text-xs font-medium">
-                    {/* TODO(task-16): namespace-aware chain label. */}
                     {activeChain.namespace === "eip155"
                       ? activeChain.chain.name
                       : activeChain.cluster}

@@ -1,10 +1,13 @@
-import { KeyRound, Shield } from "lucide-react-native";
-import React, { lazy, Suspense, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Coins, KeyRound, Shield } from "lucide-react-native";
+import React, { lazy, Suspense, useCallback, useMemo } from "react";
 import { ActivityIndicator, Animated, Text, View } from "react-native";
 import Chip from "@/components/common/Chip";
 import { usePerformance } from "@/components/providers/PerformanceProvider";
 import AddressDisplay from "@/components/wallet/AddressDisplay";
 import type { TWallet } from "@/constants/types/walletTypes";
+import { useWallet } from "@/hooks/useWallet";
+import { chainCacheKey } from "@/hooks/useWallet.helpers";
 import { authenticateUser } from "@/utils/authUtils";
 import { copyToClipboard } from "@/utils/helperUtils";
 
@@ -33,6 +36,44 @@ export default function WalletDetails({
 }: TWalletDetails) {
   const { deferredTask } = usePerformance();
 
+  // §6.2: resolve the kit for the active wallet once; every balance +
+  // formatting call flows through it so this component stays
+  // namespace-agnostic.
+  const { activeChain, getActiveWalletKit } = useWallet();
+  const kit = useMemo(
+    () => (wallet?.namespace ? getActiveWalletKit() : null),
+    [getActiveWalletKit, wallet?.namespace],
+  );
+
+  // Balance is only meaningful when the active chain's namespace
+  // matches the active wallet's namespace (e.g. wallet is Solana,
+  // chain is Solana). Otherwise we skip the fetch — the UI renders a
+  // dash so no namespace branch is needed in the display layer.
+  const chainForWallet =
+    wallet?.namespace && activeChain.namespace === wallet.namespace
+      ? activeChain
+      : null;
+
+  const { data: balance } = useQuery({
+    queryKey: [
+      "wallet-details-native-balance",
+      wallet?.address,
+      wallet?.namespace,
+      chainCacheKey(activeChain),
+    ],
+    queryFn: async () => {
+      if (!kit || !chainForWallet || !wallet?.address) return null;
+      return await kit.getNativeBalance(wallet.address, chainForWallet);
+    },
+    enabled: !!kit && !!chainForWallet && !!wallet?.address,
+  });
+
+  const formattedBalance = useMemo(() => {
+    if (!kit || !chainForWallet) return "—";
+    if (balance === null || balance === undefined) return "…";
+    return kit.formatNativeAmount(balance, chainForWallet);
+  }, [balance, chainForWallet, kit]);
+
   const handleToggleWalletInfo = useCallback(async () => {
     if (!showWalletInfo) {
       const isAuthenticated = await deferredTask(() =>
@@ -45,6 +86,12 @@ export default function WalletDetails({
       setShowWalletInfo(false);
     }
   }, [showWalletInfo, deferredTask, setShowWalletInfo]);
+
+  // Token list is EVM-only this spec (§11 R7 / N1). Solana wallets
+  // render a single "coming soon" placeholder in place of the EVM
+  // token/history list. This is the only allowed namespace `if` in
+  // the display layer.
+  const isSolanaWallet = wallet?.namespace === "solana";
 
   return (
     <Animated.View
@@ -82,6 +129,20 @@ export default function WalletDetails({
       <View className="h-px bg-light-matte-black/5 mx-5" />
 
       <View className="px-5 py-4">
+        <View className="mb-4">
+          <View className="flex-row items-center mb-2">
+            <Coins size={12} color="#c71c4b" />
+            <Text className="text-light-matte-black/50 text-xs font-medium ml-1 uppercase tracking-wide">
+              Native Balance
+            </Text>
+          </View>
+          <View className="bg-light-main-container/50 p-4 rounded-2xl">
+            <Text className="text-light-matte-black font-semibold text-base">
+              {formattedBalance}
+            </Text>
+          </View>
+        </View>
+
         <AddressDisplay
           address={wallet.address}
           onCopy={() => copyToClipboard(wallet.address, "Address")}
@@ -95,6 +156,14 @@ export default function WalletDetails({
             onCopy={copyToClipboard}
           />
         </Suspense>
+
+        {isSolanaWallet && (
+          <View className="mt-4 bg-light-main-container/50 p-4 rounded-2xl">
+            <Text className="text-light-matte-black/60 text-xs text-center">
+              Transaction history and tokens coming soon
+            </Text>
+          </View>
+        )}
       </View>
 
       {wallet.type !== "Social" && (

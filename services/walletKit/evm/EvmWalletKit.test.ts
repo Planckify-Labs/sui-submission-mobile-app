@@ -107,11 +107,14 @@ describe("EvmWalletKit.validateMnemonic", () => {
 describe("EvmWalletKit.formatNativeAmount / parseNativeAmount", () => {
   const kit = createEvmWalletKit();
 
-  it("formatNativeAmount matches viem `formatUnits` against mainnet decimals (R4b)", () => {
+  it("formatNativeAmount renders `<amount> <symbol>` matching the spec (R4b)", () => {
     const raw = 1_234_567_890_123_456_789n;
+    const human = parseFloat(
+      formatUnits(raw, mainnet.nativeCurrency.decimals),
+    ).toFixed(4);
     assert.equal(
       kit.formatNativeAmount(raw, ethereumChain),
-      formatUnits(raw, mainnet.nativeCurrency.decimals),
+      `${human} ${mainnet.nativeCurrency.symbol}`,
     );
   });
 
@@ -119,9 +122,12 @@ describe("EvmWalletKit.formatNativeAmount / parseNativeAmount", () => {
     const human = "1.5";
     const raw = kit.parseNativeAmount(human, ethereumChain);
     assert.equal(raw, parseUnits(human, mainnet.nativeCurrency.decimals));
+    const display = parseFloat(
+      formatUnits(raw, mainnet.nativeCurrency.decimals),
+    ).toFixed(4);
     assert.equal(
       kit.formatNativeAmount(raw, ethereumChain),
-      formatUnits(raw, mainnet.nativeCurrency.decimals),
+      `${display} ${mainnet.nativeCurrency.symbol}`,
     );
   });
 

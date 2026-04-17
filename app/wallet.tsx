@@ -1,3 +1,4 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import {
   ChevronRight,
@@ -36,6 +37,7 @@ import WalletDetails from "@/components/wallet/WalletDetails";
 import WalletSwitcherModal from "@/components/wallet/WalletSwitcherModal";
 import { TWallet } from "@/constants/types/walletTypes";
 import { useWallet } from "@/hooks/useWallet";
+import { chainCacheKey } from "@/hooks/useWallet.helpers";
 
 const CARD_WIDTH = 160;
 
@@ -47,16 +49,63 @@ export default function Wallet() {
   const [showSwitcherModal, setShowSwitcherModal] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const detailsOpacity = useRef(new Animated.Value(1)).current;
+  const queryClient = useQueryClient();
 
   const {
     wallets,
     activeWallet,
     activeWalletIndex,
+    activeChain,
     isLoading,
     setActiveWallet,
     loadWallets,
     renameWallet,
+    getActiveWalletKit,
   } = useWallet();
+
+  // §6.2: kit resolves from the active wallet's namespace. Any balance
+  // fetch at this layer goes through `kit.getNativeBalance`; formatting
+  // goes through `kit.formatNativeAmount`. No viem imports here.
+  // Downstream consumers (WalletDetails, WalletCard) own their own
+  // `useQuery` against this same kit entry point so a single
+  // pull-to-refresh invalidation refreshes both balance pills.
+  const kit = useMemo(
+    () => (activeWallet?.namespace ? getActiveWalletKit() : null),
+    [activeWallet?.namespace, getActiveWalletKit],
+  );
+
+  // Balance context is only valid when the active chain's namespace
+  // matches the active wallet's namespace. Mismatches render "—" in
+  // the header pill without a namespace branch at the display layer.
+  const chainForActiveWallet =
+    kit && activeChain.namespace === activeWallet?.namespace
+      ? activeChain
+      : null;
+
+  const { data: activeNativeBalance } = useQuery({
+    queryKey: [
+      "wallet-details-native-balance",
+      activeWallet?.address,
+      activeWallet?.namespace,
+      chainCacheKey(activeChain),
+    ],
+    queryFn: async () => {
+      if (!kit || !chainForActiveWallet || !activeWallet?.address) return null;
+      return await kit.getNativeBalance(
+        activeWallet.address,
+        chainForActiveWallet,
+      );
+    },
+    enabled: !!kit && !!chainForActiveWallet && !!activeWallet?.address,
+  });
+
+  const activeBalanceDisplay = useMemo(() => {
+    if (!kit || !chainForActiveWallet) return "—";
+    if (activeNativeBalance === null || activeNativeBalance === undefined)
+      return "…";
+    return kit.formatNativeAmount(activeNativeBalance, chainForActiveWallet);
+  }, [activeNativeBalance, chainForActiveWallet, kit]);
+
   const { isReady, deferredTask } = usePerformance();
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 0 : bottom > 0 ? bottom : 0;
@@ -64,8 +113,20 @@ export default function Wallet() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadWallets();
+    // Pull-to-refresh must also refresh native balances — the kit-
+    // backed `useQuery` keys in `WalletDetails` / `WalletCard` use
+    // stable prefixes so a single invalidation covers EVM and Solana
+    // rows alike (acceptance bullet 2 of Task 15).
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["wallet-details-native-balance"],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["wallet-card-native-balance"],
+      }),
+    ]);
     setRefreshing(false);
-  }, [loadWallets]);
+  }, [loadWallets, queryClient]);
 
   useEffect(() => {
     if (isReady && !isLoading && wallets.length === 0) {
@@ -246,6 +307,12 @@ export default function Wallet() {
                   numberOfLines={1}
                 >
                   {activeWallet.name}
+                </Text>
+                <Text
+                  className="text-light-matte-black/60 text-xs mt-0.5"
+                  numberOfLines={1}
+                >
+                  {activeBalanceDisplay}
                 </Text>
               </View>
             </View>

@@ -10,7 +10,7 @@ import {
   Send,
 } from "lucide-react-native";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -23,7 +23,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { erc20Abi, formatUnits, parseUnits } from "viem";
+import { erc20Abi, parseUnits } from "viem";
 import type { TToken } from "@/api/types/token";
 import ChainSelector from "@/components/common/ChainSelector";
 import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
@@ -32,7 +32,6 @@ import PinConfirmationModal from "@/components/common/PinConfirmationModal";
 import RecipientPickerModal from "@/components/send/RecipientPickerModal";
 import TokenSelectorModal from "@/components/wallet/TokenSelectorModal";
 import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
-import { assertEvmChain } from "@/constants/configs/chainConfig";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 import { useBlockchains } from "@/hooks/queries/useBlockchains";
 import { useTokens } from "@/hooks/queries/useTokens";
@@ -40,6 +39,30 @@ import { useCreateTransaction } from "@/hooks/queries/useTransactions";
 import { useAddressBook } from "@/hooks/useAddressBook";
 import { useNavigationReady } from "@/hooks/useNavigationReady";
 import { useWallet } from "@/hooks/useWallet";
+
+/**
+ * Splits a `kit.formatNativeAmount` output into `[amount, symbol]`.
+ *
+ * `WalletKitAdapter.formatNativeAmount` returns `"<amount> <symbol>"`
+ * (e.g. `"0.1234 ETH"` / `"0.1234 SOL"`) across every namespace — see
+ * spec §7.6 / §7.7. Splitting here keeps the screen free of namespace
+ * branches and makes the "amount only" and "symbol only" views
+ * symbol-agnostic.
+ */
+function splitFormattedNative(formatted: string): {
+  amount: string;
+  symbol: string;
+} {
+  const trimmed = formatted.trim();
+  const lastSpace = trimmed.lastIndexOf(" ");
+  if (lastSpace === -1) {
+    return { amount: trimmed, symbol: "" };
+  }
+  return {
+    amount: trimmed.slice(0, lastSpace),
+    symbol: trimmed.slice(lastSpace + 1),
+  };
+}
 
 export default function SendScreen() {
   const ready = useNavigationReady();
@@ -49,24 +72,30 @@ export default function SendScreen() {
     activeWallet,
     activeWalletIndex,
     setActiveWallet,
-    activeChain: rawActiveChain,
+    activeChain,
     getClientForActiveWallet,
     getPublicClientForActiveChain,
+    getActiveWalletKit,
   } = useWallet();
 
-  // TODO(task-14): Replace direct `activeChain.chain.*` reads with
-  // kit-dispatched accessors once `SendScreen` moves to the
-  // `WalletKitAdapter`. For now assert EVM so viem reach-through
-  // compiles under the `ChainConfig` discriminated union.
-  const activeChain = assertEvmChain(rawActiveChain);
+  // Resolve the active kit once (§7.7). All native-path reads, parses,
+  // formats, validations, and transfers dispatch through this single
+  // seam — no namespace branches inside the screen.
+  const kit = getActiveWalletKit();
 
   const { isAuthenticated } = useIsAuthenticated();
   const { mutateAsync: createTransaction } = useCreateTransaction();
   const { data: blockchains } = useBlockchains();
-  const activeBackendChain = React.useMemo(
-    () => blockchains?.find((b) => b.chainId === activeChain.chain.id) || null,
-    [blockchains, activeChain.chain.id],
-  );
+  const activeBackendChain = React.useMemo(() => {
+    if (!blockchains) return null;
+    // Backend `Blockchain.chainId` is EVM-shaped today. Solana history
+    // recording is deferred (§12 Q4 / F1), so we only look up a backend
+    // row when the active chain is EVM.
+    if (activeChain.namespace !== "eip155") return null;
+    return (
+      blockchains.find((b) => b.chainId === activeChain.chain.id) || null
+    );
+  }, [blockchains, activeChain]);
   const { data: tokenList } = useTokens({
     blockchainId: activeBackendChain?.id,
   });
@@ -93,7 +122,16 @@ export default function SendScreen() {
 
   const { recipientAddress } = useLocalSearchParams();
 
-  const nativeDecimals = activeChain.chain.nativeCurrency.decimals ?? 18;
+  // Presentation-only derived values — both come from the kit so EVM
+  // and Solana display paths converge.
+  const balanceDisplay = useMemo(
+    () => kit.formatNativeAmount(balance, activeChain),
+    [kit, balance, activeChain],
+  );
+  const { amount: balanceAmountText, symbol: nativeSymbol } = useMemo(
+    () => splitFormattedNative(balanceDisplay),
+    [balanceDisplay],
+  );
 
   const spinValue = React.useRef(new Animated.Value(0)).current;
 
@@ -122,17 +160,17 @@ export default function SendScreen() {
 
     try {
       setIsLoadingBalance(true);
-      const publicClient = getPublicClientForActiveChain();
-      const walletBalance = await publicClient.getBalance({
-        address: activeWallet.address as `0x${string}`,
-      });
+      const walletBalance = await kit.getNativeBalance(
+        activeWallet.address,
+        activeChain,
+      );
       setBalance(walletBalance);
     } catch (error) {
       console.error("Error fetching balance:", error);
     } finally {
       setIsLoadingBalance(false);
     }
-  }, [getPublicClientForActiveChain, activeWallet?.address]);
+  }, [kit, activeWallet?.address, activeChain]);
 
   useEffect(() => {
     fetchBalance();
@@ -178,21 +216,37 @@ export default function SendScreen() {
       }
 
       if (selectedToken.isNativeCurrency !== false) {
-        setTokenBalance(formatUnits(balance ?? BigInt(0), nativeDecimals));
+        // Native token balance mirrors the kit-formatted amount so the
+        // display stays consistent with the balance pill.
+        setTokenBalance(balanceAmountText);
         return;
       }
 
       try {
         setIsLoadingTokenBalance(true);
+        // ERC-20 balance reads still go through the legacy viem public
+        // client — SPL / non-EVM token transfers are deferred (spec N1 /
+        // F6). `getPublicClientForActiveChain` returns `null` on
+        // non-EVM chains, which keeps this path no-op for Solana.
         const publicClient = getPublicClientForActiveChain();
+        if (!publicClient) {
+          setTokenBalance("0");
+          return;
+        }
         const bal = await publicClient.readContract({
           address: selectedToken.contractAddress as `0x${string}`,
           abi: erc20Abi,
           functionName: "balanceOf",
           args: [activeWallet.address as `0x${string}`],
         });
+        const decimals = selectedToken.decimals ?? 18;
+        const raw = bal as bigint;
+        const divisor = 10n ** BigInt(decimals);
+        const whole = raw / divisor;
+        const frac = raw % divisor;
+        const fracStr = frac.toString().padStart(decimals, "0");
         setTokenBalance(
-          formatUnits(bal as bigint, selectedToken.decimals ?? 18),
+          `${whole.toString()}.${fracStr}`.replace(/\.?0+$/, "") || "0",
         );
       } catch (e) {
         console.error("Error fetching token balance:", e);
@@ -207,8 +261,7 @@ export default function SendScreen() {
     activeWallet?.address,
     selectedToken,
     getPublicClientForActiveChain,
-    balance,
-    nativeDecimals,
+    balanceAmountText,
   ]);
 
   const handlePasteAddress = async () => {
@@ -220,39 +273,39 @@ export default function SendScreen() {
     if (!activeWallet?.address) return;
     if (!selectedToken?.isNativeCurrency) return;
 
-    const publicClient = getPublicClientForActiveChain();
-    const estimatedGas = await publicClient.estimateGas({
-      account: activeWallet.address as `0x${string}`,
-      to:
-        (recipient as `0x${string}`) ||
-        "0x0000000000000000000000000000000000000000",
-      value: balance > BigInt(0) ? balance : BigInt(0),
-    });
     try {
-      const gasBuffer = (estimatedGas * BigInt(110)) / BigInt(100);
-      const gasPrice = await publicClient.getGasPrice();
-      const gasCost = gasBuffer * gasPrice;
-
-      const maxAmount = balance > gasCost ? balance - gasCost : BigInt(0);
-      setAmount(formatUnits(maxAmount, nativeDecimals));
+      const max = await kit.estimateMaxTransferable({
+        balance,
+        chain: activeChain,
+        from: activeWallet.address,
+        to: recipient || undefined,
+      });
+      // Strip the symbol so only the numeric portion lands in the
+      // amount input — matches the spec snippet in §7.7.
+      const { amount: maxAmountText } = splitFormattedNative(
+        kit.formatNativeAmount(max, activeChain),
+      );
+      setAmount(maxAmountText);
     } catch (error) {
-      console.error("Error estimating gas:", error);
-      const maxAmount =
-        balance > estimatedGas ? balance - estimatedGas : BigInt(0);
-      setAmount(formatUnits(maxAmount, nativeDecimals));
+      console.error("Error estimating max:", error);
     }
   }, [
+    kit,
     activeWallet?.address,
     balance,
-    getPublicClientForActiveChain,
+    activeChain,
     recipient,
     selectedToken?.isNativeCurrency,
-    nativeDecimals,
   ]);
 
   const validateInputs = useCallback(() => {
     if (!recipient) {
       console.error("Error: Please enter a recipient address");
+      return false;
+    }
+
+    if (!kit.validateAddress(recipient)) {
+      console.error("Error: Invalid recipient address for the active chain");
       return false;
     }
 
@@ -262,11 +315,11 @@ export default function SendScreen() {
     }
 
     if (selectedToken?.isNativeCurrency !== false) {
-      const amountInWei = parseUnits(amount, nativeDecimals);
-      if (amountInWei > balance) {
+      const raw = kit.parseNativeAmount(amount, activeChain);
+      if (raw <= 0n || raw > balance) {
         console.error(
           "Insufficient Balance:",
-          `You don't have enough ${activeChain.chain.nativeCurrency.symbol} to complete this transaction.`,
+          `You don't have enough ${nativeSymbol || "funds"} to complete this transaction.`,
         );
         return false;
       }
@@ -274,12 +327,13 @@ export default function SendScreen() {
 
     return true;
   }, [
+    kit,
     amount,
     balance,
     recipient,
-    activeChain.chain.nativeCurrency.symbol,
+    activeChain,
     selectedToken?.isNativeCurrency,
-    nativeDecimals,
+    nativeSymbol,
   ]);
 
   const handleSend = useCallback(async () => {
@@ -299,109 +353,105 @@ export default function SendScreen() {
 
     try {
       setTransactionStatus("Initializing wallet...");
-      const walletClient = getClientForActiveWallet();
-      if (!walletClient) {
-        console.log("No wallet client available");
-        console.error("Error: Unable to initialize wallet client");
-        setIsLoading(false);
-        return;
+
+      let hash: string;
+      if (selectedToken && selectedToken.isNativeCurrency === false) {
+        // ERC-20 transfer — legacy viem write path. Non-EVM token
+        // transfers (SPL) are deferred (spec N1 / F6), so if the
+        // selected token is non-native and the active chain is Solana
+        // the viem client will be `null` and we bail early.
+        const walletClient = getClientForActiveWallet();
+        if (!walletClient || !walletClient.account) {
+          console.error("Error: Unable to initialize wallet client");
+          setIsLoading(false);
+          return;
+        }
+        setTransactionStatus("Building transaction...");
+        const tokenAmount = parseUnits(amount, selectedToken.decimals);
+        setTransactionStatus(
+          `Sending ${amount} ${selectedToken.symbol} to the network...`,
+        );
+        hash = await walletClient.writeContract({
+          abi: erc20Abi,
+          address: selectedToken.contractAddress as `0x${string}`,
+          functionName: "transfer",
+          args: [recipient as `0x${string}`, tokenAmount],
+          account: walletClient.account,
+          chain: walletClient.chain,
+        });
+      } else {
+        // Native transfer — single path for every namespace.
+        setTransactionStatus("Building transaction...");
+        const lamports = kit.parseNativeAmount(amount, activeChain);
+        setTransactionStatus(
+          `Sending ${amount} ${nativeSymbol} to the network...`,
+        );
+        hash = await kit.sendNativeTransfer({
+          wallet: activeWallet,
+          to: recipient,
+          amount: lamports,
+          chain: activeChain,
+        });
       }
 
-      if (!walletClient.account) {
-        console.log("No account available in wallet client");
-        console.error("Error: Wallet account not properly configured");
-        setIsLoading(false);
-        return;
-      }
-
-      console.log("Wallet client ready for", activeWallet.address);
+      console.log("Transaction sent with hash:", hash);
+      setTransactionStatus("Transaction complete!");
 
       try {
-        setTransactionStatus("Building transaction...");
-
-        let hash: `0x${string}`;
-        if (selectedToken && selectedToken.isNativeCurrency === false) {
-          const tokenAmount = parseUnits(amount, selectedToken.decimals);
-          setTransactionStatus(
-            `Sending ${amount} ${selectedToken.symbol} to the network...`,
-          );
-          hash = await walletClient.writeContract({
-            abi: erc20Abi,
-            address: selectedToken.contractAddress as `0x${string}`,
-            functionName: "transfer",
-            args: [recipient as `0x${string}`, tokenAmount],
-            account: walletClient.account,
-            chain: walletClient.chain,
-          });
-        } else {
-          const value = parseUnits(amount, nativeDecimals);
-          console.log("Sending transaction...");
-
-          setTransactionStatus(
-            `Sending ${amount} ${activeChain.chain.nativeCurrency.symbol} to the network...`,
-          );
-          hash = await walletClient.sendTransaction({
-            account: walletClient.account,
-            to: recipient as `0x${string}`,
-            value,
-            chain: walletClient.chain,
-          });
-        }
-
-        console.log("Transaction sent with hash:", hash);
-        setTransactionStatus("Transaction complete!");
-
-        try {
-          if (isAuthenticated && activeWallet?.address) {
-            if (selectedToken && selectedToken.isNativeCurrency === false) {
-              // Convert to raw token units (e.g., wei for 18 decimals)
-              const rawAmount = parseUnits(
-                amount,
-                selectedToken.decimals,
-              ).toString();
+        if (isAuthenticated && activeWallet?.address) {
+          if (selectedToken && selectedToken.isNativeCurrency === false) {
+            // ERC-20 history path stays EVM-shaped; this branch already
+            // only runs when the selected token is ERC-20 (i.e. the
+            // active chain is EVM).
+            const rawAmount = parseUnits(
+              amount,
+              selectedToken.decimals,
+            ).toString();
+            await createTransaction({
+              contractAddress: selectedToken.contractAddress,
+              blockchainId: selectedToken.blockchainId,
+              type: "TRANSFER",
+              amount: rawAmount,
+              txHash: hash as `0x${string}`,
+              fromAddress: activeWallet.address,
+              toAddress: recipient,
+            } as any);
+          } else if (activeChain.namespace === "eip155") {
+            // Native-transfer history recording is gated to EVM — the
+            // backend `createTransaction` API is EVM-shaped today.
+            // Solana history recording is deferred; see spec §12 Q4 /
+            // F1.
+            const nativeTokenId =
+              selectedToken?.id ??
+              tokenList?.find((t) => t.isNativeCurrency)?.id;
+            if (nativeTokenId) {
+              const rawAmount = kit
+                .parseNativeAmount(amount, activeChain)
+                .toString();
               await createTransaction({
-                contractAddress: selectedToken.contractAddress,
-                blockchainId: selectedToken.blockchainId,
+                tokenId: nativeTokenId,
                 type: "TRANSFER",
                 amount: rawAmount,
-                txHash: hash,
+                txHash: hash as `0x${string}`,
                 fromAddress: activeWallet.address,
                 toAddress: recipient,
-              } as any);
-            } else {
-              const nativeTokenId =
-                selectedToken?.id ??
-                tokenList?.find((t) => t.isNativeCurrency)?.id;
-              if (nativeTokenId) {
-                // Convert to raw token units (e.g., wei for 18 decimals)
-                const rawAmount = parseUnits(amount, nativeDecimals).toString();
-                await createTransaction({
-                  tokenId: nativeTokenId,
-                  type: "TRANSFER",
-                  amount: rawAmount,
-                  txHash: hash,
-                  fromAddress: activeWallet.address,
-                  toAddress: recipient,
-                });
-              }
+              });
             }
           }
-        } catch (historyErr) {
-          console.warn("Failed to create transfer history:", historyErr);
         }
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        console.log(
-          "Transaction Sent:",
-          `Transaction has been submitted. Hash: ${hash}, Network: ${activeChain.chain.name}`,
-        );
-        router.back();
-      } catch (txError: any) {
-        console.error("Transaction execution error:", txError);
+      } catch (historyErr) {
+        console.warn("Failed to create transfer history:", historyErr);
       }
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      console.log(
+        "Transaction Sent:",
+        `Transaction has been submitted. Hash: ${hash}`,
+      );
+      router.back();
     } catch (error: any) {
-      console.error("Send transaction setup error:", error);
+      console.error("Send transaction error:", error);
     } finally {
       setIsLoading(false);
     }
@@ -410,10 +460,6 @@ export default function SendScreen() {
   const handleSelectWallet = (index: number) => {
     setActiveWallet(index);
     setWalletModalVisible(false);
-  };
-
-  const formatBalance = (rawBalance: bigint) => {
-    return parseFloat(formatUnits(rawBalance, nativeDecimals)).toFixed(4);
   };
 
   if (!ready) {
@@ -472,8 +518,7 @@ export default function SendScreen() {
                     ) : (
                       <>
                         <Text className="text-light-matte-black">
-                          {formatBalance(balance)}{" "}
-                          {activeChain.chain.nativeCurrency.symbol}
+                          {balanceDisplay}
                         </Text>
                         {selectedToken &&
                           selectedToken.isNativeCurrency === false && (
@@ -563,16 +608,12 @@ export default function SendScreen() {
                         />
                       ) : (
                         <Text className="text-light-primary-red text-[10px] font-bold">
-                          {(
-                            selectedToken?.symbol ||
-                            activeChain.chain.nativeCurrency.symbol
-                          ).charAt(0)}
+                          {(selectedToken?.symbol || nativeSymbol).charAt(0)}
                         </Text>
                       )}
                     </View>
                     <Text className="text-light-matte-black/70 font-medium">
-                      {selectedToken?.symbol ||
-                        activeChain.chain.nativeCurrency.symbol}
+                      {selectedToken?.symbol || nativeSymbol}
                     </Text>
                   </TouchableOpacity>
                 </View>

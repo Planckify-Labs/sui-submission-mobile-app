@@ -337,7 +337,10 @@ export function useDepositState() {
 
       const walletClient = getClientForActiveWallet();
       const publicClient = getPublicClientForActiveChain();
-      if (!walletClient || !walletClient.account) {
+      // Both accessors now return `null` on non-EVM chains (§7.5).
+      // Deposit flows are EVM-only today; Task 14 will move this path
+      // behind the kit adapter.
+      if (!walletClient || !walletClient.account || !publicClient) {
         updateState({ error: "Wallet not connected" });
         return;
       }
