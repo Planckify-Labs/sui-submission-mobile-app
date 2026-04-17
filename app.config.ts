@@ -120,6 +120,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     "./plugins/withAndroidBackupRules",
+    "./plugins/withRemoveAndroidMediaPermissions",
     "expo-router",
     [
       "expo-camera",
@@ -146,7 +147,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         imageWidth: 150,
       },
     ],
-    "expo-secure-store",
+    // TWV-2026-059 — backup rules are owned by `withAndroidBackupRules`
+    // (wholesale exclude). Tell expo-secure-store to skip its own
+    // auto-backup stamping so it stops warning about the conflict.
+    ["expo-secure-store", { configureAndroidBackup: false }],
     [
       "expo-web-browser",
       {
