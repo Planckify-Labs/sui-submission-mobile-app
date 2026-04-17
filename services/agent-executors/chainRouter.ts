@@ -45,13 +45,21 @@ const walletClientCache = new Map<string, ReturnType<typeof getWalletClient>>();
  * chain_id is not available in the static `supportedChains` table.
  */
 function chainFromBlockchainRow(row: TBlockchain): Chain {
-  const nativeToken = row.tokens?.find((t) => t.isNativeCurrency);
+  // Prefer the flagged native token; fall back to the first token, or
+  // to bare blockchain metadata when the backend hasn't populated a
+  // token list for this row yet.
+  const nativeToken =
+    row.tokens?.find((t) => t.isNativeCurrency) ?? row.tokens?.[0];
   return defineChain({
-    id: row.chainId,
+    // Agent routes only EVM chains; a null chainId here means a
+    // Solana row slipped through the filter upstream. Fall back to 0
+    // so viem's types stay satisfied — any subsequent viem call will
+    // throw loudly on the invalid id rather than silently succeed.
+    id: row.chainId ?? 0,
     name: row.name,
     nativeCurrency: {
-      name: nativeToken?.name ?? "Ether",
-      symbol: nativeToken?.symbol ?? "ETH",
+      name: nativeToken?.name ?? row.name,
+      symbol: nativeToken?.symbol ?? "N/A",
       decimals: nativeToken?.decimals ?? 18,
     },
     rpcUrls: {

@@ -68,24 +68,47 @@ export function bootBridge(opts: BootOpts) {
   // is resolved once inside `installSolanaSigner`; this install must
   // happen AFTER `createSolanaAdapter()` so the signer slot exists, and
   // AFTER `bootWalletKits()` (called at app boot in `app/_layout.tsx`) so
-  // the kit registry is populated. `getRpcForCluster` omits `rpcSubs` —
-  // public RPCs rate-limit WS subscriptions; private RPCs via
-  // `EXPO_PUBLIC_SOLANA_*_RPC_SUBSCRIPTIONS` are future work.
-  installSolanaSigner({
-    getWalletByAddress: (addr) =>
-      opts.getContext().wallets.find((w) => w.address === addr),
-    getRpcForCluster: (cluster) => {
-      const mainnet =
-        process.env.EXPO_PUBLIC_SOLANA_MAINNET_RPC ??
-        "https://api.mainnet-beta.solana.com";
-      const devnet =
-        process.env.EXPO_PUBLIC_SOLANA_DEVNET_RPC ??
-        "https://api.devnet.solana.com";
-      return {
-        rpc: createSolanaRpc(cluster === "devnet" ? devnet : mainnet),
-      };
-    },
-  });
+  // the kit registry is populated.
+  //
+  // `getRpcForCluster` uses Solana's public endpoints. The UI-facing
+  // per-user rpcUrl is sourced from the backend `/blockchains` feed
+  // (see `ChainSelector` / `buildChainConfigFromBlockchain`) and threads
+  // into the kit's `sendNativeTransfer` via `activeChain`. The bridge
+  // signer runs in a non-React context and services a dApp-supplied
+  // cluster hint — public defaults are the correct fallback there.
+  // `rpcSubs` is omitted: public RPCs rate-limit WS subscriptions;
+  // private subscription URLs are future work.
+  // Defensive: `installSolanaSigner` resolves
+  // `walletKitRegistry.get("solana")` at install time and throws if the
+  // Solana kit isn't registered yet (possible during Fast Refresh when
+  // the registry module is re-evaluated but `bootWalletKits` hasn't
+  // re-run, or during a cold boot where kit registration races with the
+  // first dapps-browser mount). Swallow that failure so the screen
+  // doesn't force-close — the EVM bridge path still works, and the
+  // Solana signer re-installs on the next bootBridge call.
+  try {
+    installSolanaSigner({
+      getWalletByAddress: (addr) =>
+        opts.getContext().wallets.find((w) => w.address === addr),
+      getRpcForCluster: (cluster) => {
+        const url =
+          cluster === "devnet"
+            ? "https://api.devnet.solana.com"
+            : "https://api.mainnet-beta.solana.com";
+        return { rpc: createSolanaRpc(url) };
+      },
+    });
+  } catch (err) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn(
+        "[bridge] installSolanaSigner failed; Solana dApp signing disabled for this session:",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+    // Reset the module-level `booted` flag so a later mount (once the
+    // Solana kit is registered) can retry install.
+    booted = false;
+  }
 
   void PermissionStore.hydrate();
   void pendingIntentsStore.hydrate();

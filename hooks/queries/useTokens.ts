@@ -5,8 +5,8 @@ import { storage } from "@/lib/storage/mmkv";
 
 const TOKEN_STORAGE_KEY = "cached_tokens";
 const TOKEN_TIMESTAMP_KEY = "cached_tokens_timestamp";
-const OFFLINE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours — offline fallback only
-const STALE_TIME = 5 * 60 * 1000; // 5 minutes — after this, fetch from API on next mount
+const OFFLINE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24h — offline fallback only
+const STALE_TIME = 5 * 60 * 1000; // 5 min — React Query freshness window
 
 const filterTokens = (tokens: TToken[], options?: TTokenSearchParams) => {
   if (!options) return tokens;
@@ -24,47 +24,78 @@ const filterTokens = (tokens: TToken[], options?: TTokenSearchParams) => {
   });
 };
 
-const fetchAndCacheTokens = async (): Promise<TToken[]> => {
+function readCachedTokens(): TToken[] | undefined {
+  const raw = storage.getString(TOKEN_STORAGE_KEY);
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw) as TToken[];
+  } catch {
+    return undefined;
+  }
+}
+
+function readCacheTimestamp(): number {
+  const raw = storage.getString(TOKEN_TIMESTAMP_KEY);
+  return raw ? Number.parseInt(raw, 10) || 0 : 0;
+}
+
+async function fetchAndCacheTokens(): Promise<TToken[]> {
   const response = await tokenApi.getTokenList();
-  // Synchronous MMKV write
+  // Synchronous MMKV write. Persists the full catalogue (unfiltered)
+  // so every `useTokens({ ... })` consumer can seed its `initialData`
+  // from the same bundle without a per-filter cache entry.
   storage.set(TOKEN_STORAGE_KEY, JSON.stringify(response));
   storage.set(TOKEN_TIMESTAMP_KEY, Date.now().toString());
   return response;
-};
+}
 
 export const useTokens = (options?: TTokenSearchParams) => {
+  const isTextSearch = !!(
+    options?.name ||
+    options?.symbol ||
+    options?.contractAddress
+  );
+
   return useQuery<TToken[]>({
     queryKey: ["tokens", options],
+    // Seed the query with MMKV-cached tokens so UI renders
+    // immediately (optimistic). React Query still fires a background
+    // refetch (`refetchOnMount: "always"` below) to reconcile with
+    // the server. Text searches skip the cache entirely — they're
+    // always one-shot server lookups keyed by user input.
+    initialData: () => {
+      if (isTextSearch) return undefined;
+      const cached = readCachedTokens();
+      if (!cached) return undefined;
+      return filterTokens(cached, options);
+    },
+    initialDataUpdatedAt: () =>
+      isTextSearch ? 0 : readCacheTimestamp(),
     queryFn: async () => {
-      // Text search always hits the API directly
-      if (options?.name || options?.symbol || options?.contractAddress) {
-        return await tokenApi.searchTokens(options);
+      if (isTextSearch) {
+        return await tokenApi.searchTokens(options ?? {});
       }
-
-      const cachedRaw = storage.getString(TOKEN_STORAGE_KEY);
-      const timestampStr = storage.getString(TOKEN_TIMESTAMP_KEY);
-      const now = Date.now();
-      const timestamp = timestampStr ? parseInt(timestampStr, 10) : 0;
-
-      // Fast path: cache is still fresh (< 5 min) — no network needed
-      if (cachedRaw && now - timestamp < STALE_TIME) {
-        return filterTokens(JSON.parse(cachedRaw), options);
-      }
-
-      // Cache is stale or missing — fetch from API
       try {
         const fresh = await fetchAndCacheTokens();
         return filterTokens(fresh, options);
-      } catch (error) {
-        // Offline fallback: serve any MMKV data available, regardless of age
-        if (cachedRaw) {
-          return filterTokens(JSON.parse(cachedRaw), options);
+      } catch (err) {
+        // Offline / transient: serve whatever's in MMKV while the
+        // request is recoverable. 24h TTL matches the gcTime below.
+        const cached = readCachedTokens();
+        const ts = readCacheTimestamp();
+        if (cached && Date.now() - ts < OFFLINE_CACHE_TTL) {
+          return filterTokens(cached, options);
         }
-        throw error;
+        throw err;
       }
     },
     staleTime: STALE_TIME,
     gcTime: OFFLINE_CACHE_TTL,
-    refetchOnMount: true,
+    // Always refetch on mount so the optimistic cached result gets
+    // reconciled with the server — same pattern as the smart-contract
+    // hook. Text searches bypass the cache; the flag is harmless
+    // there because their queryKey changes per input.
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
   });
 };

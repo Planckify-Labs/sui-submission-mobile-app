@@ -3,7 +3,11 @@ import { TToken } from "./token";
 export type TBlockchain = {
   id: string;
   name: string;
-  chainId: number;
+  /**
+   * EVM numeric chainId, or `null` for non-EVM networks (e.g. Solana).
+   * Narrow with `typeof chainId === "number"` at EVM-only call sites.
+   */
+  chainId: number | null;
   rpcUrl: string;
   blockExplorer: string;
   isEVM: boolean;

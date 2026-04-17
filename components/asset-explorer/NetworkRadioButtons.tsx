@@ -44,15 +44,28 @@ const NetworkRadioButtons = () => {
 
     if (!blockchains) return [];
 
-    return blockchains.map((blockchain) => ({
-      id: blockchain.chainId.toString(),
-      name: blockchain.name,
-      symbol: "ETH",
-      color: "#627EEA",
-      isPinned: true,
-      blockchainId: blockchain.id,
-      logoUrl: blockchain.tokens?.[0]?.logoUrl,
-    }));
+    // Show every backend network regardless of namespace. EVM rows
+    // use the numeric chainId as the row id (existing selection code
+    // compares against that); non-EVM rows fall back to the backend
+    // `blockchain.id` (a stable UUID) so they never dereference null.
+    return blockchains.map((blockchain) => {
+      const nativeToken =
+        blockchain.tokens?.find((t) => t.isNativeCurrency) ??
+        blockchain.tokens?.[0];
+      const rowId =
+        typeof blockchain.chainId === "number"
+          ? blockchain.chainId.toString()
+          : blockchain.id;
+      return {
+        id: rowId,
+        name: blockchain.name,
+        symbol: nativeToken?.symbol ?? "N/A",
+        color: "#627EEA",
+        isPinned: true,
+        blockchainId: blockchain.id,
+        logoUrl: nativeToken?.logoUrl,
+      };
+    });
   }, [blockchains, pinnedNetworks]);
 
   const getAccentColor = () => {
@@ -61,8 +74,10 @@ const NetworkRadioButtons = () => {
 
   const getNetworkIdFromChainId = useCallback(
     (chainId: number): string => {
-      const blockchain = blockchains?.find((b) => b.chainId === chainId);
-      if (blockchain) {
+      const blockchain = blockchains?.find(
+        (b) => typeof b.chainId === "number" && b.chainId === chainId,
+      );
+      if (blockchain && typeof blockchain.chainId === "number") {
         return blockchain.chainId.toString();
       }
       return "ethereum";

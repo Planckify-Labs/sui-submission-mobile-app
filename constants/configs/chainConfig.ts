@@ -56,6 +56,15 @@ export function findEvmChainById(chainId: number): EvmChainConfig | undefined {
   return getEvmSupportedChains().find((c) => c.chain.id === chainId);
 }
 
+/**
+ * Static frontend defaults — used as the initial `activeChain` before
+ * the backend `blockchains` feed resolves, and as a fallback for any
+ * UI that needs a sensible list before the query settles. Solana rows
+ * are NOT listed here: v2.3.0 onward, the backend `/blockchains`
+ * endpoint returns Solana alongside EVM (via `isEVM: false`) and
+ * `ChainSelector` / `buildChainConfigFromBlockchain` consume it
+ * directly. Mirrors how EVM chains are served.
+ */
 export const supportedChains: ChainConfig[] = [
   {
     namespace: "eip155",
@@ -84,23 +93,6 @@ export const supportedChains: ChainConfig[] = [
     namespace: "eip155",
     chain: polygonMumbai,
     iconUrl: "https://polygon.technology/favicon.ico",
-    isTestnet: true,
-  },
-  {
-    namespace: "solana",
-    cluster: "mainnet-beta",
-    rpcUrl:
-      process.env.EXPO_PUBLIC_SOLANA_MAINNET_RPC ??
-      "https://api.mainnet-beta.solana.com",
-    iconUrl: "https://solana.com/src/img/branding/solanaLogoMark.svg",
-  },
-  {
-    namespace: "solana",
-    cluster: "devnet",
-    rpcUrl:
-      process.env.EXPO_PUBLIC_SOLANA_DEVNET_RPC ??
-      "https://api.devnet.solana.com",
-    iconUrl: "https://solana.com/src/img/branding/solanaLogoMark.svg",
     isTestnet: true,
   },
 ];

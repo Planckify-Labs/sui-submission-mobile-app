@@ -29,7 +29,6 @@ import {
 } from "@/components/deposit";
 import TokenSelectorModal from "@/components/wallet/TokenSelectorModal";
 import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
-import { assertEvmChain } from "@/constants/configs/chainConfig";
 import { useDepositState } from "@/hooks/deposit/useDepositState";
 import { useNavigationReady } from "@/hooks/useNavigationReady";
 import { useWallet } from "@/hooks/useWallet";
@@ -44,13 +43,22 @@ function DepositContent({ bottomOffset }: DepositContentProps) {
     activeWallet,
     activeWalletIndex,
     setActiveWallet,
-    activeChain: rawActiveChain,
+    activeChain,
   } = useWallet();
 
-  // TODO(task-14): replace `activeChain.chain.*` reach-through with
-  // kit-dispatched accessors once deposit flow moves to
-  // `WalletKitAdapter`.
-  const activeChain = assertEvmChain(rawActiveChain);
+  // Deposit flow is EVM-only (smart-contract path). Derive display
+  // fields from the discriminated-union chain config without throwing:
+  //   - EVM active → read from `activeChain.chain.*`.
+  //   - Non-EVM active → placeholders; `useDepositState` returns
+  //     `hasContract: false` which triggers `DepositUnsupportedChainModal`
+  //     below (same modal the EVM-without-contract case shows).
+  const isEvm = activeChain.namespace === "eip155";
+  const nativeCurrencySymbol = isEvm
+    ? activeChain.chain.nativeCurrency.symbol
+    : "";
+  const chainDisplayName = isEvm
+    ? activeChain.chain.name
+    : `Solana ${activeChain.cluster === "devnet" ? "Devnet" : "Mainnet"}`;
   const {
     selectedToken,
     amount,
@@ -87,12 +95,20 @@ function DepositContent({ bottomOffset }: DepositContentProps) {
   // Show the unsupported chain modal once when the user is authenticated
   // and the active chain has no contract, but only after fetching is done.
   useEffect(() => {
+    // Non-EVM active chain → deposit path is structurally unsupported
+    // (smart-contract deposits are EVM-only this spec). Fire the
+    // modal immediately without requiring auth, since there's no
+    // contract lookup to wait on.
+    if (!isEvm) {
+      setUnsupportedChainModalVisible(true);
+      return;
+    }
     if (isAuthenticated && !isContractFetching && !hasContract) {
       setUnsupportedChainModalVisible(true);
     } else {
       setUnsupportedChainModalVisible(false);
     }
-  }, [isAuthenticated, isContractFetching, hasContract]);
+  }, [isEvm, isAuthenticated, isContractFetching, hasContract]);
 
   const handleSelectWallet = useCallback(
     (index: number) => {
@@ -205,7 +221,7 @@ function DepositContent({ bottomOffset }: DepositContentProps) {
                 <View className="bg-light-main-container rounded-xl p-4 gap-2">
                   <View className="flex-row items-center justify-between">
                     <Text className="text-light-matte-black/60 text-sm">
-                      {activeChain.chain.nativeCurrency.symbol}
+                      {nativeCurrencySymbol}
                     </Text>
                     <Text
                       className={`text-sm font-medium ${hasInsufficientNative ? "text-red-500" : "text-light-matte-black"}`}
@@ -226,7 +242,7 @@ function DepositContent({ bottomOffset }: DepositContentProps) {
                   {(hasInsufficientNative || hasInsufficientToken) && (
                     <Text className="text-red-500 text-xs mt-1">
                       {hasInsufficientNative
-                        ? `Insufficient ${activeChain.chain.nativeCurrency.symbol} for gas fees.`
+                        ? `Insufficient ${nativeCurrencySymbol} for gas fees.`
                         : `Insufficient ${selectedToken.symbol} balance.`}
                     </Text>
                   )}
@@ -311,7 +327,7 @@ function DepositContent({ bottomOffset }: DepositContentProps) {
 
       <DepositUnsupportedChainModal
         visible={unsupportedChainModalVisible}
-        chainName={activeChain.chain.name}
+        chainName={chainDisplayName}
         onClose={() => setUnsupportedChainModalVisible(false)}
         onSwitchNetwork={() => chainSelectorRef.current?.open()}
       />

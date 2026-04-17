@@ -81,22 +81,32 @@ export default function ConversationHistory({
   const allChains = useMemo(() => {
     if (!blockchains || !nativeTokens) return [];
 
-    return blockchains.map((blockchain) => {
-      return {
-        chain: {
-          id: blockchain.chainId,
-          name: blockchain.name,
-          nativeCurrency: {
-            name: blockchain.tokens?.[0]?.name,
-            symbol: blockchain.tokens?.[0]?.symbol,
-            decimals: blockchain.tokens?.[0]?.decimals,
+    // Agent chain picker is EVM-only this spec (N1). Backend Solana
+    // rows ship with `chainId: null`, so filter them out before
+    // dereferencing.
+    return blockchains
+      .filter(
+        (b) => b.isEVM !== false && typeof b.chainId === "number",
+      )
+      .map((blockchain) => {
+        const nativeToken =
+          blockchain.tokens?.find((t) => t.isNativeCurrency) ??
+          blockchain.tokens?.[0];
+        return {
+          chain: {
+            id: blockchain.chainId as number,
+            name: blockchain.name,
+            nativeCurrency: {
+              name: nativeToken?.name ?? blockchain.name,
+              symbol: nativeToken?.symbol ?? "N/A",
+              decimals: nativeToken?.decimals ?? 18,
+            },
           },
-        },
-        iconUrl: blockchain.tokens?.[0]?.logoUrl,
-        isTestnet: false,
-        blockchainId: blockchain.id,
-      };
-    });
+          iconUrl: nativeToken?.logoUrl,
+          isTestnet: false,
+          blockchainId: blockchain.id,
+        };
+      });
   }, [blockchains, nativeTokens]);
 
   const formattedAddress = useMemo(() => {

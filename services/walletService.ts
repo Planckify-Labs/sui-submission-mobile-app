@@ -59,6 +59,7 @@ import {
   privateKeyToAccount,
 } from "viem/accounts";
 import { TWallet } from "@/constants/types/walletTypes";
+import { storage } from "@/lib/storage/mmkv";
 import { parseSolanaPrivateKey } from "@/services/chains/solana/codec";
 import { mnemonicToSolanaPrivateKey } from "@/services/chains/solana/derivation";
 import {
@@ -111,6 +112,35 @@ const WALLET_BUNDLE_KEY = "wallets_bundle_v1";
 const WALLET_INDEX_KEY = "wallet_index";
 const WALLET_PREFIX = "wallet_";
 
+// Non-sensitive presence flag in plain MMKV. Exists so the app-shell
+// can distinguish "biometric was cancelled on a device that HAS
+// wallets" from "fresh install / signed out" — both paths yield an
+// empty `wallets` array from `loadWalletsFromStorage`, and only the
+// former should route to the lock screen. No wallet material ever
+// goes through this key.
+const HAS_WALLETS_FLAG_KEY = "takumi.has_wallets";
+// Set once the bundle has been rewritten under the auth-free
+// SecureStore options (see `walletSecureStore.ts` SIGNING_* comment).
+// Absence triggers the one-time re-save on the next successful load.
+const LOCK_MIGRATED_FLAG_KEY = "takumi.lock_gate_migrated_v1";
+
+export function hasStoredWallets(): boolean {
+  try {
+    return storage.getString(HAS_WALLETS_FLAG_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setStoredWalletsFlag(present: boolean): void {
+  try {
+    if (present) storage.set(HAS_WALLETS_FLAG_KEY, "1");
+    else storage.set(HAS_WALLETS_FLAG_KEY, "");
+  } catch {
+    // MMKV errors aren't fatal — the flag is a best-effort UX hint.
+  }
+}
+
 function stripAccount(wallet: TWallet): TWallet {
   const { account: _account, ...rest } = wallet;
   return {
@@ -131,11 +161,33 @@ export async function loadWalletsFromStorage(): Promise<TWallet[]> {
   if (inFlightLoad) return inFlightLoad;
   inFlightLoad = (async () => {
     try {
-      // 1. Bundle layout (the fast path — ONE prompt).
+      // 1. Bundle layout (the fast path — ONE prompt on legacy devices).
       const bundleData = await signingSecureGet(WALLET_BUNDLE_KEY);
       if (bundleData) {
         const parsed = JSON.parse(bundleData) as TWallet[];
         cachedWallets = applyNamespaceBackfill(parsed);
+        setStoredWalletsFlag(cachedWallets.length > 0);
+
+        // One-time migration from `requireAuthentication: true` to the
+        // new app-level gate (LockScreen + `LocalAuthentication`).
+        // Rewrites the bundle under the auth-free SecureStore options
+        // so subsequent cold starts don't hit the OS biometric sheet
+        // at the keystore layer. After this flag flips, users get the
+        // full "biometric OR device credential" choice instead of
+        // Android's biometric-only `BiometricPrompt`.
+        if (!storage.getBoolean(LOCK_MIGRATED_FLAG_KEY)) {
+          try {
+            await signingSecureSet(
+              WALLET_BUNDLE_KEY,
+              JSON.stringify(cachedWallets.map(stripAccount)),
+            );
+            storage.set(LOCK_MIGRATED_FLAG_KEY, true);
+          } catch (e) {
+            if (__DEV__)
+              console.warn("[walletService] lock-gate migration failed:", e);
+          }
+        }
+
         return [...cachedWallets];
       }
 
@@ -227,6 +279,7 @@ export async function saveWalletsToStorage(
           WALLET_BUNDLE_KEY,
           JSON.stringify(wallets.map(stripAccount)),
         );
+        setStoredWalletsFlag(wallets.length > 0);
         return true;
       } catch (error) {
         console.error("Failed to save wallets:", error);

@@ -23,14 +23,26 @@ export const WALLET_SECURE_STORE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
 };
 
-// TWV-2026-060 — signing-material reads add OS-level biometric gating
-// on top of the device-only accessibility. The prompt string is
-// displayed by the platform auth sheet, not by the app's own UI, so
-// copy is short and explicit.
+// TWV-2026-060 (revised) — signing-material reads are gated by the
+// APP-level `LockScreen` using `expo-local-authentication`, which
+// supports biometric OR device credential (PIN / pattern / passcode).
+// `requireAuthentication: true` was dropped because expo-secure-store
+// v15 configures `BiometricPrompt.BIOMETRIC_STRONG` on Android with
+// no DEVICE_CREDENTIAL fallback, which forces biometric-only there
+// and locks users out when biometry is unavailable or unenrolled.
+//
+// At-rest protection: `WHEN_UNLOCKED_THIS_DEVICE_ONLY` keeps the item
+// unreadable while the device is locked and blocks iCloud-Keychain /
+// Android-backup exfiltration. OS-backed auth is still the gate for
+// the lock screen — it's just checked by our code via
+// `LocalAuthentication`, not silently by the keystore cipher.
+//
+// Legacy entries written with `requireAuthentication: true` under a
+// prior build will still trigger the OS biometric sheet once (Android
+// Keystore honours the flag baked into the cipher key). The next save
+// rewrites them without the flag.
 export const SIGNING_SECURE_STORE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-  requireAuthentication: true,
-  authenticationPrompt: "Authenticate to unlock wallet",
 };
 
 const MIGRATION_FLAG_PREFIX = "ss_migrated_v1:";

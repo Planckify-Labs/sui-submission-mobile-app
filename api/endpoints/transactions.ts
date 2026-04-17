@@ -1,10 +1,10 @@
-import * as SecureStore from "expo-secure-store";
 import { api } from "@/constants/configs/ky";
 import {
   getAccessToken,
   getAccessTokenForWallet,
   getAuthenticatedWalletAddress,
 } from "@/hooks/queries/useAuth";
+import { storage } from "@/lib/storage/mmkv";
 import * as walletService from "@/services/walletService";
 import type {
   TCreateTransactionRequest,
@@ -64,7 +64,14 @@ export const transactionApi = {
 
 const isAuthenticatedForActiveWallet = async (): Promise<boolean> => {
   try {
-    const indexStr = await SecureStore.getItemAsync("active_wallet_index");
+    // `active_wallet_index` lives in MMKV (see `useWallet`'s
+    // `setActiveWalletMutation` + the ky beforeRequest hook). Reading
+    // from SecureStore here always returned null → idx fell back to 0
+    // → the guard evaluated the FIRST wallet instead of the active
+    // one, which is why Solana-active users ended up firing authed
+    // requests that ky later rejected with
+    // "Not authenticated for current wallet".
+    const indexStr = storage.getString("active_wallet_index");
     const idx = indexStr ? parseInt(indexStr, 10) : 0;
     const wallets = await walletService.loadWalletsFromStorage();
     const activeAddr = wallets?.[idx]?.address?.toLowerCase() || null;

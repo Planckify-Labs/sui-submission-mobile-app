@@ -26,18 +26,27 @@ export function useUserAssetsWithBalances() {
 
   const selectedBlockchain = useMemo(() => {
     if (!blockchains || !activeNetwork) return null;
-    return blockchains.find((b) => b.chainId.toString() === activeNetwork);
+    return blockchains.find(
+      (b) =>
+        typeof b.chainId === "number" && b.chainId.toString() === activeNetwork,
+    );
   }, [blockchains, activeNetwork]);
 
   const selectedChain = useMemo(() => {
     if (!selectedBlockchain) return null;
+    // Asset balances are EVM-only (N1). If a Solana row somehow
+    // matched, bail out — viem's Chain expects a numeric id.
+    if (typeof selectedBlockchain.chainId !== "number") return null;
+    const nativeToken =
+      selectedBlockchain.tokens?.find((t) => t.isNativeCurrency) ??
+      selectedBlockchain.tokens?.[0];
     return {
       id: selectedBlockchain.chainId,
       name: selectedBlockchain.name,
       nativeCurrency: {
-        name: selectedBlockchain.tokens?.[0]?.name || "Ether",
-        symbol: selectedBlockchain.tokens?.[0]?.symbol || "ETH",
-        decimals: selectedBlockchain.tokens?.[0]?.decimals || 18,
+        name: nativeToken?.name ?? selectedBlockchain.name,
+        symbol: nativeToken?.symbol ?? "N/A",
+        decimals: nativeToken?.decimals ?? 18,
       },
       rpcUrls: {
         default: { http: [selectedBlockchain.rpcUrl] },

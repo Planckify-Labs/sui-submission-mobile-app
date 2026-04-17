@@ -85,10 +85,16 @@ describe("buildChainConfigFromBlockchain — EVM branch", () => {
     assert.equal(cc.isTestnet, true);
   });
 
-  it("defaults nativeCurrency to ETH when tokens is empty", () => {
-    const cc = buildChainConfigFromBlockchain(makeEvmBlockchain());
+  it("falls back to N/A symbol and the blockchain's own name when tokens is empty", () => {
+    // A chain with no native token row is rare but valid (freshly-
+    // added chain, indexer behind). We surface "N/A" for the symbol
+    // (obvious "data missing") rather than lying with "ETH" on what
+    // could be Polygon or BSC. Decimals default to the EVM standard.
+    const row = makeEvmBlockchain({ name: "Linea" });
+    const cc = buildChainConfigFromBlockchain(row);
     if (cc.namespace !== "eip155") throw new Error("narrowing guard");
-    assert.equal(cc.chain.nativeCurrency.symbol, "ETH");
+    assert.equal(cc.chain.nativeCurrency.symbol, "N/A");
+    assert.equal(cc.chain.nativeCurrency.name, row.name);
     assert.equal(cc.chain.nativeCurrency.decimals, 18);
   });
 });

@@ -178,15 +178,27 @@ export function buildChainConfigFromBlockchain(
     };
   }
 
+  // Prefer an explicitly-flagged native token; fall back to the first
+  // token the backend emitted. A blockchain with zero tokens is rare
+  // but valid (freshly-added chain, indexer behind) — the fallbacks
+  // below keep the ChainConfig renderable without lying about EVM
+  // specifics ("Ether" / "ETH" on a Polygon row).
+  const nativeToken =
+    b.tokens?.find((t) => t.isNativeCurrency) ?? b.tokens?.[0];
   return {
     namespace: "eip155",
     chain: {
-      id: b.chainId,
+      // Backend `chainId` may be null for non-EVM rows. By the time
+      // this branch runs we've already narrowed to EVM via
+      // `resolveNamespace`, so a null here is a backend data error —
+      // fall back to 0 so viem's types stay satisfied and the error
+      // surfaces downstream instead of crashing this helper.
+      id: b.chainId ?? 0,
       name: b.name,
       nativeCurrency: {
-        name: b.tokens?.[0]?.name || "Ether",
-        symbol: b.tokens?.[0]?.symbol || "ETH",
-        decimals: b.tokens?.[0]?.decimals || 18,
+        name: nativeToken?.name ?? b.name,
+        symbol: nativeToken?.symbol ?? "N/A",
+        decimals: nativeToken?.decimals ?? 18,
       },
       rpcUrls: {
         default: { http: [b.rpcUrl] },

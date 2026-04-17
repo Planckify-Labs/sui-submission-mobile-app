@@ -42,6 +42,14 @@ export function useWallet() {
         return await walletService.loadWalletsFromStorage();
       }, "Loading wallets");
     },
+    // The underlying read is auth-gated (Face ID / BiometricPrompt).
+    // Without these flags every useWallet consumer's mount re-runs the
+    // query, which re-prompts. We load once per cold start and rely on
+    // explicit `loadWallets()` / mutation-side setQueryData for updates.
+    staleTime: Infinity,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: activeWalletIndex = 0 } = useQuery({
@@ -153,14 +161,39 @@ export function useWallet() {
 
   const agentBusy = useAgentBusy();
 
+  const { data: blockchains } = useBlockchainsWithStorage({ isActive: true });
+
   // Internal setter — always runs. Used by `addWallet` / `removeWallet`
   // where the busy-state gate would be wrong (adding a wallet is part
   // of the same user intent; removing forces the index to stay valid).
+  //
+  // Wallet → chain sync: when the selected wallet's namespace differs
+  // from the current active chain's, flip the chain to the first
+  // backend row matching that namespace. Honours the user's explicit
+  // wallet pick (previously a passive effect fought it by re-picking
+  // the chain's matching wallet inside the account, which reverted
+  // taps to the "wrong" wallet).
   const setActiveWalletInternal = useCallback(
     (index: number) => {
       setActiveWalletMutation.mutate(index);
+      const target = wallets[index];
+      if (!target) return;
+      if (target.namespace === activeChain.namespace) return;
+      if (!blockchains) return;
+      const targetChainRow = blockchains.find(
+        (b) => (b.isEVM === false ? "solana" : "eip155") === target.namespace,
+      );
+      if (!targetChainRow) return;
+      const targetChainConfig = buildChainConfigFromBlockchain(targetChainRow);
+      setActiveChainMutation.mutate(targetChainConfig);
     },
-    [setActiveWalletMutation],
+    [
+      wallets,
+      activeChain.namespace,
+      blockchains,
+      setActiveWalletMutation,
+      setActiveChainMutation,
+    ],
   );
 
   // Exported setter — two-tier gating:
@@ -353,7 +386,49 @@ export function useWallet() {
     [wallets, activeWalletIndex, saveWallets, setActiveWalletInternal],
   );
 
-  const { data: blockchains } = useBlockchainsWithStorage({ isActive: true });
+  // Chain → wallet sync: pick a wallet whose namespace matches the
+  // new chain so `activeWallet.namespace === activeChain.namespace`
+  // always holds at steady state (send.tsx and other kit consumers
+  // assert this invariant).
+  //
+  // Priority:
+  //   1. Paired wallet inside the current account (shared seedPhrase).
+  //      Keeps the user's notion of "this account" intact across
+  //      chain flips — EVM row → Solana row on the same derived
+  //      account.
+  //   2. Any wallet in the bundle that matches the new namespace.
+  //      Kicks in when the current account can't serve this chain
+  //      (e.g. an imported private-key account that lives only on
+  //      one chain). The user's active account silently drops to a
+  //      compatible one rather than freezing them in a namespace
+  //      mismatch ("Switching network…" spinner forever).
+  //   3. No match anywhere — leave state as-is. The caller (screens)
+  //      handles the mismatch with their own UI.
+  const syncActiveWalletToChain = useCallback(
+    (nextChain: ChainConfig) => {
+      if (activeWallet?.namespace === nextChain.namespace) return;
+
+      const pickFrom = (pool: TWallet[]): TWallet | undefined =>
+        pool.find((w) => w.namespace === nextChain.namespace);
+
+      const target =
+        (activeAccount ? pickFrom(activeAccount.wallets) : undefined) ??
+        pickFrom(wallets);
+      if (!target) return;
+
+      const idx = wallets.findIndex((w) => w.address === target.address);
+      if (idx >= 0 && idx !== activeWalletIndex) {
+        setActiveWalletMutation.mutate(idx);
+      }
+    },
+    [
+      activeAccount,
+      activeWallet?.namespace,
+      wallets,
+      activeWalletIndex,
+      setActiveWalletMutation,
+    ],
+  );
 
   const changeActiveChainInternal = useCallback(
     async (chainId: number) => {
@@ -376,13 +451,14 @@ export function useWallet() {
         const apiChain = buildChainConfigFromBlockchain(blockchain);
 
         await setActiveChainMutation.mutateAsync(apiChain);
+        syncActiveWalletToChain(apiChain);
         return true;
       } catch (error) {
         console.error("Failed to create chain from API data:", error);
         return false;
       }
     },
-    [setActiveChainMutation, blockchains],
+    [setActiveChainMutation, blockchains, syncActiveWalletToChain],
   );
 
   // Exported chain switcher — same gate as `setActiveWallet`. Lower
@@ -434,6 +510,7 @@ export function useWallet() {
       const commit = async () => {
         try {
           await setActiveChainMutation.mutateAsync(chain);
+          syncActiveWalletToChain(chain);
           return true;
         } catch (error) {
           console.error("Failed to set active chain from config:", error);
@@ -622,25 +699,62 @@ export function useWallet() {
     };
   }, [wallets, isLoading, addWallets]);
 
-  // Chain-scoped active wallet: when the active chain's namespace
-  // changes (or wallets update), keep `activeWallet` pointing at the
-  // row inside the current account that matches the chain's namespace.
-  // EVM ↔ Solana flips behind the scenes; the user sees one account.
+  // Passive sync on first load / rehydrate only: if the persisted
+  // `activeWallet` and `activeChain` disagree when the app boots
+  // (e.g. storage written before we enforced the invariant), align
+  // them once. Explicit `setActiveWalletInternal` and chain mutations
+  // already sync inline — this effect intentionally does NOT re-fire
+  // after user interactions (the `didInitialSyncRef` gate ensures it
+  // only runs once, so wallet picks aren't fought by the effect).
+  const didInitialSyncRef = useRef(false);
   useEffect(() => {
+    if (didInitialSyncRef.current) return;
     if (!activeAccount) return;
-    if (activeWallet?.namespace === activeChain.namespace) return;
-    const target = walletForNamespace(activeAccount, activeChain.namespace);
-    if (!target) return;
-    const idx = wallets.findIndex((w) => w.address === target.address);
-    if (idx < 0 || idx === activeWalletIndex) return;
-    setActiveWalletInternal(idx);
+    if (!activeWallet?.namespace) return;
+    if (isLoading) return;
+    if (!blockchains) return;
+
+    if (activeWallet.namespace === activeChain.namespace) {
+      didInitialSyncRef.current = true;
+      return;
+    }
+
+    // Prefer syncing the wallet within the current account to the
+    // chain's namespace (common case: user was on EVM, restored on
+    // same account's EVM row). Fallback: flip chain when the account
+    // has no matching wallet for the persisted chain.
+    const target = activeAccount.wallets.find(
+      (w) => w.namespace === activeChain.namespace,
+    );
+    if (target) {
+      const idx = wallets.findIndex((w) => w.address === target.address);
+      if (idx >= 0 && idx !== activeWalletIndex) {
+        setActiveWalletMutation.mutate(idx);
+      }
+      didInitialSyncRef.current = true;
+      return;
+    }
+
+    const targetChainRow = blockchains.find((b) => {
+      const ns = b.isEVM === false ? "solana" : "eip155";
+      return ns === activeWallet.namespace;
+    });
+    if (targetChainRow) {
+      setActiveChainMutation.mutate(
+        buildChainConfigFromBlockchain(targetChainRow),
+      );
+    }
+    didInitialSyncRef.current = true;
   }, [
     activeAccount,
     activeChain.namespace,
     activeWallet?.namespace,
     wallets,
     activeWalletIndex,
-    setActiveWalletInternal,
+    blockchains,
+    isLoading,
+    setActiveWalletMutation,
+    setActiveChainMutation,
   ]);
 
   return {

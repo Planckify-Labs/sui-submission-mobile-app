@@ -3,7 +3,6 @@ import { router } from "expo-router";
 import { useCallback, useEffect, useMemo } from "react";
 import { erc20Abi, formatUnits, maxUint256, parseUnits } from "viem";
 import type { TToken } from "@/api/types/token";
-import { assertEvmChain } from "@/constants/configs/chainConfig";
 import { useTakumiWalletContract } from "@/contracts/hooks/useTakumiWalletContract";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 import { useBlockchains } from "@/hooks/queries/useBlockchains";
@@ -62,16 +61,21 @@ export function useDepositState() {
     getPublicClientForActiveChain,
   } = useWallet();
 
-  // TODO(task-14): deposit flow is EVM-only. Move chain reach-through
-  // into the `WalletKitAdapter` so Solana can share this hook later.
-  const activeChain = assertEvmChain(rawActiveChain);
+  // Deposit flow is EVM-only (smart-contract path). On non-EVM chains
+  // we return a "no contract available" state so DepositContent shows
+  // the existing `DepositUnsupportedChainModal` instead of crashing.
+  // `chainId` below is null for non-EVM, which short-circuits every
+  // downstream query (useSmartContractByChain, balances, etc.) via
+  // React Query's `enabled` flag.
+  const isEvm = rawActiveChain.namespace === "eip155";
+  const activeChainId = isEvm ? rawActiveChain.chain.id : 0;
 
   const { isAuthenticated } = useIsAuthenticated();
   const { data: blockchains } = useBlockchains();
 
   const activeBackendChain = useMemo(
-    () => blockchains?.find((b) => b.chainId === activeChain.chain.id) || null,
-    [blockchains, activeChain.chain.id],
+    () => blockchains?.find((b) => b.chainId === activeChainId) || null,
+    [blockchains, activeChainId],
   );
 
   const { data: rawStablecoinTokens } = useTokens({
@@ -80,12 +84,21 @@ export function useDepositState() {
     blockchainId: activeBackendChain?.id,
   });
 
-  // Only offer tokens that have a peggedCurrency configured on the server —
-  // tokens without it will return a 400 if used for deposits.
-  const stablecoinTokens = useMemo(
-    () => rawStablecoinTokens?.filter((t) => !!t.peggedCurrency) ?? [],
-    [rawStablecoinTokens],
-  );
+  // Only offer tokens that
+  //   1. live on the currently active backend chain — without this,
+  //      an unknown-to-backend chain (e.g. Solana) would fall through
+  //      `useTokens`' filter and surface every EVM stablecoin in the
+  //      catalog, which is misleading.
+  //   2. have a `peggedCurrency` configured on the server — tokens
+  //      without it will return a 400 if used for deposits.
+  const stablecoinTokens = useMemo(() => {
+    if (!activeBackendChain) return [];
+    return (
+      rawStablecoinTokens?.filter(
+        (t) => t.blockchainId === activeBackendChain.id && !!t.peggedCurrency,
+      ) ?? []
+    );
+  }, [rawStablecoinTokens, activeBackendChain]);
 
   const selectedToken = state?.selectedToken;
   const amount = state?.amount ?? "";
@@ -98,7 +111,7 @@ export function useDepositState() {
   });
 
   const { data: smartContract, isFetching: isContractFetching } =
-    useSmartContractByChain(activeChain.chain.id);
+    useSmartContractByChain(activeChainId);
   const contractAddress = smartContract?.address as `0x${string}` | undefined;
 
   const { depositPoints, waitForTransaction } = useTakumiWalletContract({
@@ -173,7 +186,7 @@ export function useDepositState() {
     data: nativeBalance = BigInt(0),
     isFetching: isFetchingNativeBalance,
   } = useQuery({
-    queryKey: ["nativeBalance", activeWallet.address, activeChain.chain.id],
+    queryKey: ["nativeBalance", activeWallet.address, activeChainId],
     queryFn: async () => {
       const publicClient = getPublicClientForActiveChain();
       if (!publicClient || !activeWallet.address) return BigInt(0);
@@ -191,7 +204,7 @@ export function useDepositState() {
         "stablecoinBalance",
         activeWallet.address,
         selectedToken?.contractAddress,
-        activeChain.chain.id,
+        activeChainId,
       ],
       queryFn: async () => {
         const publicClient = getPublicClientForActiveChain();
@@ -272,7 +285,7 @@ export function useDepositState() {
     }
     const trustKey = buildTrustKey(
       activeWallet.address,
-      activeChain.chain.id,
+      activeChainId,
       contractAddress,
       selectedToken.contractAddress,
     );
@@ -310,7 +323,7 @@ export function useDepositState() {
     contractAddress,
     getPublicClientForActiveChain,
     activeWallet.address,
-    activeChain.chain.id,
+    activeChainId,
     state?.trustedSpenders,
     updateState,
   ]);
@@ -367,7 +380,7 @@ export function useDepositState() {
         if (options?.approvalMode === "unlimited") {
           const trustKey = buildTrustKey(
             activeWallet.address,
-            activeChain.chain.id,
+            activeChainId,
             contractAddress,
             selectedToken.contractAddress,
           );
@@ -495,7 +508,7 @@ export function useDepositState() {
       tokenAmountNeeded,
       activeBackendChain,
       activeWallet,
-      activeChain.chain.id,
+      activeChainId,
       depositPoints,
       submitDeposit,
       waitForTransaction,
@@ -519,7 +532,7 @@ export function useDepositState() {
     transactionStatus,
     error: state?.error,
     stablecoinTokens: stablecoinTokens ?? [],
-    activeChain,
+    activeChain: rawActiveChain,
     pointPrice,
     tokenAmountNeeded,
     isAuthenticated,

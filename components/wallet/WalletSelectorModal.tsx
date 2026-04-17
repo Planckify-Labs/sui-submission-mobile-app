@@ -1,20 +1,47 @@
-import { Check, Wallet } from "lucide-react-native";
-import React, { memo, useCallback, useEffect, useRef } from "react";
+import { Check, Search, Wallet, X } from "lucide-react-native";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Animated,
   Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
   Modal,
   PanResponder,
   Platform,
   Pressable,
-  ScrollView,
   Text,
+  TextInput,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TWallet } from "@/constants/types/walletTypes";
+import { walletKitRegistry } from "@/services/walletKit/registry";
 import { truncateAddress } from "@/utils/walletUtils";
+
+// Human-readable namespace label shown as a chip next to each wallet.
+// Prefers the registered kit's `displayName` so adding a new chain
+// family (Sui, Bitcoin, …) needs zero edits here — the label is
+// whatever that kit advertises. Falls back to a capitalised namespace
+// literal when a namespace has no registered kit (shouldn't happen in
+// practice but keeps the UI from rendering `eip155`).
+function namespaceLabel(ns: TWallet["namespace"]): string {
+  try {
+    const kit = walletKitRegistry.get(ns);
+    if (kit.displayName) return kit.displayName;
+  } catch {
+    // Kit not registered — fall through to the capitalised literal.
+  }
+  if (ns === "eip155") return "Ethereum";
+  return ns.charAt(0).toUpperCase() + ns.slice(1);
+}
 
 const { height } = Dimensions.get("window");
 const MODAL_HEIGHT = height * 0.67;
@@ -51,8 +78,22 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
 
+  const [searchQuery, setSearchQuery] = useState("");
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
+
+  const filteredWallets = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return wallets;
+    return wallets.filter((w) => {
+      if ((w.name ?? "").toLowerCase().includes(q)) return true;
+      if (w.address.toLowerCase().includes(q)) return true;
+      if ((w.type ?? "").toLowerCase().includes(q)) return true;
+      if (namespaceLabel(w.namespace).toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }, [wallets, searchQuery]);
 
   useEffect(() => {
     if (visible) {
@@ -84,6 +125,7 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
         useNativeDriver: true,
       }),
     ]).start(() => {
+      setSearchQuery("");
       if (isDappConnection && onDeclineConnection) {
         onDeclineConnection();
       }
@@ -145,31 +187,52 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
   );
 
   const renderWalletItem = useCallback(
-    (wallet: TWallet, index: number) => {
+    (wallet: TWallet) => {
+      const index = wallets.findIndex((w) => w.address === wallet.address);
       const isActive = index === activeWalletIndex;
       const isDisabled = index === disabledWalletIndex;
 
       return (
         <Pressable
           key={wallet.address}
-          className={`flex-row items-center p-4 mb-2 rounded-xl ${
-            isActive ? "bg-light-primary-red/10" : "bg-light-main-container"
+          className={`flex-row items-center p-4 mb-2 rounded-2xl ${
+            isActive ? "bg-light-primary-red/10" : "bg-light"
           }`}
           onPress={() => handleWalletSelection(wallet, index)}
           disabled={isDisabled}
         >
           <View className="flex-1">
+            <View className="flex-row items-center">
+              <Text
+                className={`font-bold ${
+                  isDisabled
+                    ? "text-light-matte-black/40"
+                    : "text-light-matte-black"
+                }`}
+                numberOfLines={1}
+              >
+                {wallet.name || `Wallet ${index + 1}`}
+              </Text>
+              <View
+                className={`ml-2 px-2 py-0.5 rounded-full ${
+                  wallet.namespace === "solana"
+                    ? "bg-[#9945FF]/10"
+                    : "bg-[#627EEA]/10"
+                }`}
+              >
+                <Text
+                  className={`text-[10px] font-semibold ${
+                    wallet.namespace === "solana"
+                      ? "text-[#9945FF]"
+                      : "text-[#627EEA]"
+                  }`}
+                >
+                  {namespaceLabel(wallet.namespace)}
+                </Text>
+              </View>
+            </View>
             <Text
-              className={`font-bold ${
-                isDisabled
-                  ? "text-light-matte-black/40"
-                  : "text-light-matte-black"
-              }`}
-            >
-              {wallet.name || `Wallet ${index + 1}`}
-            </Text>
-            <Text
-              className={`text-sm ${
+              className={`text-sm mt-0.5 ${
                 isDisabled
                   ? "text-light-matte-black/40"
                   : "text-light-matte-black/70"
@@ -194,12 +257,15 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
       );
     },
     [
+      wallets,
       activeWalletIndex,
       disabledWalletIndex,
       disabledLabel,
       handleWalletSelection,
     ],
   );
+
+  const keyExtractor = useCallback((item: TWallet) => item.address, []);
 
   if (!visible) return null;
 
@@ -216,93 +282,130 @@ const WalletSelectorModal = memo(function WalletSelectorModal({
           />
         </TouchableWithoutFeedback>
 
-        <Animated.View
+        <KeyboardAvoidingView
+          // iOS uses `padding` so the sheet slides above the keyboard;
+          // Android uses `height` so the fixed-frame `MODAL_HEIGHT`
+          // shrinks instead of clipping content above the keyboard.
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{
             position: "absolute",
-            bottom: 0,
             left: 0,
             right: 0,
-            height: MODAL_HEIGHT,
-            paddingBottom: bottomOffset,
-            backgroundColor: "white",
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            transform: [{ translateY: translateY }],
+            bottom: 0,
           }}
         >
+          <Animated.View
+            style={{
+              height: MODAL_HEIGHT,
+              paddingBottom: bottomOffset,
+              transform: [{ translateY: translateY }],
+            }}
+            className="bg-light-main-container rounded-t-3xl"
+          >
           <View
             {...panResponder.panHandlers}
-            className="w-full items-center pt-4 pb-2"
+            className="items-center py-3"
           >
-            <View className="w-12 h-1 bg-gray-300 rounded-full" />
+            <View className="w-10 h-1 bg-light-matte-black/20 rounded-full" />
           </View>
 
-          <View className="px-6 flex-1">
+          <View className="flex-row items-center justify-between px-4 pb-3">
             {isDappConnection && dappUrl ? (
-              <View className="mb-4">
-                <View className="flex-row items-center gap-3 mb-2">
-                  <View className="w-8 h-8 bg-light-primary-red/10 rounded-full items-center justify-center">
-                    <Wallet size={16} color="#c71c4b" />
-                  </View>
-                  <Text className="text-light-matte-black text-xl font-bold">
+              <View className="flex-row items-center gap-2 flex-1 pr-3">
+                <View className="w-8 h-8 bg-light-primary-red/10 rounded-full items-center justify-center">
+                  <Wallet size={16} color="#c71c4b" />
+                </View>
+                <View className="flex-1">
+                  <Text
+                    className="text-light-matte-black text-lg font-bold"
+                    numberOfLines={1}
+                  >
                     Connect Wallet
                   </Text>
+                  <Text
+                    className="text-light-matte-black/60 text-xs"
+                    numberOfLines={1}
+                  >
+                    {getDomainFromUrl(dappUrl)} wants to connect
+                  </Text>
                 </View>
-                <Text className="text-light-matte-black/70 text-sm mb-1">
-                  {getDomainFromUrl(dappUrl)} wants to connect
-                </Text>
-                <Text className="text-light-matte-black/60 text-xs">
-                  Select a wallet to connect to this DApp
-                </Text>
               </View>
             ) : (
-              <Text className="text-light-matte-black text-xl font-bold mb-4">
+              <Text className="text-light-matte-black text-xl font-bold">
                 {title}
               </Text>
             )}
+            <Pressable
+              onPress={closeModal}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              className="w-8 h-8 rounded-full bg-light-matte-black/10 items-center justify-center"
+            >
+              <X size={18} color="#20222c" />
+            </Pressable>
+          </View>
 
-            <ScrollView className="flex-1">
-              {wallets.length === 0 ? (
-                <View className="py-8 items-center">
-                  <Text className="text-light-matte-black/60 text-center">
-                    No wallets available. Please create or import a wallet
-                    first.
-                  </Text>
-                </View>
-              ) : (
-                wallets.map((wallet, index) => renderWalletItem(wallet, index))
-              )}
-            </ScrollView>
-
-            {isDappConnection ? (
-              <View className="my-4">
-                <View className="bg-light-main-container/50 p-3 rounded-xl mb-4">
-                  <Text className="text-light-matte-black/60 text-xs text-center">
-                    Only connect to websites you trust. TakumiPay will never ask
-                    for your private keys or seed phrase.
-                  </Text>
-                </View>
-                <Pressable
-                  className="bg-light-main-container p-4 rounded-xl"
-                  onPress={closeModal}
-                >
-                  <Text className="text-light-matte-black font-bold text-center">
-                    Cancel
-                  </Text>
+          <View className="px-4 mb-3">
+            <View className="bg-light rounded-2xl flex-row items-center px-4">
+              <Search size={18} color="#20222c" />
+              <TextInput
+                className="flex-1 py-3 px-2 text-light-matte-black"
+                placeholder="Search by name, address, or chain…"
+                placeholderTextColor="#20222c80"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {searchQuery ? (
+                <Pressable onPress={() => setSearchQuery("")}>
+                  <X size={16} color="#20222c" />
                 </Pressable>
+              ) : null}
+            </View>
+          </View>
+
+          <View className="flex-1 px-4">
+            <FlatList
+              data={filteredWallets}
+              renderItem={({ item }) => renderWalletItem(item)}
+              keyExtractor={keyExtractor}
+              extraData={`${searchQuery}:${activeWalletIndex}`}
+              contentContainerStyle={{ paddingBottom: 16 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={
+                <View className="items-center py-10">
+                  <Text className="text-light-matte-black/60 text-center">
+                    {wallets.length === 0
+                      ? "No wallets available. Please create or import a wallet first."
+                      : `No wallets match "${searchQuery}"`}
+                  </Text>
+                </View>
+              }
+            />
+          </View>
+
+          {isDappConnection ? (
+            <View className="px-4 pb-2">
+              <View className="bg-light rounded-2xl p-3 mb-3">
+                <Text className="text-light-matte-black/60 text-xs text-center">
+                  Only connect to websites you trust. TakumiPay will never ask
+                  for your private keys or seed phrase.
+                </Text>
               </View>
-            ) : (
               <Pressable
-                className="bg-light-main-container p-4 rounded-xl my-4"
+                className="bg-light rounded-2xl p-4"
                 onPress={closeModal}
               >
                 <Text className="text-light-matte-black font-bold text-center">
-                  Close
+                  Cancel
                 </Text>
               </Pressable>
-            )}
-          </View>
-        </Animated.View>
+            </View>
+          ) : null}
+          </Animated.View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );

@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { TAddressBookEntry } from "@/constants/types/addressBookTypes";
 import type { TWallet } from "@/constants/types/walletTypes";
+import type { Namespace } from "@/services/chains/types";
 import { truncateAddress } from "@/utils/walletUtils";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -52,6 +53,14 @@ type RecipientPickerModalProps = {
   visible: boolean;
   wallets: TWallet[];
   activeWalletIndex: number;
+  /**
+   * Active chain's namespace. Used to filter out recipients whose
+   * address format doesn't match the active chain — e.g. when the
+   * user is sending SOL, only Solana wallets + contacts show up.
+   * Prevents the "picked EVM address, broadcast on Solana RPC" class
+   * of mistake where funds are locked or lost.
+   */
+  activeNamespace: Namespace;
   contacts: TAddressBookEntry[];
   onClose: () => void;
   onSelect: (address: string, label: string) => void;
@@ -61,6 +70,7 @@ export default function RecipientPickerModal({
   visible,
   wallets,
   activeWalletIndex,
+  activeNamespace,
   contacts,
   onClose,
   onSelect,
@@ -123,10 +133,16 @@ export default function RecipientPickerModal({
 
   const sections = useMemo(() => {
     const q = search.trim().toLowerCase();
+    // Namespace filter — only show recipients whose address format
+    // matches the active chain. Wallets carry an explicit `namespace`
+    // field; contacts use the legacy `isEvm` boolean (pre-Solana
+    // address-book rows default to EVM).
+    const wantsEvm = activeNamespace === "eip155";
 
     const otherWallets = wallets
       .map((wallet, index) => ({ type: "wallet" as const, wallet, index }))
       .filter(({ index }) => index !== activeWalletIndex)
+      .filter(({ wallet }) => wallet.namespace === activeNamespace)
       .filter(
         ({ wallet }) =>
           !q ||
@@ -136,6 +152,7 @@ export default function RecipientPickerModal({
 
     const filteredContacts = [...contacts]
       .sort((a, b) => a.label.localeCompare(b.label))
+      .filter((c) => (wantsEvm ? c.isEvm !== false : c.isEvm === false))
       .filter(
         (c) =>
           !q ||
@@ -153,7 +170,7 @@ export default function RecipientPickerModal({
       result.push({ title: "Contacts", data: filteredContacts });
     }
     return result;
-  }, [wallets, activeWalletIndex, contacts, search]);
+  }, [wallets, activeWalletIndex, activeNamespace, contacts, search]);
 
   const handleSelect = useCallback(
     (address: string, label: string) => {
@@ -365,12 +382,14 @@ export default function RecipientPickerModal({
                 <BookUser size={26} color="#c71c4b" />
               </View>
               <Text className="text-[15px] font-semibold text-light-matte-black text-center mb-1">
-                {search ? "No results found" : "No recipients available"}
+                {search
+                  ? "No results found"
+                  : `No ${activeNamespace === "solana" ? "Solana" : "Ethereum"} recipients`}
               </Text>
               <Text className="text-xs text-light-matte-black/50 text-center">
                 {search
                   ? "Try a different name or address"
-                  : "Add contacts in the Address Book or import additional wallets"}
+                  : "Only wallets and contacts that match the active chain appear here. Paste an address manually to send to a new recipient."}
               </Text>
             </View>
           ) : (

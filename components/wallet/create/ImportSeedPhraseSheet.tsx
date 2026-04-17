@@ -100,7 +100,9 @@ function allRegisteredNamespaces(): Namespace[] {
  * Human label for a namespace, preferring the registered kit's
  * `displayName` and falling back to a hard-coded table for the common
  * chain families. Keeps the banner copy readable (`"Ethereum"` rather
- * than `"eip155"`).
+ * than `"eip155"`) — a single import derives Ethereum + Polygon + BSC
+ * from the same seed, and most users recognise "Ethereum" as the
+ * family label.
  */
 function displayNameFor(ns: Namespace): string {
   const kit = walletKitRegistry.getAll().find((k) => k.namespace === ns);

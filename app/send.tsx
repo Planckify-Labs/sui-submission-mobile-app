@@ -83,22 +83,55 @@ export default function SendScreen() {
   // seam — no namespace branches inside the screen.
   const kit = getActiveWalletKit();
 
+  // The kit assumes `activeChain.namespace === activeWallet.namespace`
+  // (e.g. `SolanaWalletKit.formatNativeAmount` asserts a solana chain).
+  // During a wallet/chain switch there's a render pass where the two
+  // disagree before `useWallet`'s sync effect commits. Gate the screen
+  // on this invariant — the render below short-circuits to a spinner
+  // until the mismatch resolves.
+  const kitMatchesChain = kit.namespace === activeChain.namespace;
+
   const { isAuthenticated } = useIsAuthenticated();
   const { mutateAsync: createTransaction } = useCreateTransaction();
   const { data: blockchains } = useBlockchains();
   const activeBackendChain = React.useMemo(() => {
     if (!blockchains) return null;
-    // Backend `Blockchain.chainId` is EVM-shaped today. Solana history
-    // recording is deferred (§12 Q4 / F1), so we only look up a backend
-    // row when the active chain is EVM.
-    if (activeChain.namespace !== "eip155") return null;
-    return (
-      blockchains.find((b) => b.chainId === activeChain.chain.id) || null
-    );
+    // EVM rows match by numeric chainId. Solana rows are flagged via
+    // `isEVM: false`; match on the cluster in the backend row's name
+    // (falls back to the first Solana row if the names disagree).
+    // Token list filtering depends on `blockchainId`, so surfacing the
+    // right backend row here also scopes the token picker to the
+    // active network — same UX as pre-Solana builds.
+    if (activeChain.namespace === "eip155") {
+      return (
+        blockchains.find((b) => b.chainId === activeChain.chain.id) || null
+      );
+    }
+    const wantsDevnet = activeChain.cluster === "devnet";
+    const solanaRows = blockchains.filter((b) => b.isEVM === false);
+    const match =
+      solanaRows.find((b) =>
+        wantsDevnet
+          ? b.name.toLowerCase().includes("devnet")
+          : !b.name.toLowerCase().includes("devnet"),
+      ) ?? solanaRows[0];
+    return match ?? null;
   }, [blockchains, activeChain]);
-  const { data: tokenList } = useTokens({
+  const { data: rawTokenList } = useTokens({
     blockchainId: activeBackendChain?.id,
   });
+  // `useTokens` skips the `blockchainId` filter when the field is
+  // undefined (e.g. active chain isn't present in the backend feed),
+  // which would surface EVERY token in the catalog. Narrow explicitly
+  // to the active backend chain so the picker never shows tokens the
+  // user can't actually transfer on this network.
+  const tokenList = useMemo(() => {
+    if (!activeBackendChain) return [];
+    return (
+      rawTokenList?.filter((t) => t.blockchainId === activeBackendChain.id) ??
+      []
+    );
+  }, [rawTokenList, activeBackendChain]);
 
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
@@ -123,10 +156,13 @@ export default function SendScreen() {
   const { recipientAddress } = useLocalSearchParams();
 
   // Presentation-only derived values — both come from the kit so EVM
-  // and Solana display paths converge.
+  // and Solana display paths converge. Guard against the brief window
+  // where kit and chain namespaces disagree (see `kitMatchesChain`
+  // above) so the format call doesn't throw.
   const balanceDisplay = useMemo(
-    () => kit.formatNativeAmount(balance, activeChain),
-    [kit, balance, activeChain],
+    () =>
+      kitMatchesChain ? kit.formatNativeAmount(balance, activeChain) : "—",
+    [kitMatchesChain, kit, balance, activeChain],
   );
   const { amount: balanceAmountText, symbol: nativeSymbol } = useMemo(
     () => splitFormattedNative(balanceDisplay),
@@ -157,6 +193,10 @@ export default function SendScreen() {
 
   const fetchBalance = useCallback(async () => {
     if (!activeWallet?.address) return;
+    // Skip the fetch while kit / chain namespaces are out of sync —
+    // useWallet's sync effect will align them and a follow-up render
+    // will retry.
+    if (!kitMatchesChain) return;
 
     try {
       setIsLoadingBalance(true);
@@ -170,7 +210,7 @@ export default function SendScreen() {
     } finally {
       setIsLoadingBalance(false);
     }
-  }, [kit, activeWallet?.address, activeChain]);
+  }, [kit, kitMatchesChain, activeWallet?.address, activeChain]);
 
   useEffect(() => {
     fetchBalance();
@@ -474,6 +514,27 @@ export default function SendScreen() {
     );
   }
 
+  // Transient-state guard: during a wallet ↔ chain switch there's a
+  // render where `activeWallet.namespace !== activeChain.namespace`.
+  // `useWallet` auto-aligns them in the next tick; render a spinner
+  // here so kit methods (which assert the invariant) don't throw.
+  if (!kitMatchesChain) {
+    return (
+      <>
+        <StatusBar barStyle="dark-content" />
+        <SafeAreaView
+          className="flex-1 bg-light-main-container items-center justify-center"
+          edges={["top"]}
+        >
+          <ActivityIndicator size="large" color="#c71c4b" />
+          <Text className="text-light-matte-black/70 mt-3 text-sm">
+            Switching network…
+          </Text>
+        </SafeAreaView>
+      </>
+    );
+  }
+
   return (
     <>
       <StatusBar barStyle="dark-content" />
@@ -686,6 +747,7 @@ export default function SendScreen() {
         visible={recipientPickerVisible}
         wallets={wallets}
         activeWalletIndex={activeWalletIndex}
+        activeNamespace={activeChain.namespace}
         contacts={addressBookContacts}
         onClose={() => setRecipientPickerVisible(false)}
         onSelect={(address) => setRecipient(address)}

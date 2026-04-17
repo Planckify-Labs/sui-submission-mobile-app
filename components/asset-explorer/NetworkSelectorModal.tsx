@@ -102,15 +102,27 @@ const NetworkSelectorModal = () => {
   const displayNetworks = React.useMemo(() => {
     if (!blockchains) return [];
 
-    const networks = blockchains.map((blockchain) => ({
-      id: blockchain.chainId.toString(),
-      name: blockchain.name,
-      symbol: blockchain.tokens?.[0]?.symbol,
-      color: "#627EEA",
-      isPinned: true,
-      blockchainId: blockchain.id,
-      logoUrl: blockchain.tokens?.[0]?.logoUrl || "",
-    }));
+    // Show every backend network regardless of namespace. EVM rows
+    // use the numeric chainId as the row id; non-EVM rows fall back
+    // to `blockchain.id` so they never dereference null.
+    const networks = blockchains.map((blockchain) => {
+      const nativeToken =
+        blockchain.tokens?.find((t) => t.isNativeCurrency) ??
+        blockchain.tokens?.[0];
+      const rowId =
+        typeof blockchain.chainId === "number"
+          ? blockchain.chainId.toString()
+          : blockchain.id;
+      return {
+        id: rowId,
+        name: blockchain.name,
+        symbol: nativeToken?.symbol,
+        color: "#627EEA",
+        isPinned: true,
+        blockchainId: blockchain.id,
+        logoUrl: nativeToken?.logoUrl || "",
+      };
+    });
 
     if (!searchQuery) return networks;
 
