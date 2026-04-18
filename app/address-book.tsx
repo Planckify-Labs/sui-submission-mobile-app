@@ -1,3 +1,4 @@
+import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
 import {
@@ -34,13 +35,35 @@ import EmptyState from "@/components/address-book/EmptyState";
 import type { TAddressBookEntry } from "@/constants/types/addressBookTypes";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 import { useAddressBook } from "@/hooks/useAddressBook";
+import { useWallet } from "@/hooks/useWallet";
+import { getChainFamilyLabel } from "@/services/walletKit/chainInfo";
+import { ActivityIndicator } from "react-native";
 
 export default function AddressBook() {
-  const {
-    isAuthenticated,
-    isLoading: isAuthLoading,
-    hadPreviousSession,
-  } = useIsAuthenticated();
+  const { isAuthenticated, hadPreviousSession } = useIsAuthenticated();
+  const { activeWallet } = useWallet();
+  const chainFamily = getChainFamilyLabel(activeWallet?.namespace);
+  // Send-screen-style yield hack for the sign-in CTA: flip the button to
+  // a spinner, wait 100 ms so React commits + paints that frame, THEN
+  // fire the navigation. Without the yield, the `router.push` triggers
+  // an immediate mount of `/auth` that freezes the main thread through
+  // the transition animation — the button press feels dead even though
+  // we already set the pressed state.
+  const [navigatingToAuth, setNavigatingToAuth] = useState(false);
+  const goToAuth = useCallback(async () => {
+    if (navigatingToAuth) return;
+    setNavigatingToAuth(true);
+    await new Promise((r) => setTimeout(r, 100));
+    router.push("/auth");
+  }, [navigatingToAuth]);
+  // Reset the spinner when the user comes back to this screen — e.g.
+  // they cancelled on `/auth`. Without this, the button stays in the
+  // "Opening sign-in…" state forever until the screen unmounts.
+  useFocusEffect(
+    useCallback(() => {
+      setNavigatingToAuth(false);
+    }, []),
+  );
   const {
     contacts,
     search,
@@ -133,10 +156,15 @@ export default function AddressBook() {
 
   const keyExtractor = useCallback((item: TAddressBookEntry) => item.id, []);
 
-  // Show sign-in prompt for users who have never authenticated.
-  // If they had a prior session but auth is loading/uncertain, fall through to the normal screen
-  // so cached contacts are still visible.
-  if (!isAuthLoading && !isAuthenticated && !hadPreviousSession) {
+  // Show sign-in prompt immediately for users who have never
+  // authenticated. Previously this waited for `isAuthLoading === false`
+  // too, which delayed the prompt while `useIsAuthenticated` did its
+  // SecureStore cascade — users saw a flash of the "real" screen (which
+  // fires auth'd contact queries that all fail) before the prompt
+  // appeared. Since `hadPreviousSession` is the authoritative signal
+  // for "user has ever had tokens on this wallet", we don't need to
+  // wait for the loading state to resolve.
+  if (isAuthenticated !== true && !hadPreviousSession) {
     return (
       <GestureHandlerRootView className="flex-1">
         <StatusBar barStyle="dark-content" />
@@ -192,14 +220,19 @@ export default function AddressBook() {
               </Text>
               <Text className="text-light-matte-black/45 text-center text-sm leading-6">
                 Save and manage wallet addresses with friendly names. Sign in
-                with Ethereum to get started.
+                with {chainFamily} to get started.
               </Text>
             </View>
 
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => router.push("/auth")}
-              className="bg-light-primary-red py-4 px-8 rounded-2xl flex-row items-center gap-3 mb-6"
+              onPress={goToAuth}
+              disabled={navigatingToAuth}
+              className={`py-4 px-8 rounded-2xl flex-row items-center gap-3 mb-6 ${
+                navigatingToAuth
+                  ? "bg-light-primary-red/80"
+                  : "bg-light-primary-red"
+              }`}
               style={{
                 shadowColor: "#c71c4b",
                 shadowOffset: { width: 0, height: 4 },
@@ -208,8 +241,13 @@ export default function AddressBook() {
                 elevation: 8,
               }}
             >
+              {navigatingToAuth && (
+                <ActivityIndicator size="small" color="#ffffff" />
+              )}
               <Text className="text-white font-bold text-base">
-                Sign In With Ethereum
+                {navigatingToAuth
+                  ? "Opening sign-in…"
+                  : `Sign In With ${chainFamily}`}
               </Text>
             </TouchableOpacity>
 
@@ -305,6 +343,19 @@ export default function AddressBook() {
         </View>
 
         {/* List */}
+        {/*
+          Windowing props below are the real fix for the "back nav feels
+          laggy" bug. Each `AddressBookItem` owns two reanimated shared
+          values, two `useAnimatedStyle` hooks, a Pan gesture handler,
+          and a `FadeInDown` entering animation. FlatList defaults mount
+          ~21 viewports worth of rows; on a 30+ contact list that's 30
+          reanimated trees living in memory. When the native stack
+          starts the back transition, React has to tear all of them
+          down on the JS thread while the UI thread runs the slide
+          animation — they contend for frames and the transition looks
+          janky. Tightening the window to ~2 viewports + clipping
+          offscreen rows cuts the teardown cost dramatically.
+        */}
         <FlatList
           data={contacts}
           renderItem={renderItem}
@@ -318,6 +369,10 @@ export default function AddressBook() {
           ListEmptyComponent={<EmptyState isSearching={!!search} />}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
+          removeClippedSubviews
+          initialNumToRender={8}
+          maxToRenderPerBatch={6}
+          windowSize={5}
           refreshControl={
             <RefreshControl
               refreshing={isManualRefreshing}

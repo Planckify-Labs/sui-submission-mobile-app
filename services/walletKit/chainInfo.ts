@@ -69,3 +69,26 @@ export function getNativeSymbol(chain: ChainConfig): string | null {
   const kit = walletKitRegistry.get(chain.namespace);
   return kit.nativeSymbol?.(chain) ?? null;
 }
+
+/**
+ * Sign-in protocol chain name for a wallet namespace. `eip155` → "Ethereum"
+ * (SIWE / EIP-4361), `solana` → "Solana" (SIWS). Used to keep sign-in CTAs
+ * ("Sign In With Ethereum" / "Sign in with Solana…") aligned to the active
+ * wallet's chain family without screens hard-coding the EVM branch.
+ *
+ * When `namespace` is missing or unknown, returns "Wallet" — the screen
+ * stays readable instead of rendering "Sign in with undefined".
+ */
+export function getChainFamilyLabel(namespace: string | undefined): string {
+  if (!namespace) return "Wallet";
+  try {
+    const kit = walletKitRegistry.get(namespace as never);
+    return kit.displayName ?? capitalize(namespace);
+  } catch {
+    return capitalize(namespace);
+  }
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}

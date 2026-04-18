@@ -50,16 +50,32 @@ const SignMessageModal: React.FC<TSignMessageModalProps> = ({
   const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
 
   const { activeWallet, activeChain } = useWallet();
+
+  // Namespace-aware nonce fetch — EVM passes chainId, Solana passes
+  // chainSlug. Using `getEvmChainId` unconditionally (previous behavior)
+  // returned undefined for Solana wallets and the server 400'd the
+  // request with "Invalid Ethereum wallet address format".
+  const isSolana = activeWallet?.namespace === "solana";
   const activeChainId = getEvmChainId(activeChain);
+  const solanaChainSlug = isSolana
+    ? activeChain?.namespace === "solana" && activeChain.cluster === "devnet"
+      ? "solana-devnet"
+      : "solana-mainnet"
+    : undefined;
+
+  const nonceOpts = isSolana
+    ? { chainSlug: solanaChainSlug }
+    : { chainId: activeChainId };
+  const nonceSelector = isSolana ? solanaChainSlug : activeChainId;
 
   const { data: fetchedNonceData, refetch: refetchNonce } = useNonce(
     activeWallet?.address,
-    activeChainId,
+    nonceOpts,
   );
 
   const { data: nonceData, setNewData: setNonceData } =
     useRQGlobalState<TNonceData>({
-      queryKey: ["auth", "nonce", activeWallet?.address, activeChainId],
+      queryKey: ["auth", "nonce", activeWallet?.address, nonceSelector],
       initialData: { message: propMessage || "" },
     });
 

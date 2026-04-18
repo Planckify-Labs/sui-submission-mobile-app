@@ -1,3 +1,4 @@
+import { useFocusEffect } from "@react-navigation/native";
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import {
@@ -10,11 +11,19 @@ import {
 } from "lucide-react-native";
 import React, {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useRef,
+  useState,
 } from "react";
-import { Image, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { formatUnits } from "viem/utils";
 import type { TRedemptionHistoryItem } from "@/api/types/redeem";
 import { TTransaction } from "@/api/types/transaction";
@@ -22,6 +31,7 @@ import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 import { useRedemptionHistory } from "@/hooks/queries/useRedeem";
 import { useTransactionHistory } from "@/hooks/queries/useTransactions";
 import { useWallet } from "@/hooks/useWallet";
+import { getChainFamilyLabel } from "@/services/walletKit/chainInfo";
 import { formatTokenAmount } from "@/utils/helperUtils";
 import { truncateAddress } from "@/utils/walletUtils";
 import OptimizedImage from "../../common/OptimizedImage";
@@ -29,6 +39,60 @@ import ActivitySkeleton from "./ActivitySkeleton";
 
 export interface ActivitySectionRef {
   refetch: () => void;
+}
+
+/**
+ * Send-screen-style yield hack (mirrors `app/send.tsx:385-392`): flip
+ * the button into a spinner state, wait 100 ms so React commits + the
+ * GPU paints that frame, THEN fire `router.push`. Without the yield,
+ * mounting `/auth` on the main thread freezes the button press and the
+ * user sees nothing happen for a couple hundred ms. 100 ms gives React
+ * 6-8 frames to render the spinner — plenty of visual feedback.
+ */
+function SignInCta({
+  label,
+  loadingLabel,
+}: {
+  label: string;
+  loadingLabel: string;
+}) {
+  const [navigating, setNavigating] = useState(false);
+  const onPress = useCallback(async () => {
+    if (navigating) return;
+    setNavigating(true);
+    await new Promise((r) => setTimeout(r, 100));
+    router.push("/auth");
+  }, [navigating]);
+  // Reset when home regains focus — user cancelled on `/auth` and
+  // came back. Without this, the button stays stuck on "Opening
+  // sign-in…" until the ActivitySection unmounts.
+  useFocusEffect(
+    useCallback(() => {
+      setNavigating(false);
+    }, []),
+  );
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={onPress}
+      disabled={navigating}
+      className={`py-4 px-8 rounded-2xl flex-row items-center gap-3 mb-6 ${
+        navigating ? "bg-light-primary-red/80" : "bg-light-primary-red"
+      }`}
+      style={{
+        shadowColor: "#c71c4b",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        elevation: 8,
+      }}
+    >
+      {navigating && <ActivityIndicator size="small" color="#ffffff" />}
+      <Text className="text-white font-bold text-base">
+        {navigating ? loadingLabel : label}
+      </Text>
+    </TouchableOpacity>
+  );
 }
 
 const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
@@ -243,22 +307,10 @@ const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
               </Text>
             </View>
 
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => router.push("/auth")}
-              className="bg-light-primary-red py-4 px-8 rounded-2xl flex-row items-center gap-3 mb-6"
-              style={{
-                shadowColor: "#c71c4b",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.2,
-                shadowRadius: 12,
-                elevation: 8,
-              }}
-            >
-              <Text className="text-white font-bold text-base">
-                Sign In With Ethereum
-              </Text>
-            </TouchableOpacity>
+            <SignInCta
+              label={`Sign In With ${getChainFamilyLabel(activeWallet?.namespace)}`}
+              loadingLabel="Opening sign-in…"
+            />
 
             <View className="gap-2.5 w-full">
               <View className="flex-row items-center gap-3 px-3 py-2.5 rounded-xl bg-light-main-container">

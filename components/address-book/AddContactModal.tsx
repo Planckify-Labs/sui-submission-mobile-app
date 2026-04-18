@@ -428,7 +428,7 @@ export default function AddContactModal({
               <TextInput
                 value={chainName}
                 onChangeText={setChainName}
-                placeholder="e.g. Ethereum, Polygon, Base"
+                placeholder="e.g. Ethereum, Solana, Polygon, Base"
                 placeholderTextColor="#20222c40"
                 autoCapitalize="words"
                 autoCorrect={false}
