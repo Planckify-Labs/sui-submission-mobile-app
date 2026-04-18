@@ -90,11 +90,21 @@ export const useTokens = (options?: TTokenSearchParams) => {
     },
     staleTime: STALE_TIME,
     gcTime: OFFLINE_CACHE_TTL,
-    // Always refetch on mount so the optimistic cached result gets
-    // reconciled with the server — same pattern as the smart-contract
-    // hook. Text searches bypass the cache; the flag is harmless
-    // there because their queryKey changes per input.
-    refetchOnMount: "always",
+    // `refetchOnMount: true` (stale-only) instead of `"always"`. With
+    // STALE_TIME = 5 min, a token catalog fetched 30 seconds ago
+    // doesn't need another /tokens HTTP round-trip just because a
+    // screen re-mounted. The old `"always"` setting was the main
+    // source of the post-unlock freeze — each `useTokens({...opts})`
+    // consumer on home (ChainSelector + whatever else) mounted,
+    // re-mounted under StrictMode dev double-fire + home re-renders
+    // from state settle, each firing a fresh `/tokens` request →
+    // `JSON.stringify` a ~200-token catalog + `storage.set` in the
+    // queryFn, per call, on the main thread. 5 parallel /tokens calls
+    // in the Metro log = 5× stringify+MMKV-write blocks.
+    //
+    // Text-search variants still refetch per input because their
+    // queryKey changes; this flag only affects the mount path.
+    refetchOnMount: true,
     refetchOnReconnect: "always",
   });
 };

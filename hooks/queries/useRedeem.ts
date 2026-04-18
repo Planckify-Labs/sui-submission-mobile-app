@@ -11,6 +11,7 @@ import type {
 } from "@/api/types/redeem";
 import { pointsQueryKeys } from "@/constants/queryKeys/pointsQueryKeys";
 import { redeemQueryKeys } from "@/constants/queryKeys/redeemQueryKeys";
+import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 
 // --- Redemption Detail (full, includes voucherCode) ---
 // Per spec: when status=COMPLETED and isVoucher=true but voucherCode is still null,
@@ -70,6 +71,7 @@ export const useRedemptionHistory = (
   params?: TRedemptionHistoryParams,
   options?: { enabled?: boolean },
 ) => {
+  const { isAuthenticated, isLoading: isAuthLoading } = useIsAuthenticated();
   return useInfiniteQuery({
     queryKey: redeemQueryKeys.history(params),
     queryFn: ({ pageParam }) =>
@@ -77,8 +79,20 @@ export const useRedemptionHistory = (
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
       lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
-    enabled: options?.enabled !== false,
+    // Gate on confirmed auth — this endpoint is authenticated and the
+    // previous logic (only checking `options?.enabled`) meant the query
+    // fired before tokens were available after a wallet switch, the
+    // `beforeRequest` ky hook threw "Not authenticated for current
+    // wallet", and React Query retried. That retry storm (visible as
+    // many "No suitable access token" warnings in Metro on wallet
+    // switch) contributed to the post-switch freeze. Same fix as
+    // `usePointBalance`.
+    enabled:
+      options?.enabled !== false &&
+      isAuthenticated === true &&
+      !isAuthLoading,
     staleTime: 5 * 60 * 1000,
     gcTime: 24 * 60 * 60 * 1000,
+    retry: false,
   });
 };

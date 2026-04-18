@@ -2,7 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Alert, InteractionManager } from "react-native";
 import type { Account, PublicClient, WalletClient } from "viem";
+import { useAppLocked } from "@/app/_layout";
+import { runWithChainSwitchingOverlay } from "@/components/common/ChainSwitchingOverlay";
 import { usePerformance } from "@/components/providers/PerformanceProvider";
+import { formatChainLabel } from "@/services/walletKit/chainInfo";
 import {
   type ChainConfig,
   supportedChains,
@@ -23,6 +26,42 @@ import * as walletService from "@/services/walletService";
 import { getPublicClient, getWalletClient } from "@/utils/clients";
 import { createWalletFromParams } from "@/utils/walletUtils";
 import { useBlockchainsWithStorage } from "./useBlockchainsWithStorage";
+
+/**
+ * Module-level signer warmer — usable both from the hook's pre-warm
+ * effect (after mount) AND from inside `changeActiveChainInternal` /
+ * `changeActiveChainToConfig` where we need to block the overlay until
+ * the target wallet's crypto derivation actually finishes (not just
+ * until the Zustand-style state mutations return).
+ *
+ * Populates the module caches `accountCache` / `solanaSignerCache` via
+ * `walletService.getAccountForWallet` / `getSolanaSignerForWallet`. No
+ * React dependencies — safe to call from anywhere. Errors swallowed
+ * (logs in dev) so a single bad wallet doesn't abort the caller.
+ */
+export async function warmWalletSigner(w: TWallet): Promise<void> {
+  try {
+    if (w.namespace === "eip155") {
+      // Runs BIP-32 derivation on a worker thread (via
+      // `react-native-worklets-core`) instead of the main JS thread.
+      // Combined with `react-native-quick-crypto` installed in
+      // `pollyfills.ts`, each primitive inside the derivation (SHA-256,
+      // HMAC, secp256k1) is a native JSI call — the derivation moves
+      // off-thread AND runs at native speed. Main thread stays free
+      // for touches / renders during the ~100–500 ms window this used
+      // to take on the render thread.
+      await walletService.prewarmAccountForWallet(w);
+    } else if (w.namespace === "solana") {
+      // Same pattern for Solana — SLIP-10 derivation offloaded to the
+      // worker; only the short WebCrypto key-pair build stays on the
+      // main thread (polyfill isn't in the worker context).
+      await walletService.prewarmSolanaSignerForWallet(w);
+    }
+  } catch (err) {
+    if (__DEV__)
+      console.warn(`[useWallet] warmWalletSigner failed for ${w.address}:`, err);
+  }
+}
 import {
   buildChainConfigFromBlockchain,
   groupWalletsIntoAccounts,
@@ -34,6 +73,7 @@ import {
 export function useWallet() {
   const { deferredTask } = usePerformance();
   const queryClient = useQueryClient();
+  const isLocked = useAppLocked();
 
   const { data: wallets = [], isLoading } = useQuery({
     queryKey: [QKEY_Wallets.wallets],
@@ -41,6 +81,20 @@ export function useWallet() {
       return await deferredTask(async () => {
         return await walletService.loadWalletsFromStorage();
       }, "Loading wallets");
+    },
+    // Seed synchronously from the module-level cache that `LockScreen.
+    // attempt()` already populated via `loadWalletsFromStorage()`. This
+    // is the key fix for the "Activity skeleton stays up" freeze: without
+    // initialData, `useQuery`'s first render returns `data: undefined`,
+    // so `activeWallet` is the empty `{}` fallback, `walletKey` is null
+    // in `useIsAuthenticated`, the in-memory auth cache read misses,
+    // `isLoading` stays true, and `ActivitySection` renders 32+ animated
+    // skeletons while waiting for the async wallets query to resolve.
+    // With initialData seeded, `wallets` is real on frame 0 → walletKey
+    // is real → auth cache hits → no skeleton, no freeze window.
+    initialData: () => {
+      const cached = walletService.getCachedWalletsSync();
+      return cached ?? undefined;
     },
     // The underlying read is auth-gated (Face ID / BiometricPrompt).
     // Without these flags every useWallet consumer's mount re-runs the
@@ -58,6 +112,23 @@ export function useWallet() {
       const storedIndex = storage.getString("active_wallet_index");
       return storedIndex ? parseInt(storedIndex, 10) : 0;
     },
+    // MMKV read is synchronous — seed `initialData` so the first
+    // render returns the REAL stored index, not the `0` fallback.
+    // Without this, `activeWallet = wallets[0]` on frame 0 even if the
+    // user's actual active wallet is at a different index, which makes
+    // `useIsAuthenticated`'s `walletKey` point to the WRONG wallet,
+    // missing the `authStateCache` entry that `primeAuthState` wrote
+    // for the actual active wallet. That mismatch kept `isLoading:
+    // true` (→ Activity skeleton, → freeze) until `activeWalletIndex`
+    // resolved async and the hook re-ran with the right key.
+    initialData: () => {
+      const storedIndex = storage.getString("active_wallet_index");
+      return storedIndex ? parseInt(storedIndex, 10) : 0;
+    },
+    staleTime: Infinity,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: activeChain = supportedChains[0] } = useQuery({
@@ -77,6 +148,25 @@ export function useWallet() {
       }
       return parsed as ChainConfig;
     },
+    // Same sync MMKV seed as `activeWalletIndex` — ensures the first
+    // render has the correct chain, not the `supportedChains[0]`
+    // fallback. Matters for `walletKey` resolution in consumers that
+    // key on namespace (e.g. the Solana-aware balance pill).
+    initialData: () => {
+      const storedChain = storage.getString("active_chain");
+      if (!storedChain) return supportedChains[0];
+      const parsed = JSON.parse(storedChain) as Partial<ChainConfig> & {
+        chain?: unknown;
+      };
+      if (!("namespace" in parsed) || !parsed.namespace) {
+        return { ...parsed, namespace: "eip155" } as ChainConfig;
+      }
+      return parsed as ChainConfig;
+    },
+    staleTime: Infinity,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   });
 
   const activeWallet = useMemo(
@@ -124,9 +214,19 @@ export function useWallet() {
     },
     onSuccess: (index) => {
       queryClient.setQueryData([QKEY_Wallets.activeWalletIndex], index);
-      queryClient.invalidateQueries({
-        queryKey: transactionsQueryKeys.all,
-        exact: false,
+      // Transaction-history invalidation fans out to every screen using
+      // `useTransactionHistory` / `useRedemptionHistory` — each refetches
+      // immediately. Running that fanout on the same frame as the active-
+      // wallet state change stalls the UI transition (esp. on cross-
+      // namespace switches where the wallet change is chained off a chain
+      // change, so *two* renders already have to land). Defer to after
+      // the render commits so the sheet / screen paints first, then the
+      // network work happens.
+      InteractionManager.runAfterInteractions(() => {
+        queryClient.invalidateQueries({
+          queryKey: transactionsQueryKeys.all,
+          exact: false,
+        });
       });
     },
     onError: (error) => {
@@ -404,9 +504,14 @@ export function useWallet() {
   //      mismatch ("Switching network…" spinner forever).
   //   3. No match anywhere — leave state as-is. The caller (screens)
   //      handles the mismatch with their own UI.
-  const syncActiveWalletToChain = useCallback(
-    (nextChain: ChainConfig) => {
-      if (activeWallet?.namespace === nextChain.namespace) return;
+  // Returns the wallet index to switch to when `nextChain` crosses
+  // namespaces, or `null` when no switch is needed / no target exists.
+  // Pure — never mutates. The atomic writer below applies the result
+  // together with the chain change so the cross-namespace path lands in
+  // one React batch instead of two.
+  const pickWalletForChain = useCallback(
+    (nextChain: ChainConfig): number | null => {
+      if (activeWallet?.namespace === nextChain.namespace) return null;
 
       const pickFrom = (pool: TWallet[]): TWallet | undefined =>
         pool.find((w) => w.namespace === nextChain.namespace);
@@ -414,20 +519,22 @@ export function useWallet() {
       const target =
         (activeAccount ? pickFrom(activeAccount.wallets) : undefined) ??
         pickFrom(wallets);
-      if (!target) return;
+      if (!target) return null;
 
       const idx = wallets.findIndex((w) => w.address === target.address);
-      if (idx >= 0 && idx !== activeWalletIndex) {
-        setActiveWalletMutation.mutate(idx);
-      }
+      if (idx < 0 || idx === activeWalletIndex) return null;
+      return idx;
     },
-    [
-      activeAccount,
-      activeWallet?.namespace,
-      wallets,
-      activeWalletIndex,
-      setActiveWalletMutation,
-    ],
+    [activeAccount, activeWallet?.namespace, wallets, activeWalletIndex],
+  );
+
+  const syncActiveWalletToChain = useCallback(
+    (nextChain: ChainConfig) => {
+      const idx = pickWalletForChain(nextChain);
+      if (idx == null) return;
+      setActiveWalletMutation.mutate(idx);
+    },
+    [pickWalletForChain, setActiveWalletMutation],
   );
 
   const changeActiveChainInternal = useCallback(
@@ -450,15 +557,67 @@ export function useWallet() {
         // dispatching behavior. Dispatch stays in `WalletKitAdapter`.
         const apiChain = buildChainConfigFromBlockchain(blockchain);
 
-        await setActiveChainMutation.mutateAsync(apiChain);
-        syncActiveWalletToChain(apiChain);
+        // Cross-namespace atomic path: resolve the target wallet FIRST,
+        // then commit chain + wallet in a single synchronous tick.
+        const walletIdxToSwitchTo = pickWalletForChain(apiChain);
+        const isCrossNamespace = walletIdxToSwitchTo != null;
+
+        const commit = () => {
+          setActiveChainMutation.mutate(apiChain);
+          if (walletIdxToSwitchTo != null) {
+            setActiveWalletMutation.mutate(walletIdxToSwitchTo);
+          }
+        };
+
+        if (isCrossNamespace) {
+          // Cross-namespace switch — we have to do real crypto work
+          // before the UI will look "right" (the new wallet's signer
+          // has to exist before any screen that uses it renders). Run
+          // that HEAVY step INSIDE the overlay block so the spinner
+          // actually stays up until the derivation completes, not just
+          // until the zero-cost state mutations return.
+          const label = formatChainLabel(apiChain);
+          const targetWallet = wallets[walletIdxToSwitchTo];
+          await runWithChainSwitchingOverlay(
+            `Switching to ${label}…`,
+            async () => {
+              // 1. HEAVY — BIP-32 / Ed25519 derivation for the target
+              //    wallet. This is what the user is actually waiting on.
+              //    Must finish before we flip state, otherwise the
+              //    first render after commit blocks on the derivation
+              //    behind a torn-down overlay.
+              if (targetWallet) {
+                await warmWalletSigner(targetWallet);
+              }
+              // 2. Atomic state commit. Both mutations are sync MMKV
+              //    writes + setQueryData; React batches into one render
+              //    because no await splits them.
+              commit();
+              // 3. Yield one extra frame so the render that observes
+              //    the new active wallet + chain has a chance to paint
+              //    against the already-warm caches before we dismiss
+              //    the overlay. Without this, the overlay fades while
+              //    the first post-commit render is still in flight —
+              //    user sees a brief flicker of the old state.
+              await new Promise((r) => setTimeout(r, 50));
+            },
+          );
+        } else {
+          commit();
+        }
         return true;
       } catch (error) {
         console.error("Failed to create chain from API data:", error);
         return false;
       }
     },
-    [setActiveChainMutation, blockchains, syncActiveWalletToChain],
+    [
+      setActiveChainMutation,
+      setActiveWalletMutation,
+      blockchains,
+      pickWalletForChain,
+      wallets,
+    ],
   );
 
   // Exported chain switcher — same gate as `setActiveWallet`. Lower
@@ -509,8 +668,33 @@ export function useWallet() {
     async (chain: ChainConfig): Promise<boolean> => {
       const commit = async () => {
         try {
-          await setActiveChainMutation.mutateAsync(chain);
-          syncActiveWalletToChain(chain);
+          // Same atomic path as `changeActiveChainInternal` — resolve the
+          // target wallet first, then dispatch chain + wallet in one tick
+          // so cross-namespace switches land in a single React batch.
+          const walletIdxToSwitchTo = pickWalletForChain(chain);
+          const isCrossNamespace = walletIdxToSwitchTo != null;
+          const doCommit = () => {
+            setActiveChainMutation.mutate(chain);
+            if (walletIdxToSwitchTo != null) {
+              setActiveWalletMutation.mutate(walletIdxToSwitchTo);
+            }
+          };
+          if (isCrossNamespace) {
+            const label = formatChainLabel(chain);
+            const targetWallet = wallets[walletIdxToSwitchTo];
+            await runWithChainSwitchingOverlay(
+              `Switching to ${label}…`,
+              async () => {
+                if (targetWallet) {
+                  await warmWalletSigner(targetWallet);
+                }
+                doCommit();
+                await new Promise((r) => setTimeout(r, 50));
+              },
+            );
+          } else {
+            doCommit();
+          }
           return true;
         } catch (error) {
           console.error("Failed to set active chain from config:", error);
@@ -542,7 +726,13 @@ export function useWallet() {
         );
       });
     },
-    [agentBusy, setActiveChainMutation],
+    [
+      agentBusy,
+      setActiveChainMutation,
+      setActiveWalletMutation,
+      pickWalletForChain,
+      wallets,
+    ],
   );
 
   const getWalletAccount = useCallback(
@@ -630,19 +820,30 @@ export function useWallet() {
     [accounts, wallets, saveWallets],
   );
 
-  useEffect(() => {
-    InteractionManager.runAfterInteractions(() => {
-      loadWallets();
-      loadActiveChain();
-      queryClient.invalidateQueries({
-        queryKey: [QKEY_Wallets.activeWalletIndex],
-      });
-    });
-
-    return () => {
-      walletService.clearAccountCache();
-    };
-  }, [loadWallets, loadActiveChain, queryClient]);
+  // Removed: the prior useEffect that invalidated `wallets` /
+  // `activeChain` / `activeWalletIndex` queries on every `useWallet`
+  // mount. Every consumer of this hook — BalanceSection, ActivitySection,
+  // Header, AgentMode, useDepositPrefetch, etc. — fired this effect on
+  // mount, each invalidation queued a fresh `queryFn` call, and each
+  // call hit `deferredTask(..., "Loading wallets")`. Under the app's
+  // InteractionManager scheduler those ran sequentially across frames,
+  // producing the "Deferring task: Loading wallets" spam + the post-
+  // unlock freeze.
+  //
+  // The wallets / activeChain / activeWalletIndex queries have
+  // `staleTime: Infinity` and never need forced re-fetching on mount —
+  // `useQuery` serves the already-hydrated data directly. Explicit
+  // invalidation only belongs in three places (and stays there):
+  //   - `LockScreen` post-unlock (single call in `AppShell.handleUnlocked`)
+  //   - `addWallet` / `removeWallet` / `saveWallets` flows
+  //   - Pull-to-refresh in `wallet.tsx` / `HomeMain`
+  //
+  // We also dropped the `clearAccountCache()` cleanup — it fired on
+  // every hook unmount / re-render-with-new-queryClient, which would
+  // occasionally wipe the BIP-32 / Ed25519 caches right as a downstream
+  // render was about to read them. `clearAccountCache` now only runs
+  // from `LockScreen.attempt` (before reloading wallets) and on
+  // explicit logout, which is correct behavior.
 
   // Phantom-style account backfill: for every mnemonic that already
   // owns at least one wallet, ensure a wallet exists on every
@@ -660,6 +861,15 @@ export function useWallet() {
   const backfillOnceRef = useRef(false);
   useEffect(() => {
     if (backfillOnceRef.current) return;
+    // Lock gate — this effect derives missing-namespace pairs from
+    // existing seed-phrase wallets (pre-Solana users upgrading, etc.)
+    // which runs `deriveWalletsFromMnemonic` → full BIP-32 + SLIP-10
+    // derivation per namespace. That is pure JS-thread crypto that
+    // freezes touch handlers. Running while the LockScreen is floating
+    // is the bug the user reported: the red "Unlock" button stops
+    // responding because the thread is busy deriving the pair. Never
+    // fire until the user has unlocked.
+    if (isLocked) return;
     if (isLoading) return;
     if (wallets.length === 0) return;
     backfillOnceRef.current = true;
@@ -697,7 +907,52 @@ export function useWallet() {
         (task as { cancel: () => void }).cancel();
       }
     };
-  }, [wallets, isLoading, addWallets]);
+  }, [wallets, isLoading, addWallets, isLocked]);
+
+  // Pre-warm wallet signers so the FIRST switch to a reachable wallet is
+  // cache-hit instant instead of triggering a ~100–500 ms BIP-32 derivation
+  // (EVM) or ~50–200 ms Ed25519 key build (Solana) on the main thread.
+  //
+  // Scaling policy — avoids O(N) boot cost for users with many wallets:
+  //
+  //   1. ACTIVE ACCOUNT FIRST (always warmed). The paired EVM + Solana
+  //      wallets of the currently-active account are the ones the user
+  //      will hit with a chain switch. Typical case: 2 derivations. Caps
+  //      boot cost at constant time regardless of total wallet count.
+  //
+  //   2. BACKGROUND PROGRESSIVE WARM for the rest, capped at
+  //      `PREWARM_MAX_EXTRA`. Yields to the event loop between each
+  //      wallet via `setImmediate`-equivalent so the main thread stays
+  //      responsive. Cancelled on unmount.
+  //
+  //   3. LAZY FALLBACK for anything not pre-warmed — on-demand derivation
+  //      still happens inside `getAccountForWallet` /
+  //      `getSolanaSignerForWallet` the first time a specific wallet is
+  //      touched. That's the pre-prewarm behaviour, kept as safety net
+  //      for the >50-wallet case where we stop warming.
+  //
+  // (Removed the tier-1 + tier-2 pre-warm machinery. See the comment on
+  // the deleted effect below for the rationale.)
+
+  // Pre-warm effect disabled. Perf profiling (see docs/crypto-ui-perf-
+  // patterns.md + user-session timestamps) showed that BIP-32 derivation
+  // via `@scure/bip32` runs in pure JS — `react-native-quick-crypto`
+  // only accelerates libs that use `global.crypto.subtle` / Node's
+  // `crypto` module, which `@scure/bip32` does not. In dev mode each
+  // EVM derivation costs ~1–2 seconds; warming 2–50 wallets at unlock
+  // time ballooned into multi-second freezes.
+  //
+  // New policy: warm ONLY the active wallet in `LockScreen.attempt`
+  // (single derivation), and rely on the LAZY fallback in
+  // `getAccountForWallet` / `getSolanaSignerForWallet` for every other
+  // wallet. When the user actually switches wallets, the chain-switch
+  // overlay wraps the derivation so the cost lands behind the spinner
+  // on demand, not all-at-once at boot.
+  //
+  // If we later migrate BIP-32 to a native module (TWV-2026-057) or
+  // ship a native-crypto-accelerated HD library, this effect can come
+  // back as a pure-parallel warm-all — but until then, warming here
+  // was strictly harmful to unlock UX.
 
   // Passive sync on first load / rehydrate only: if the persisted
   // `activeWallet` and `activeChain` disagree when the app boots
@@ -782,5 +1037,15 @@ export function useWallet() {
     getKitForWallet,
     renameWallet,
     renameAccount,
+    // Exposed for pre-emptive warming from pickers — e.g. when the
+    // chain selector opens, UIs can call `warmNamespace("solana")` so
+    // the subsequent switch is cache-hit instant. Each wallet is fire-
+    // and-forget so opening the picker doesn't block on derivation.
+    warmNamespace: (ns: Namespace) => {
+      const targets = wallets.filter((w) => w.namespace === ns);
+      for (const w of targets) {
+        void warmWalletSigner(w);
+      }
+    },
   };
 }

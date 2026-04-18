@@ -322,6 +322,23 @@ export function getAccountForWallet(
   }
 }
 
+/**
+ * Async prewarm for EVM wallets. Delegates straight to the sync path
+ * — with `react-native-quick-crypto` installed in `pollyfills.ts`,
+ * `mnemonicToAccount` runs with native JSI primitives (SHA-256,
+ * secp256k1, HMAC) and is fast enough on the main thread that a
+ * worker hop isn't worth the complexity.
+ *
+ * Kept as a separate `async` function so callers that expect a
+ * promise-returning API (`LockScreen.attempt`, `warmWalletSigner`)
+ * don't need to change shape.
+ */
+export async function prewarmAccountForWallet(
+  wallet: TWallet,
+): Promise<HDAccount | PrivateKeyAccount | null> {
+  return getAccountForWallet(wallet);
+}
+
 // Review gate — TWV-2026-070 (Ed25519 signer dwell + polyfill).
 // Design note: docs/wallet-security-task/65_solana_signer_design_note.md.
 //
@@ -342,6 +359,24 @@ export function getAccountForWallet(
 // MUST cite TWV-2026-070.
 
 const solanaSignerCache: Record<string, KeyPairSigner> = {};
+
+/**
+ * Async prewarm for Solana signers. Delegates straight to
+ * `getSolanaSignerForWallet` — the main-thread path now runs with
+ * native Ed25519 (via `react-native-quick-crypto` installed in
+ * `pollyfills.ts`), so the SLIP-10 derivation + key-pair build is
+ * ~5× faster than the pure-JS path was. Worker offload isn't worth
+ * the complexity for Solana anymore.
+ *
+ * Kept as a separate exported name so callers that want EVM-or-Solana
+ * prewarm symmetry have a consistent API shape. Populates the same
+ * `solanaSignerCache` the sync path uses.
+ */
+export async function prewarmSolanaSignerForWallet(
+  wallet: TWallet,
+): Promise<KeyPairSigner | null> {
+  return getSolanaSignerForWallet(wallet);
+}
 
 export async function getSolanaSignerForWallet(
   wallet: TWallet,
@@ -399,6 +434,20 @@ export function clearAccountCache(): void {
   Object.keys(solanaSignerCache).forEach((key) => {
     delete solanaSignerCache[key];
   });
+}
+
+/**
+ * Sync read of the module-level wallet cache. Returns the cached array
+ * if `loadWalletsFromStorage()` has already populated it this session
+ * (e.g. via `LockScreen.attempt` during unlock), else `null`. Used by
+ * `useWallet`'s `useQuery` as `initialData` so the hook returns real
+ * wallets on the first render instead of `[]`, which in turn lets
+ * `useIsAuthenticated` hit its in-memory cache (keyed by active-wallet
+ * address) without waiting a full async tick. That waiting window was
+ * the skeleton-up freeze you were seeing on home.
+ */
+export function getCachedWalletsSync(): TWallet[] | null {
+  return cachedWallets ? [...cachedWallets] : null;
 }
 
 export function clearWalletCache() {

@@ -25,13 +25,14 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { runWithChainSwitchingOverlay } from "@/components/common/ChainSwitchingOverlay";
 import { usePerformance } from "@/components/providers/PerformanceProvider";
 import AddWalletSheet from "@/components/wallet/create/AddWalletSheet";
 import WalletCompactCard from "@/components/wallet/WalletCompactCard";
 import WalletDetails from "@/components/wallet/WalletDetails";
 import WalletSwitcherModal from "@/components/wallet/WalletSwitcherModal";
 import { TWallet } from "@/constants/types/walletTypes";
-import { useWallet } from "@/hooks/useWallet";
+import { useWallet, warmWalletSigner } from "@/hooks/useWallet";
 import {
   chainCacheKey,
   type WalletAccount,
@@ -139,8 +140,40 @@ export default function Wallet() {
   // rerouted users who deleted every wallet; removed per spec so the
   // inline "Add wallet" card can greet them instead.
 
+  // Concurrent-switch guard — ref so rapid taps don't each pass the
+  // state check (which would lag by a render). Without this, spamming
+  // wallet cards fires N parallel `handleAccountSwitch` calls, each
+  // spawning its own signer-warm + state-mutation + auth-query refetch
+  // cascade (points/balance + redeem/history + transaction-history ×
+  // N = 3N in-flight requests). React's response cascades back-to-back
+  // freeze the thread. Guard locks the switch for the duration.
+  const switchInFlightRef = useRef(false);
+
   const handleAccountSwitch = useCallback(
     async (accountId: string) => {
+      if (switchInFlightRef.current) return;
+
+      // No-op if already active — avoids firing the overlay and the
+      // downstream mutation cascade for a tap on the already-selected
+      // card.
+      if (accountId === activeAccount?.id) {
+        setShowWalletInfo(false);
+        return;
+      }
+
+      const target = accounts.find((a) => a.id === accountId);
+      if (!target) return;
+
+      switchInFlightRef.current = true;
+
+      // Resolve the target wallet row we'll actually switch to (the one
+      // matching the active chain's namespace inside this account).
+      // Pre-warming THIS wallet before flipping state means the signer
+      // cache is hot by the time downstream hooks render against it —
+      // avoids the first-touch BIP-32 / Ed25519 derivation tax landing
+      // on the render thread immediately after state commits.
+      const targetWallet = walletForNamespace(target, activeChain.namespace);
+
       Animated.sequence([
         Animated.timing(detailsOpacity, {
           toValue: 0.5,
@@ -154,12 +187,42 @@ export default function Wallet() {
         }),
       ]).start();
 
-      await deferredTask(async () => {
-        setActiveAccount(accountId);
-        setShowWalletInfo(false);
-      }, "Switching wallet");
+      // Same overlay the cross-namespace chain switcher uses — gives the
+      // user a clear "this is working, don't navigate away" signal. The
+      // Modal blocks hardware-back + gesture-back while the switch is
+      // in flight, so a user who presses back mid-switch doesn't end
+      // up stranded on the previous screen with stale state.
+      try {
+        await runWithChainSwitchingOverlay(
+          `Switching to ${target.name}…`,
+          async () => {
+            // 1. HEAVY — derivation for the target wallet's signer.
+            if (targetWallet) {
+              await warmWalletSigner(targetWallet);
+            }
+            // 2. State commit — inside `deferredTask` so it runs after
+            //    the overlay's initial paint frame.
+            await deferredTask(async () => {
+              setActiveAccount(accountId);
+              setShowWalletInfo(false);
+            }, "Switching wallet");
+            // 3. Tail yield so the post-commit render paints against
+            //    warm caches before the overlay fades.
+            await new Promise((r) => setTimeout(r, 50));
+          },
+        );
+      } finally {
+        switchInFlightRef.current = false;
+      }
     },
-    [setActiveAccount, deferredTask, detailsOpacity],
+    [
+      accounts,
+      activeAccount?.id,
+      activeChain.namespace,
+      setActiveAccount,
+      deferredTask,
+      detailsOpacity,
+    ],
   );
 
   // The card surface stays wallet-shaped (balance, address pill, etc.)

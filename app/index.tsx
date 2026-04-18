@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   BackHandler,
   Dimensions,
-  InteractionManager,
   Platform,
   ScrollView,
   StatusBar,
@@ -33,23 +32,17 @@ export default function Home() {
     setCurrentIndex(index);
   }, []);
 
-  const handleChatModePress = () => {
+  // AgentMode is a ~15-useEffect, reanimated-heavy tree whose first
+  // mount costs several hundred ms. We used to pre-mount it via
+  // `InteractionManager.runAfterInteractions` right after home idled —
+  // but post-unlock that fired while the user's first taps were still
+  // in flight and contributed to the "app freeze after unlock" bug.
+  // Mount on actual navigation instead. The first tap to switch into
+  // chat mode will pay a small lag; every subsequent tap is instant.
+  const handleChatModePress = useCallback(() => {
+    setHasVisitedAgentMode(true);
     scrollToIndex(1);
-  };
-
-  // Pre-warm AgentMode shortly after the home screen idles. Mounting it
-  // on-press makes the swipe feel laggy — the heavy useWallet /
-  // useBlockchainsWithStorage / FlashList boot cost lands in the same
-  // frame as the animation start. Defer to after first interactions so
-  // the initial home paint stays cheap, then let AgentMode hydrate in
-  // the background so tapping chat mode is instant.
-  useEffect(() => {
-    if (hasVisitedAgentMode) return;
-    const task = InteractionManager.runAfterInteractions(() => {
-      setHasVisitedAgentMode(true);
-    });
-    return () => task.cancel();
-  }, [hasVisitedAgentMode]);
+  }, [scrollToIndex]);
 
   useEffect(() => {
     const backHandler = BackHandler.addEventListener(

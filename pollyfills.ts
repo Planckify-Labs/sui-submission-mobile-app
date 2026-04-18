@@ -6,6 +6,25 @@
 // below + `services/walletService.test.ts`.
 import "react-native-get-random-values";
 import "fastestsmallesttextencoderdecoder";
+
+// Native-JSI crypto — replaces the pure-JS fallbacks viem / @scure / @noble
+// use (secp256k1, sha256, keccak256, pbkdf2, HMAC, etc.) with C++ via JSI.
+// Order matters: install AFTER the CSPRNG polyfill so the native module's
+// RNG picks up `react-native-get-random-values`, and BEFORE any import
+// that pulls in `viem/accounts` or `@scure/bip32` so their lazy binding
+// to `global.crypto` sees the native implementations.
+//
+// Impact on this app:
+//   - BIP-32 derivation (`mnemonicToAccount`) — ~10× faster on mobile
+//   - ECDSA sign / verify — ~10× faster
+//   - SHA-256 / keccak256 batch work — ~20× faster
+//
+// Does NOT accelerate Ed25519 (Solana) — that still goes through the
+// WebCrypto polyfill below. See the optional worker-offload in
+// `services/cryptoWorker.ts` for the Solana-side speedup.
+import { install as installQuickCrypto } from "react-native-quick-crypto";
+
+installQuickCrypto();
 // TWV-2026-070 — Ed25519 polyfill MUST load after the CSPRNG polyfill and
 // the TextEncoder/TextDecoder shim, and BEFORE any `@solana/kit` import.
 // Hermes' WebCrypto ships without Ed25519; without this shim,

@@ -87,15 +87,13 @@ export const useSmartContractByChain = (chainId: number) => {
     // Short staleTime so concurrent consumers on the same mount tick
     // share one refetch instead of dogpiling the API.
     staleTime: STALE_TIME,
-    // Force a background refetch on every screen entry regardless of
-    // staleTime — the MMKV seed handles instant render, this keeps
-    // the UI truthful when the backend has rotated the contract
-    // (e.g. redeployed on a chain). React Query deduplicates so
-    // multiple hooks on the same mount fire a single request.
-    refetchOnMount: "always",
-    // Re-sync when the device regains connectivity. Without this, a
-    // user who switched chains while offline would be stuck on the
-    // cached shape until their next app restart.
+    // `refetchOnMount: true` (stale-only) instead of `"always"` —
+    // avoids a fresh `/smart-contracts/chain/<id>` round-trip on every
+    // mount when a 5-minute-old cache is still serving. Same fix as
+    // `useTokens`. The MMKV seed still handles instant render; the
+    // network sync runs lazily when data actually goes stale or on
+    // reconnect.
+    refetchOnMount: true,
     refetchOnReconnect: "always",
   });
 };

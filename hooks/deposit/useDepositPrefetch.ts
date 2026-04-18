@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { useAppLocked } from "@/app/_layout";
 import { smartContractApi } from "@/api/endpoints/smart-contracts";
 import { useWallet } from "@/hooks/useWallet";
 import { getEvmChainId } from "@/services/walletKit/chainInfo";
@@ -16,6 +17,7 @@ import { getEvmChainId } from "@/services/walletKit/chainInfo";
 export function useDepositPrefetch() {
   const queryClient = useQueryClient();
   const { activeChain } = useWallet();
+  const isLocked = useAppLocked();
   // Deposit prefetch is EVM-only; the kit-specific prefetch (when it
   // lands for Solana/other chains) will hook in here. `getEvmChainId`
   // returns undefined for non-EVM chains, so we short-circuit below.
@@ -23,6 +25,14 @@ export function useDepositPrefetch() {
 
   useEffect(() => {
     if (chainId == null) return;
+    // Lock gate — the `require()` calls below force Hermes to parse the
+    // deposit hook + contract hook modules, which transitively evaluate
+    // viem + ABI objects. That eval is sync-blocking and runs on the JS
+    // thread. Even though `requestIdleCallback` defers it, once it
+    // fires it still blocks — and if it fires while the LockScreen is
+    // floating, the red Unlock button stops responding. Don't prefetch
+    // until the user is actually in the app.
+    if (isLocked) return;
     const id = requestIdleCallback(() => {
       // 1. Pre-warm JS modules: forces Hermes to parse viem + contract hooks
       //    before the user taps deposit, so the navigation animation isn't blocked.
@@ -38,5 +48,5 @@ export function useDepositPrefetch() {
     });
 
     return () => cancelIdleCallback(id);
-  }, [chainId, queryClient]);
+  }, [chainId, queryClient, isLocked]);
 }

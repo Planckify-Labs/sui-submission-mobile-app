@@ -8,9 +8,16 @@ import {
 } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { router, SplashScreen, Stack } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { LogBox } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ChainSwitchingOverlay } from "@/components/common/ChainSwitchingOverlay";
 import { PerformanceProvider } from "@/components/providers/PerformanceProvider";
 import LockScreen from "@/components/security/LockScreen";
 import QKEY_Wallets from "@/constants/queryKeys/walletQueryKeys";
@@ -27,6 +34,19 @@ import "../global.css";
 bootWalletKits();
 
 SplashScreen.preventAutoHideAsync();
+
+/**
+ * App-level lock gate. `true` whenever the LockScreen is floating over
+ * the Stack — i.e. wallets are persisted on device but the user hasn't
+ * unlocked this session yet. Exposed so screens and expensive hooks
+ * (SecureStore cascades in `useIsAuthenticated`, BIP-32 / Ed25519
+ * pre-warm in `useWallet`, network queries gated by auth) can short-
+ * circuit their work while the user is behind the blur. The Stack
+ * still renders so the LockScreen's BlurView has home content to
+ * blur — but the heavy work doesn't fire until after unlock.
+ */
+export const AppLockedContext = createContext<boolean>(false);
+export const useAppLocked = (): boolean => useContext(AppLockedContext);
 
 LogBox.ignoreLogs([
   "VirtualizedLists should never be nested",
@@ -61,23 +81,8 @@ function InitializeApp({
   const { wallets, isLoading } = require("@/hooks/useWallet").useWallet();
 
   useEffect(() => {
-    // Wait for both the persisted query cache to be restored AND
-    // the wallets query to finish loading before making a decision.
     if (isRestoring || isLoading) return;
 
-    // Decision tree, evaluated on every cold boot AND after the user
-    // unlocks:
-    //   1. No wallets on device AND session already unlocked (edge
-    //        case: user signed out via /login) → route to /login.
-    //   2. hasStoredWallets() && !didUnlockThisSession
-    //        → lock. The bundle now loads without an OS prompt (see
-    //          `walletSecureStore.ts`), so the LockScreen is the only
-    //          auth gate. Always show it on cold start regardless of
-    //          whether the query has resolved wallets yet.
-    //   3. No wallets AND !hasStoredWallets() → fresh install / new
-    //        signup → /login.
-    //   4. Otherwise (unlocked, wallets present) → let the current
-    //        route render.
     if (hasStoredWallets() && !didUnlockThisSession) {
       onShouldLock(true);
     } else if (wallets.length === 0 && !hasStoredWallets()) {
@@ -101,23 +106,49 @@ function InitializeApp({
 
 function AppShell() {
   const queryClient = useQueryClient();
-  const [locked, setLocked] = useState(false);
-  // Session-scoped unlock signal. Defaults to false on every cold
-  // boot (React state is reset). Backgrounding the app alone does
-  // NOT re-lock — `hasStoredWallets()` + this flag is evaluated in
-  // `InitializeApp` which only reacts to mount + its own deps.
+  const [locked, setLocked] = useState<boolean>(hasStoredWallets());
   const [didUnlockThisSession, setDidUnlockThisSession] = useState(false);
 
-  const handleUnlocked = useCallback(() => {
-    // Make sure the wallets query is fresh in case it raced ahead
-    // (or ran against a stale cache from a previous persist cycle).
-    queryClient.invalidateQueries({ queryKey: [QKEY_Wallets.wallets] });
+  // Two-phase unlock — lift the gate first (so all `useAppLocked()`
+  // consumers fire their gated effects + the React re-render cascade
+  // runs), then dismiss the LockScreen after a short settle window.
+  // The spinner stays up while home's hooks wake up; the user only
+  // sees the home screen once the cascade has quieted and taps land
+  // instantly.
+  //
+  // Without this two-phase approach, `locked` and `didUnlockThisSession`
+  // flipped in the same commit. The LockScreen dismissed at the exact
+  // frame the cascade started — user saw home but couldn't interact
+  // for ~300–500 ms while the re-render wave settled. Classic "freeze
+  // right after unlock" bug.
+  //
+  // `await new Promise(setTimeout(400))` is the same yield hack as the
+  // rest of the crypto UI (pattern 1 in `docs/crypto-ui-perf-patterns
+  // .md`), just with a larger value because we're covering a bigger
+  // window (multiple React commits + deferred effects via
+  // `InteractionManager.runAfterInteractions`).
+  const handleUnlocked = useCallback(async () => {
+    // LockScreen already loaded wallets via `loadWalletsFromStorage()`
+    // into the `walletService` module cache. The `[wallets]` query
+    // picks up that cached value on first use — no invalidation needed.
+    // Previously this fired an `invalidateQueries({wallets})` which
+    // queued a 2nd `loadWallets` deferredTask (visible in logs), for
+    // no new data.
+    //
+    // Phase 1 — lift the gate. Gated hooks fire while the LockScreen
+    // is still visible. Heavy work runs behind the spinner.
     setDidUnlockThisSession(true);
+    // Phase 2 — wait for the React cascade to quiet, then dismiss.
+    // 100 ms is enough now that signer caches + auth state + wallet
+    // index are all primed synchronously inside LockScreen — the
+    // cascade from flipping `isLocked` is just React re-renders, not
+    // any heavy work.
+    await new Promise((r) => setTimeout(r, 100));
     setLocked(false);
-  }, [queryClient]);
+  }, []);
 
   return (
-    <>
+    <AppLockedContext.Provider value={locked}>
       <InitializeApp
         didUnlockThisSession={didUnlockThisSession}
         onShouldLock={setLocked}
@@ -131,7 +162,8 @@ function AppShell() {
         }}
       />
       {locked ? <LockScreen onUnlocked={handleUnlocked} /> : null}
-    </>
+      <ChainSwitchingOverlay />
+    </AppLockedContext.Provider>
   );
 }
 

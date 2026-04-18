@@ -11,6 +11,7 @@ import type {
   TPointPriceParams,
 } from "@/api/types/points";
 import { pointsQueryKeys } from "@/constants/queryKeys/pointsQueryKeys";
+import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 
 // --- Point Price (public, no auth) ---
 export const usePointPrice = (params: TPointPriceParams) => {
@@ -24,11 +25,22 @@ export const usePointPrice = (params: TPointPriceParams) => {
 
 // --- Point Balance (authenticated) ---
 export const usePointBalance = () => {
+  const { isAuthenticated, isLoading: isAuthLoading } = useIsAuthenticated();
   return useQuery({
     queryKey: pointsQueryKeys.balance(),
     queryFn: () => pointsApi.getBalance(),
     staleTime: 30 * 1000, // 30s, matches API cache TTL
     gcTime: 24 * 60 * 60 * 1000, // persist for offline display
+    // Gate on confirmed authentication. Without this the query fires
+    // on every mount, the `beforeRequest` ky hook throws "Not
+    // authenticated for current wallet" when the token isn't loaded
+    // yet, React Query retries, and every consumer re-renders on each
+    // error state. That retry storm — visible as many "No suitable
+    // access token" warnings in Metro — is the post-unlock freeze
+    // source even when the user IS actually authenticated (tokens
+    // load async, but the query doesn't wait).
+    enabled: isAuthenticated === true && !isAuthLoading,
+    retry: false,
   });
 };
 

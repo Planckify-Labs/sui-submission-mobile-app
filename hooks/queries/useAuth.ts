@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { InteractionManager } from "react-native";
+import { useAppLocked } from "@/app/_layout";
 import { publicApi, reset401Guard } from "@/constants/configs/ky";
 import { useWallet } from "@/hooks/useWallet";
 import { clearChatStateForWallet } from "@/lib/storage/chatKeys";
@@ -115,6 +117,15 @@ export const clearTokens = async (): Promise<void> => {
     await walletSecureDelete(ACCESS_TOKEN_KEY);
     await walletSecureDelete(REFRESH_TOKEN_KEY);
     await walletSecureDelete(AUTH_WALLET_ADDRESS_KEY);
+    // The per-wallet auth-state cache holds the previous `isAuthenticated:
+    // true` — wipe it so the next `useIsAuthenticated` run doesn't flash
+    // an authenticated state for a wallet that just lost its tokens.
+    authStateCache.clear();
+    // Also wipe the MMKV cold-boot hints. Without this, the next
+    // cold-start would seed `isAuthenticated = true` from the stale
+    // hint, show authed UI for a moment, then flip to false when the
+    // SecureStore check completes.
+    clearAuthHints();
   } catch (error) {
     console.error("Failed to clear tokens:", error);
   }
@@ -132,13 +143,42 @@ export const getAuthenticatedWalletAddress = async (): Promise<
   }
 };
 
-export const useNonce = (walletAddress?: string, chainId?: number) => {
+export interface UseNonceOptions {
+  chainId?: number;
+  chainSlug?: string;
+}
+
+export const useNonce = (
+  walletAddress?: string,
+  optsOrChainId: UseNonceOptions | number = {},
+) => {
+  // Legacy call sites passed a raw number — accept both shapes during rollout.
+  const opts: UseNonceOptions =
+    typeof optsOrChainId === "number"
+      ? { chainId: optsOrChainId }
+      : optsOrChainId;
+  const { chainId, chainSlug } = opts;
+
+  if (chainId !== undefined && chainSlug !== undefined) {
+    // Both set is a caller bug — server would 400, but fail fast here.
+    throw new Error("useNonce: chainId and chainSlug are mutually exclusive");
+  }
+
+  const selector = chainSlug ?? chainId ?? null;
+
   return useQuery<TNonceResponse>({
-    queryKey: ["auth", "nonce", walletAddress, chainId],
+    queryKey: ["auth", "nonce", walletAddress, selector],
     queryFn: async () => {
       if (!walletAddress) throw new Error("Wallet address is required");
 
-      const endpoint = `auth/nonce/${walletAddress}${chainId ? `?chainId=${chainId}` : ""}`;
+      let query = "";
+      if (chainSlug) {
+        query = `?chainSlug=${encodeURIComponent(chainSlug)}`;
+      } else if (chainId !== undefined) {
+        query = `?chainId=${chainId}`;
+      }
+      // Solana base58 addresses are case-sensitive — do not lowercase here.
+      const endpoint = `auth/nonce/${walletAddress}${query}`;
 
       try {
         const response = await publicApi.get(endpoint).json<TNonceResponse>();
@@ -276,112 +316,285 @@ export const useRefreshToken = () => {
   };
 };
 
+// Per-wallet auth-state cache shared across every `useIsAuthenticated`
+// consumer in the tree. Switching wallets after the first check returns
+// synchronously from this cache (module-level so it survives unmount /
+// remount cycles), and the background re-check silently updates it.
+//
+// Without this, every namespace switch fired 5 sequential SecureStore
+// reads (25–75ms) PLUS a potential refresh mutation — run across every
+// consumer on screen. That was the bulk of the cross-namespace lag
+// (intra-EVM didn't change `activeWallet.address`, so this effect never
+// ran on chain-only switches).
+type AuthCacheEntry = {
+  isAuthenticated: boolean;
+  hadPreviousSession: boolean;
+};
+const authStateCache = new Map<string, AuthCacheEntry>();
+
+// MMKV mirror of the auth-state cache — survives cold boots. NOT the
+// actual tokens (those stay in SecureStore). This is a hint: "on last
+// check, wallet X was authenticated". Lets the first render on cold
+// boot skip the `isLoading: true` skeleton + kicks downstream hooks
+// (ActivitySection etc.) straight into their authenticated branch, so
+// taps on nav aren't queued behind a busy main thread running the
+// SecureStore cascade. A background re-check on every mount corrects
+// the hint if tokens were revoked / expired out-of-band.
+const AUTH_HINT_PREFIX = "auth_has_tokens_v1_";
+function hintKey(walletKey: string): string {
+  return `${AUTH_HINT_PREFIX}${walletKey}`;
+}
+function readAuthHint(walletKey: string): AuthCacheEntry | null {
+  try {
+    const raw = storage.getString(hintKey(walletKey));
+    if (!raw) return null;
+    const hint = JSON.parse(raw) as AuthCacheEntry;
+    return {
+      isAuthenticated: !!hint.isAuthenticated,
+      hadPreviousSession: !!hint.hadPreviousSession,
+    };
+  } catch {
+    return null;
+  }
+}
+function writeAuthHint(walletKey: string, entry: AuthCacheEntry): void {
+  try {
+    storage.set(hintKey(walletKey), JSON.stringify(entry));
+  } catch {
+    // Non-fatal; the in-memory cache still works.
+  }
+}
+function clearAuthHints(): void {
+  try {
+    const all = storage.getAllKeys();
+    for (const k of all) {
+      if (k.startsWith(AUTH_HINT_PREFIX)) storage.remove(k);
+    }
+  } catch {
+    // Non-fatal.
+  }
+}
+
+/**
+ * Primes the auth-state caches (in-memory + MMKV hint) for the given
+ * wallet by reading SecureStore BEFORE any consumer renders. Used by
+ * `LockScreen.attempt` so that by the time the lock dismisses, every
+ * `useIsAuthenticated()` consumer on home seeds `isLoading: false` and
+ * the correct `isAuthenticated` — eliminating the "skeleton → swap to
+ * real content → queries refire" cascade that caused the perceived
+ * post-unlock freeze.
+ *
+ * No-op if `walletKey` is missing. Errors are swallowed — if priming
+ * fails, `useIsAuthenticated` falls back to its normal
+ * `InteractionManager.runAfterInteractions` background check path.
+ */
+export async function primeAuthState(
+  walletKey: string | null | undefined,
+): Promise<void> {
+  if (!walletKey) return;
+  try {
+    const [
+      perWalletAccess,
+      perWalletRefresh,
+      legacyAccess,
+      legacyRefresh,
+      authedWalletRaw,
+    ] = await Promise.all([
+      getAccessTokenForWallet(walletKey),
+      getRefreshTokenForWallet(walletKey),
+      getAccessToken(),
+      getRefreshToken(),
+      getAuthenticatedWalletAddress(),
+    ]);
+
+    const authedWallet = authedWalletRaw?.toLowerCase() || null;
+    let accessToken = perWalletAccess;
+    let refreshToken = perWalletRefresh;
+    if (!accessToken && legacyAccess && authedWallet === walletKey) {
+      accessToken = legacyAccess;
+    }
+    if (!refreshToken && legacyRefresh && authedWallet === walletKey) {
+      refreshToken = legacyRefresh;
+    }
+
+    // Mirror the decision tree `useIsAuthenticated.checkAuthentication`
+    // uses: access token OR refresh token present = had-session.
+    // Access token present = authenticated for this session's first
+    // paint (the hook's background check runs a full refresh if only
+    // a refresh token was found, but for the first-paint prime the
+    // presence of either is enough to avoid the skeleton flash).
+    const hadSession = !!(accessToken || refreshToken);
+    const isAuthenticated = !!accessToken;
+
+    const entry: AuthCacheEntry = {
+      isAuthenticated,
+      hadPreviousSession: hadSession,
+    };
+    authStateCache.set(walletKey, entry);
+    writeAuthHint(walletKey, entry);
+  } catch {
+    // Best-effort; fall back to the background check in the hook.
+  }
+}
+
 export const useIsAuthenticated = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hadPreviousSession, setHadPreviousSession] = useState(false);
+  const { activeWallet } = useWallet();
+  const isLocked = useAppLocked();
+  const walletKey = activeWallet?.address?.toLowerCase() || null;
+  // In-memory cache wins when present (most accurate, set by the last
+  // background check). MMKV hint is the cold-boot fallback — lets the
+  // first paint show authenticated UI without waiting on SecureStore.
+  const memCached = walletKey ? authStateCache.get(walletKey) : undefined;
+  const mmkvCached = walletKey && !memCached ? readAuthHint(walletKey) : null;
+  const cached = memCached ?? mmkvCached;
+
+  // Seed from cache so consumers see the last-known auth state instantly
+  // on switch OR cold boot — no null/loading flash. Fresh background
+  // check follows (and may revert to `false` if tokens were revoked).
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(
+    cached?.isAuthenticated ?? null,
+  );
+  const [isLoading, setIsLoading] = useState(!cached);
+  const [hadPreviousSession, setHadPreviousSession] = useState(
+    cached?.hadPreviousSession ?? false,
+  );
   const { refreshAccessTokenOrThrow } = useRefreshToken();
   const refreshAccessTokenRef = useRef(refreshAccessTokenOrThrow);
-  const { activeWallet } = useWallet();
 
   useEffect(() => {
     refreshAccessTokenRef.current = refreshAccessTokenOrThrow;
   }, [refreshAccessTokenOrThrow]);
 
   useEffect(() => {
-    // Reset immediately so no stale auth state from the previous wallet leaks
-    // through while the async SecureStore check is in flight.
-    setIsAuthenticated(null);
-    setHadPreviousSession(false);
-    setIsLoading(true);
+    // Lock gate — skip every SecureStore read + refresh mutation while
+    // the LockScreen is floating. The blurred home behind the lock has
+    // no business running auth chains; running them there was the bulk
+    // of the "tap to unlock is delayed" + post-unlock navigation lag.
+    // Freeze state in the loading posture so consumers render their
+    // loading branches (sign-in prompt, skeletons) without firing work.
+    if (isLocked) {
+      return;
+    }
+
+    // Seed synchronously from cache for this specific wallet so the
+    // effect's own post-mount snapshot doesn't trip the "authing…"
+    // branches in consumers while the async re-check runs.
+    const cachedForWallet = walletKey ? authStateCache.get(walletKey) : null;
+    if (cachedForWallet) {
+      setIsAuthenticated(cachedForWallet.isAuthenticated);
+      setHadPreviousSession(cachedForWallet.hadPreviousSession);
+      setIsLoading(false);
+    } else {
+      setIsAuthenticated(null);
+      setHadPreviousSession(false);
+      setIsLoading(true);
+    }
+
+    let cancelled = false;
+
+    const commit = (next: AuthCacheEntry) => {
+      if (cancelled) return;
+      if (walletKey) {
+        authStateCache.set(walletKey, next);
+        // Persist the hint so the next cold boot skips the "authing…"
+        // skeleton on first paint. NOT the token itself — just a flag
+        // saying "last time we looked, this wallet had valid tokens".
+        writeAuthHint(walletKey, next);
+      }
+      setIsAuthenticated(next.isAuthenticated);
+      setHadPreviousSession(next.hadPreviousSession);
+      setIsLoading(false);
+    };
 
     const checkAuthentication = async () => {
-      const currentWallet = activeWallet?.address?.toLowerCase() || null;
-
-      // Wallet not yet loaded — stay in loading state, don't mark as unauthenticated.
-      // The effect will re-run once activeWallet resolves.
-      if (!currentWallet) {
-        return;
-      }
+      if (!walletKey) return;
 
       try {
-        setIsLoading(true);
+        // Parallelize all five SecureStore reads. Each is an OS-level
+        // keychain round-trip (5–15ms on iOS); chained sequentially that
+        // was ~25–75ms of blocking work per switch. Promise.all keeps the
+        // total at the slowest single read.
+        const [
+          perWalletAccess,
+          perWalletRefresh,
+          legacyAccess,
+          legacyRefresh,
+          authedWalletRaw,
+        ] = await Promise.all([
+          getAccessTokenForWallet(walletKey),
+          getRefreshTokenForWallet(walletKey),
+          getAccessToken(),
+          getRefreshToken(),
+          getAuthenticatedWalletAddress(),
+        ]);
+        if (cancelled) return;
 
-        const perWalletAccess = await getAccessTokenForWallet(currentWallet);
-        const perWalletRefresh = await getRefreshTokenForWallet(currentWallet);
-
+        const authedWallet = authedWalletRaw?.toLowerCase() || null;
         let accessToken = perWalletAccess;
         let refreshToken = perWalletRefresh;
-        const legacyAccess = await getAccessToken();
-        const legacyRefresh = await getRefreshToken();
-        const authedWallet =
-          (await getAuthenticatedWalletAddress())?.toLowerCase() || null;
-        if (
-          !accessToken &&
-          legacyAccess &&
-          currentWallet &&
-          authedWallet === currentWallet
-        ) {
+        if (!accessToken && legacyAccess && authedWallet === walletKey) {
           accessToken = legacyAccess;
         }
-        if (
-          !refreshToken &&
-          legacyRefresh &&
-          currentWallet &&
-          authedWallet === currentWallet
-        ) {
+        if (!refreshToken && legacyRefresh && authedWallet === walletKey) {
           refreshToken = legacyRefresh;
         }
 
+        // Lazy legacy-to-per-wallet migration. Fire-and-forget — the
+        // auth decision below doesn't depend on this succeeding.
         if (
-          currentWallet &&
-          authedWallet === currentWallet &&
+          authedWallet === walletKey &&
           (accessToken || refreshToken) &&
           !perWalletAccess &&
           !perWalletRefresh
         ) {
-          try {
-            if (accessToken) {
-              await walletSecureSet(accessKeyFor(currentWallet), accessToken);
-            }
-            if (refreshToken) {
-              await walletSecureSet(refreshKeyFor(currentWallet), refreshToken);
-            }
-          } catch (e) {
+          const migrationWrites: Promise<unknown>[] = [];
+          if (accessToken) {
+            migrationWrites.push(
+              walletSecureSet(accessKeyFor(walletKey), accessToken),
+            );
+          }
+          if (refreshToken) {
+            migrationWrites.push(
+              walletSecureSet(refreshKeyFor(walletKey), refreshToken),
+            );
+          }
+          void Promise.all(migrationWrites).catch((e) =>
             console.warn(
               "Failed to persist legacy tokens to per-wallet storage",
               e,
-            );
-          }
+            ),
+          );
         }
 
-        // True if the user previously authenticated for this wallet.
-        // Used by screens to distinguish "new user" (no session) from "expired session".
         const hadSession = !!(accessToken || refreshToken);
-        setHadPreviousSession(hadSession);
 
         if (!accessToken && !refreshToken) {
-          setIsAuthenticated(false);
+          commit({ isAuthenticated: false, hadPreviousSession: hadSession });
           return;
         }
 
         if (!accessToken && refreshToken) {
           try {
             await refreshAccessTokenRef.current();
-            setIsAuthenticated(true);
+            if (cancelled) return;
+            commit({ isAuthenticated: true, hadPreviousSession: hadSession });
           } catch (refreshError: any) {
+            if (cancelled) return;
             const status = refreshError?.response?.status;
             if (status === 401 || status === 403) {
-              // Server explicitly rejected the refresh token — session is truly expired.
-              setIsAuthenticated(false);
+              commit({
+                isAuthenticated: false,
+                hadPreviousSession: hadSession,
+              });
             } else {
-              // Network error or server unavailable — assume still authenticated
-              // and let individual API calls handle re-auth when the server returns.
               console.warn(
                 "Refresh failed (network/server error), keeping authenticated state:",
                 refreshError,
               );
-              setIsAuthenticated(true);
+              commit({
+                isAuthenticated: true,
+                hadPreviousSession: hadSession,
+              });
             }
           }
           return;
@@ -389,37 +602,45 @@ export const useIsAuthenticated = () => {
 
         if (accessToken) {
           if (perWalletAccess) {
-            setIsAuthenticated(true);
+            commit({ isAuthenticated: true, hadPreviousSession: hadSession });
             return;
           }
-          if (
-            !authedWallet ||
-            !currentWallet ||
-            authedWallet !== currentWallet
-          ) {
-            setIsAuthenticated(false);
+          if (authedWallet !== walletKey) {
+            commit({ isAuthenticated: false, hadPreviousSession: hadSession });
             return;
           }
         }
 
-        setIsAuthenticated(true);
+        commit({ isAuthenticated: true, hadPreviousSession: hadSession });
       } catch (error: any) {
+        if (cancelled) return;
         console.error("Error checking authentication:", error);
-        // Only mark as unauthenticated for explicit auth rejections.
-        // Network/server errors should not log the user out.
         const status = error?.response?.status;
-        if (status === 401 || status === 403) {
-          setIsAuthenticated(false);
-        } else {
-          setIsAuthenticated(true);
-        }
-      } finally {
-        setIsLoading(false);
+        commit({
+          isAuthenticated: !(status === 401 || status === 403),
+          hadPreviousSession: cached?.hadPreviousSession ?? false,
+        });
       }
     };
 
-    checkAuthentication();
-  }, [activeWallet?.address]);
+    // Defer the SecureStore cascade to after interactions so taps on
+    // nav buttons (address book, wallet, etc.) don't compete with
+    // auth-check work for main-thread frames. The UI already has its
+    // seeded state from the in-memory cache or MMKV hint — the
+    // background check just confirms / corrects it.
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (cancelled) return;
+      void checkAuthentication();
+    });
+    return () => {
+      cancelled = true;
+      if (typeof task === "object" && task && "cancel" in task) {
+        (task as { cancel: () => void }).cancel();
+      }
+    };
+    // `cached` intentionally excluded — we only want re-check on wallet change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletKey, isLocked]);
 
   const queryClient = useQueryClient();
   const logout = useCallback(async () => {

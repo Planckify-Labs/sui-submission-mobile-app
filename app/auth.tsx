@@ -17,6 +17,10 @@ import {
   formatChainLabel,
   getEvmChainId,
 } from "@/services/walletKit/chainInfo";
+import { walletKitRegistry } from "@/services/walletKit/registry";
+import * as walletService from "@/services/walletService";
+import { bytesToBase58 } from "@/services/chains/solana/codec";
+import type { KeyPairSigner } from "@solana/kit";
 
 interface NonceData {
   message: string;
@@ -54,12 +58,54 @@ export default function AuthScreen() {
   const activeChainId = getEvmChainId(activeChain);
   const activeChainName = formatChainLabel(activeChain);
 
-  // Fetch nonce from the API — enabled once wallet address is available
-  const { data: fetchedNonce } = useNonce(activeWallet?.address, activeChainId);
+  // Branch the nonce fetch on wallet namespace.
+  // EVM: pass numeric chainId (SIWE path).
+  // Solana: pass chainSlug derived from cluster (SIWS path).
+  //
+  // Source of truth is the *wallet's* namespace, not `activeChain`.
+  // `activeChain` briefly lags behind `activeWallet` on switch: the wallet
+  // mutation commits first, then the chain mutation. Reading cluster from
+  // `activeChain` mid-transition hands us an EVM chain and `solanaChainSlug`
+  // becomes undefined — the nonce request then drops the query param,
+  // falls through to the SIWE path on the server, and dies with
+  // "Invalid Ethereum wallet address format". Default to mainnet when
+  // the chain hasn't caught up; the user can still switch devnet via the
+  // chain selector and re-trigger auth.
+  const isSolana = activeWallet?.namespace === "solana";
+  const solanaChainSlug = isSolana
+    ? activeChain?.namespace === "solana" && activeChain.cluster === "devnet"
+      ? "solana-devnet"
+      : "solana-mainnet"
+    : undefined;
+
+  const nonceOpts = isSolana
+    ? { chainSlug: solanaChainSlug }
+    : { chainId: activeChainId };
+
+  const { data: fetchedNonce } = useNonce(activeWallet?.address, nonceOpts);
+
+  // Pre-warm the signer the moment this screen mounts so the later
+  // "Sign & Continue" tap doesn't pay a fresh ~50–200 ms (Solana
+  // Ed25519) / ~100–500 ms (EVM BIP-32) derivation on the main thread
+  // inside `handleSignMessage`. By the time the user reads the copy
+  // and taps the button, the signer is already cached.
+  useEffect(() => {
+    if (!activeWallet?.address) return;
+    if (activeWallet.namespace === "solana") {
+      void walletKitRegistry.get("solana").getSignerForWallet(activeWallet);
+    } else if (activeWallet.namespace === "eip155") {
+      // Sync derivation — caches into `accountCache` by address.
+      walletService.getAccountForWallet(activeWallet);
+    }
+  }, [activeWallet]);
+
+  const nonceQueryKey = isSolana
+    ? ["auth", "nonce", activeWallet?.address, solanaChainSlug]
+    : ["auth", "nonce", activeWallet?.address, activeChainId];
 
   const { data: nonceData, setNewData: setNonceData } =
     useRQGlobalState<NonceData>({
-      queryKey: ["auth", "nonce", activeWallet?.address, activeChainId],
+      queryKey: nonceQueryKey,
       initialData: { message: "" },
     });
 
@@ -102,30 +148,59 @@ export default function AuthScreen() {
       updateLoadingStep(0, true);
       await createDelay(800);
 
-      const walletClient = await deferredTask(() => {
-        const client = getClientForActiveWallet();
-        if (!client) {
-          throw new Error("Unable to initialize wallet client");
+      let signature: string;
+
+      if (activeWallet?.namespace === "solana") {
+        if (!activeWallet) {
+          throw new Error("No active Solana wallet");
         }
-        return client;
-      }, "Initializing wallet client");
+        updateLoadingStep(1, true);
+        signature = await deferredTask(async () => {
+          const kit = walletKitRegistry.get("solana");
+          const signer = (await kit.getSignerForWallet(
+            activeWallet,
+          )) as KeyPairSigner | null;
+          if (!signer) throw new Error("No Solana signer available");
+          const messageBytes = new TextEncoder().encode(nonceData.message);
+          const [sigDict] = await signer.signMessages([
+            { content: messageBytes, signatures: {} },
+          ]);
+          const sigBytes = sigDict[signer.address];
+          if (!sigBytes || sigBytes.length !== 64) {
+            throw new Error("Invalid Solana signature bytes");
+          }
+          return bytesToBase58(sigBytes);
+        }, "Signing SIWS message");
+      } else if (activeWallet?.namespace === "eip155") {
+        const walletClient = await deferredTask(() => {
+          const client = getClientForActiveWallet();
+          if (!client) {
+            throw new Error("Unable to initialize wallet client");
+          }
+          return client;
+        }, "Initializing wallet client");
 
-      const account = await deferredTask(async () => {
-        const acc = await getWalletAccount(activeWalletIndex);
-        if (!acc) {
-          throw new Error("Wallet account not properly configured");
-        }
-        return acc;
-      }, "Getting wallet account");
+        const account = await deferredTask(async () => {
+          const acc = await getWalletAccount(activeWalletIndex);
+          if (!acc) {
+            throw new Error("Wallet account not properly configured");
+          }
+          return acc;
+        }, "Getting wallet account");
 
-      updateLoadingStep(1, true);
+        updateLoadingStep(1, true);
 
-      const signature = await deferredTask(async () => {
-        return await walletClient.signMessage({
-          account,
-          message: nonceData.message,
-        });
-      }, "Signing message");
+        signature = await deferredTask(async () => {
+          return await walletClient.signMessage({
+            account,
+            message: nonceData.message,
+          });
+        }, "Signing message");
+      } else {
+        throw new Error(
+          `Unsupported wallet namespace for auth: ${activeWallet?.namespace}`,
+        );
+      }
 
       updateLoadingStep(2, true);
       await createDelay(800);

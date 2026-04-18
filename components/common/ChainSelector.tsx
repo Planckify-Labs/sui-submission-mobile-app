@@ -90,10 +90,21 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
 
-  const { activeChain, changeActiveChain, changeActiveChainToConfig } =
-    useWallet();
+  const {
+    activeChain,
+    changeActiveChain,
+    changeActiveChainToConfig,
+    warmNamespace,
+  } = useWallet();
   const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // Per-row in-flight key — only non-null while a chain switch's
+  // `await` is resolving. Drives the inline spinner on the tapped row
+  // so the user sees "I'm switching to this" without a page-level
+  // modal that would obscure deep-flow screens (send / deposit / etc).
+  const [switchingRowKey, setSwitchingRowKey] = useState<string | null>(
+    null,
+  );
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
 
@@ -202,23 +213,50 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
 
   const handleChainSelect = useCallback(
     async (row: ChainRowItem) => {
-      // EVM dispatch flows through the existing numeric-chainId path
-      // (backend blockchains feed). Solana rows aren't in the backend
-      // feed yet, so they dispatch the static `ChainConfig` directly
-      // via `changeActiveChainToConfig` — which shares the same
-      // agent-busy gate.
-      if (row.namespace === "eip155" && typeof row.evmChainId === "number") {
-        await changeActiveChain(row.evmChainId);
-      } else {
-        await changeActiveChainToConfig(row.config);
+      setSwitchingRowKey(row.key);
+
+      // Yield one animation frame so React commits the spinner render
+      // BEFORE any synchronous work (state mutations, cached BIP-32
+      // derivation, MMKV writes) kicks off. Without this yield, React
+      // batches the `setSwitchingRowKey` update with whatever the switch
+      // triggers and commits them all at once *after* the work
+      // completes — so the user sees zero visual feedback during the
+      // switch even though the state was "technically" set first. The
+      // classic RN "show spinner → yield → do heavy work" pattern.
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+
+      try {
+        // EVM dispatch flows through the existing numeric-chainId path
+        // (backend blockchains feed). Solana rows aren't in the backend
+        // feed yet, so they dispatch the static `ChainConfig` directly
+        // via `changeActiveChainToConfig` — which shares the same
+        // agent-busy gate.
+        if (row.namespace === "eip155" && typeof row.evmChainId === "number") {
+          await changeActiveChain(row.evmChainId);
+        } else {
+          await changeActiveChainToConfig(row.config);
+        }
+      } finally {
+        setSwitchingRowKey(null);
+        closeModal();
       }
-      closeModal();
     },
     [changeActiveChain, changeActiveChainToConfig, closeModal],
   );
 
   const openModal = useCallback(() => {
     setModalVisible(true);
+    // Warm-on-hover: the user opening the picker is strong signal they
+    // may switch namespace. Pre-derive EVM + Solana signers for every
+    // wallet of each namespace shown in the list, off the render path.
+    // By the time they tap a row, the BIP-32 / Ed25519 derivation is
+    // already cached and `handleChainSelect`'s `await` resolves almost
+    // immediately. Without this, first-touch cross-namespace taps pay
+    // a ~100–500 ms main-thread derivation cost.
+    warmNamespace("eip155");
+    warmNamespace("solana");
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -231,7 +269,7 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [fadeAnim, translateY]);
+  }, [fadeAnim, translateY, warmNamespace]);
 
   useImperativeHandle(ref, () => ({ open: openModal }), [openModal]);
 
@@ -280,14 +318,21 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
   const renderChainItem = useCallback(
     (row: ChainRowItem) => {
       const isActive = isRowActive(row);
+      const isThisSwitching = switchingRowKey === row.key;
+      const isAnySwitching = switchingRowKey !== null;
 
       return (
         <Pressable
           key={row.key}
           className={`flex-row items-center p-4 mb-2 rounded-xl ${
             isActive ? "bg-light-primary-red/10" : "bg-light"
-          }`}
-          onPress={() => handleChainSelect(row)}
+          } ${isAnySwitching && !isThisSwitching ? "opacity-40" : ""}`}
+          // Disable row taps while any switch is in flight — prevents
+          // multiple parallel chain switches queuing up on fast taps.
+          onPress={() => {
+            if (isAnySwitching) return;
+            handleChainSelect(row);
+          }}
         >
           <Image
             source={{ uri: row.iconUrl }}
@@ -301,11 +346,11 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
               {row.label}
             </Text>
             <Text className="text-light-matte-black/70 text-sm">
-              {row.symbol || "N/A"}
+              {isThisSwitching ? "Switching…" : row.symbol || "N/A"}
             </Text>
           </View>
 
-          {row.isTestnet && (
+          {row.isTestnet && !isThisSwitching && (
             <View className="bg-yellow-500/20 px-2 py-1 rounded-full mr-2">
               <Text className="text-yellow-700 text-xs font-medium">
                 Testnet
@@ -313,15 +358,17 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
             </View>
           )}
 
-          {isActive && (
+          {isThisSwitching ? (
+            <ActivityIndicator size="small" color="#c71c4b" />
+          ) : isActive ? (
             <View className="w-6 h-6 rounded-full bg-light-primary-red/10 items-center justify-center">
               <Check size={14} color="#c71c4b" strokeWidth={3} />
             </View>
-          )}
+          ) : null}
         </Pressable>
       );
     },
-    [isRowActive, handleChainSelect],
+    [isRowActive, handleChainSelect, switchingRowKey],
   );
 
   const activeLabel =
