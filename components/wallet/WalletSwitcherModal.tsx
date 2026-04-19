@@ -1,11 +1,4 @@
-import {
-  Check,
-  Plus,
-  Search,
-  Star,
-  Wallet as WalletIcon,
-  X,
-} from "lucide-react-native";
+import { Check, Plus, Search, Star, X } from "lucide-react-native";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -182,14 +175,6 @@ const WalletSwitcherModal = memo(function WalletSwitcherModal({
           }`}
           onPress={() => handleWalletSelect(originalIndex)}
         >
-          <View
-            className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
-              isActive ? "bg-light-primary-red" : "bg-light-primary-red/10"
-            }`}
-          >
-            <WalletIcon size={18} color={isActive ? "#ffffff" : "#c71c4b"} />
-          </View>
-
           <View className="flex-1">
             <Text className="text-light-matte-black font-bold">
               {item.name}
@@ -212,9 +197,7 @@ const WalletSwitcherModal = memo(function WalletSwitcherModal({
             accessibilityRole="button"
             accessibilityLabel={pinned ? "Unpin wallet" : "Pin wallet"}
             accessibilityHint={
-              pinDisabled
-                ? `Pin limit reached (max ${maxPinned}).`
-                : undefined
+              pinDisabled ? `Pin limit reached (max ${maxPinned}).` : undefined
             }
             hitSlop={8}
             className="w-9 h-9 rounded-full items-center justify-center mr-2"
