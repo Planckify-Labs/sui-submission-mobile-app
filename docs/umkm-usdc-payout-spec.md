@@ -1,7 +1,7 @@
 # UMKM USDC → SEA Fiat Payout — Engineering Spec
 
 **Status:** Draft v1 — ready for engineering kickoff
-**Owner:** `mobile-app`, coordinates with `takumipay-api(/api)`
+**Owner:** `mobile-app`, coordinates with `takumipay-api(/api dir)`
 **Date:** 2026-04-20
 **Supersedes:** the QR-scan payload handler in `app/scan-to-pay.tsx` — the camera + QR-reader scaffolding stays, but `handleBarCodeScanned` today only recognizes raw EVM (`0x…`) / Solana wallet addresses (see `app/scan-to-pay.tsx:29-62`). This spec extends it to also recognize merchant QRs, EMVCo national QRs (QRIS/PromptPay/PayNow/DuitNow/VietQR), and x402 URLs — via the pure classifier in §4.
 
