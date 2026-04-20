@@ -110,7 +110,9 @@ No per-merchant caps in v1. Tiered KYC (NIK + selfie → NPWP/PT) is a future co
                             │            │             │
                   ╔═════════▼════════════▼═════════════▼══════╗
                   ║            Arc Network (USDC = gas)       ║
-                  ║   MerchantTreasury.settle(intentId, amt)  ║
+                  ║  Treasury address (platform-owned EOA)    ║
+                  ║  — backend indexes USDC `Transfer` events ║
+                  ║    and matches (value, nonce) to intents  ║
                   ╚═════════════════════╤═════════════════════╝
                                         │ (watcher)
                             ┌───────────▼───────────┐
@@ -852,6 +854,7 @@ Xendit callbacks `POST /webhooks/xendit` with `x-callback-token` for verificatio
   - `GatewayWallet` (source chains) `0x0077777d7EBA4688BDeF3E311b846F25870A19B9`
   - `GatewayMinter` (mint target) `0x0022222ABE238Cc2C7Bb1f21003F0a260052475B`
 - **Mainnet addresses:** TBD — filed in §12 Q1 until Arc publishes its mainnet reference page. **v1 ships on testnet.**
+- **Treasury:** v1 uses a **platform-owned EOA** (not a contract) as the USDC destination for every merchant payment. Backend matches incoming `Transfer(to=treasury, value, …)` events to pending intents by the `(value, nonce)` pair set at intent creation (§6.2 `NanopayPayload`). A `MerchantTreasury.sol` contract — referenced in the architecture diagram, §5.1, §10.1, and §13 as a forward-looking concept — is **out of v1 scope.** We'll add it when bulk settlement, on-chain fee splits, or per-merchant escrow become load-bearing. Until then, treasury = one EOA per environment, custody = our relayer key, rescue = off-chain.
 
 Add a new `ChainConfig` entry to `constants/configs/chainConfig.ts`:
 
