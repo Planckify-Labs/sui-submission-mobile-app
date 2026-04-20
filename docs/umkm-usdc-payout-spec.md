@@ -31,6 +31,14 @@ The product has two roles on one auth principal:
 
 A single user can be both — the warung owner pays for coffee at another warung with the same wallet.
 
+**Who plays which role on the Circle Nanopayments side (§5.2):**
+
+- **Circle-side "buyer" = payer.** Holds USDC in a Gateway balance, signs an x402 payment authorization. The signing primitive depends on the payer's namespace: EIP-3009 typed-data on EVM, partially-signed Solana transaction on SVM (§5.2.1). Both schemes are first-class — the product is chain-agnostic by design.
+- **Circle-side "seller" = `takumipay-api` itself.** The on-chain recipient (`payTo`) is a single platform-owned address per namespace (one EVM EOA at `PLATFORM_TREASURY_ADDRESS_EVM`, one Solana keypair at `PLATFORM_TREASURY_ADDRESS_SVM`). Not per-merchant. Merchants never hold USDC, never have a Gateway balance, never have a wallet on any chain, and never appear in the Circle ledger.
+- **Merchant** is a downstream Xendit payout destination, not a Circle seller. The platform consumes USDC → fires Xendit → merchant receives IDR in their existing GoPay/OVO/bank account.
+
+**Copy audience rule.** Strings rendered on payer-only surfaces may reference USDC, chains, gas, and signatures — payers are crypto-native and chose the product because they hold USDC. Strings rendered on merchant surfaces (or strings a merchant may read — invite messages, shared receipts, WhatsApp notifications) reference only TakumiPay and IDR. When in doubt, ask who's reading this: if the answer is "merchant or both," USDC disappears.
+
 **Scope consequence:** merchant onboarding is additive to the existing payer app — same codebase, same auth, same device. It is **not** on the scan-to-pay critical path this spec covers, but ships here rather than in a separate web portal. Rationale: UMKM in SEA are mobile-first (no laptop), and keeping both roles on one auth principal simplifies the identity model.
 
 ### 1.1.1 Merchant onboarding — scan-QRIS-first, manual fallback
@@ -104,17 +112,22 @@ No per-merchant caps in v1. Tiered KYC (NIK + selfie → NPWP/PT) is a future co
                    │                    PayExecutor             │
                    │        ┌────────────┼─────────────┐        │
                    │        ▼            ▼             ▼        │
-                   │  Direct-on-Arc  Gateway-mint   x402-pay    │
+                   │  Direct-on-Arc  Nanopay-sign   x402-pay    │
+                   │   (Path A)       (Path B,      (Path C)    │
+                   │                   default)                  │
                    │        │            │             │        │
                    └────────┼────────────┼─────────────┼────────┘
                             │            │             │
                   ╔═════════▼════════════▼═════════════▼══════╗
                   ║            Arc Network (USDC = gas)       ║
-                  ║  Treasury address (platform-owned EOA)    ║
-                  ║  — backend indexes USDC `Transfer` events ║
-                  ║    and matches (value, nonce) to intents  ║
+                  ║  PLATFORM_TREASURY_ADDRESS (platform EOA) ║
+                  ║  — single seller address for all payers   ║
+                  ║  — credited via Circle settle response    ║
+                  ║    (Path B); backend watches USDC         ║
+                  ║    `Transfer` events only for Path A      ║
+                  ║    direct-on-Arc fallback                 ║
                   ╚═════════════════════╤═════════════════════╝
-                                        │ (watcher)
+                                        │ (settle 200 OK for B, event for A)
                             ┌───────────▼───────────┐
                             │    takumipay-api      │
                             │  Intent + Webhook +   │
@@ -131,7 +144,7 @@ No per-merchant caps in v1. Tiered KYC (NIK + selfie → NPWP/PT) is a future co
 **Three-role separation** is preserved (see memory `feedback_role_separation.md`):
 
 - **User** — approves a local-fiat amount in IDR/PHP/…; enters PIN/biometric.
-- **Server (takumipay-api)** — decides amounts (FX, fees), mints payment intents, watches Arc, triggers Xendit. **Never** signs USDC transfers.
+- **Server (takumipay-api)** — decides amounts (FX, fees), mints payment intents, proxies signed authorizations to Circle's `/gateway/v1/x402/settle`, fires Xendit on the synchronous settle 200 OK. Watches Arc on-chain only for the Path A fallback. **Never** signs USDC transfers (the platform's `ARC_SETTLER_PRIVATE_KEY` only signs treasury withdrawals — never payer transfers).
 - **Wallet (mobile-app)** — only signs USDC transfers / x402 payment headers the server pre-shaped into an intent. Never sends fiat credentials or bank data.
 
 ## 4. The Normalization / Routing Layer
@@ -223,7 +236,7 @@ JWS (ES256 signed by `takumipay-api`) payload:
 **Chain-agnostic by design.** The JWS carries **no `chainId`, no treasury address, no settlement-path hint.** All settlement routing (source chain, destination chain, treasury address, path selection) is resolved server-side at intent creation (§6.2). Reasons:
 
 - **Future-proof against chain moves.** When we extend from EVM (Arc / Base) to Solana or any other namespace — the space-docking mechanism already in place via `WalletKitAdapter` — the same printed sticker works. No re-issue, no reprint for the merchant.
-- **Treasury can rotate.** If a merchant treasury contract upgrades, or we move from Arc testnet → Arc mainnet, or we swap to a different settlement rail, the JWS stays valid.
+- **Treasury can rotate.** If `PLATFORM_TREASURY_ADDRESS` moves, or we migrate from Arc testnet → Arc mainnet, or we swap to a different settlement rail, the JWS stays valid.
 - **Keeps the QR small.** Less data = denser QR = faster camera scan at small sticker sizes.
 
 The JWS's only job is to answer "is this merchant real and signed by us?" — the answer to "how do we pay them?" is always the server's call at payment time. Signing keeps an offline-printed QR trustworthy; we verify the JWS on-device before quoting. Public key is bundled with the app and rotated via OTA (same channel as `EIP7702_ALLOWLIST`).
@@ -358,27 +371,31 @@ This is the piece missing in today's scanner: `app/scan-to-pay.tsx:44-57` routes
 
 `/pay-merchant` is a single screen that mirrors `app/withdraw.tsx` visually (the UMKM off-ramp already has the IDR e-wallet row in that screen — see `PAYMENT_PLATFORMS`, lines 28–33), but the executor picks the cheapest path:
 
-### 5.1 Path A — Direct on Arc (preferred when the user already holds USDC on Arc)
+### 5.1 Path A — Direct on Arc (fallback when user already holds USDC on Arc and wants same-chain immediate settlement)
 
-- `WalletKit.sendTokenTransfer({ token: USDC_ARC, to: treasury, amount })` — USDC on Arc is both the asset and the gas token, so this is a single ERC-20 `transfer` call. (USDC native precision on Arc is 18 decimals; the ERC-20 interface at `0x3600…0000` exposes 6 decimals — `EvmWalletKit` picks the interface view so existing 6-decimals math keeps working.)
-- Backend watches Arc via a confirmed block listener keyed on `MerchantTreasury.Settled(intentId, payer, amount)` event.
+- `WalletKit.sendTokenTransfer({ token: USDC_ARC, to: PLATFORM_TREASURY_ADDRESS, amount })` — USDC on Arc is both the asset and the gas token, so this is a single ERC-20 `transfer` call. The recipient is the **single platform treasury** (same EOA used as Circle's `payTo` for Path B), not a per-merchant contract. Merchant accounting lives in `takumipay-api`'s DB, not on-chain. (USDC native precision on Arc is 18 decimals; the ERC-20 interface at `0x3600…0000` exposes 6 decimals — `EvmWalletKit` picks the interface view so existing 6-decimals math keeps working.)
+- Backend matches incoming `Transfer(to=PLATFORM_TREASURY_ADDRESS, value, …)` events to pending intents by the `(value, nonce)` pair set at intent creation (§6.2 `NanopayPayload.nonce`). Path A uses the `nonce` as the `data` payload in a companion event log — Path B does not need it since Circle's settle response is the trigger.
 
 ### 5.2 Path B — Circle Nanopayments *(the primary gasless rail)*
 
 This is the path we default to for every scan-to-pay. It combines the three Circle primitives — Gateway (the deposit substrate), EIP-3009 (the signing format), and x402 (the wire protocol) — into a **single permissionless API** that delivers gas-free USDC transfers as small as $0.000001 with instant merchant confirmation. Circle batches many authorizations into one on-chain settlement, so per-payment gas amortizes to effectively zero.
 
+Circle validates signatures and computes batch settlement inside an **AWS Nitro Enclave** (a trusted execution environment). Even Circle employees cannot access the keys — the non-custodial property is enforced by the enclave, not by policy. This matters for the v1 trust story: "TakumiPay is not a crypto custodian; user funds are held in a Circle-operated enclave that neither Circle nor we can drain unilaterally."
+
+**On-chain seller address.** The `payTo` on every Nanopayments settle call is the single platform-owned EVM address (`PLATFORM_TREASURY_ADDRESS`, env var on `takumipay-api`). Merchants do not appear on-chain — they are downstream IDR payout destinations resolved by `takumipay-api` after the settle 200 OK.
+
 **One-time setup per user** (`/onboarding/nanopay-deposit`):
 
-1. User deposits USDC into a **Gateway Wallet** contract on any Gateway-supported EVM source chain they already hold USDC on (Ethereum, Base, Arbitrum, OP Mainnet, Polygon PoS, Avalanche, Unichain today; Arc on Circle's roadmap). This is the **only** on-chain action the user ever pays gas for in the normal flow. If the user's source chain is Base/Arbitrum, we optionally wrap the deposit with Circle Paymaster so that gas on this step is USDC-denominated too (see §5.4).
-2. From this point on, the user's USDC balance is **unified across chains** — Circle tracks it in their Gateway ledger.
+1. User deposits USDC into a **Gateway Wallet** contract on any Gateway-supported source chain they already hold USDC on. Current Gateway testnet domain enum (from `/v1/info`): Ethereum (0), Avalanche (1), OP (2), Arbitrum (3), Solana (5), Base (6), Polygon PoS (7), Unichain (10), Sonic (13), World Chain (14), Sei (16), HyperEVM (19), **Arc (26)**. This is the **only** on-chain action the user ever pays gas for in the normal flow. If the user's source chain is Base/Arbitrum, we optionally wrap the deposit with Circle Paymaster so that gas on this step is USDC-denominated too (see §5.4).
+2. From this point on, the user's USDC balance is **unified across domains** — Circle tracks it in their Gateway ledger, queryable via `POST /v1/balances`.
 
 **Per-payment flow** (this is what fires every time the user taps Pay on `/pay-merchant`):
 
 1. `POST /v1/pay/intents` — backend issues a quote (§6.1). Because the target is Nanopayments, the response includes a `nanopay` block with the EIP-3009 authorization fields the client must sign.
-2. Mobile app calls `kit.signTransferWithAuthorization({ … })` — the wallet signs an **EIP-3009 `TransferWithAuthorization`** typed-data message. This is an off-chain `signTypedData` call. No broadcast. No approval dialog from a node. No gas from the user.
-3. Mobile app POSTs the signed authorization to the Nanopayments API (`POST /v1/transfer` on Circle's Gateway) — either directly with the user's session token, or through `takumipay-api` as a proxy so merchant confirmation flows stay server-driven. Circle validates the signature, adjusts the user's unified ledger balance, and **returns an instant signed attestation to the merchant** (our backend) — this is the confirmation we show the user in <500 ms.
-4. Backend receives the Nanopayments attestation → marks the intent `SETTLED` → immediately fires the Xendit payout (§6.3). The UMKM's IDR/PHP/THB/MYR/VND lands within seconds.
-5. Later (seconds to minutes, batched), Circle submits the aggregated burn-intent set to the Gateway Minter on the destination chain (Arc, once supported; otherwise the merchant's settlement chain). USDC is minted to the merchant treasury, and the equivalent is burned on the user's source chain — user and merchant both saw completion long before this final settlement.
+2. Mobile app calls `kit.signTransferWithAuthorization({ … })` — the wallet signs an **EIP-3009 `TransferWithAuthorization`** typed-data message. The EIP-712 domain is the `GatewayWallet` contract on the source chain (not USDC), pulled from `GET /gateway/v1/x402/supported`. This is an off-chain `signTypedData` call. No broadcast. No approval dialog from a node. No gas from the user. Gateway requires `validBefore ≥ now + 3 days` or it rejects with `authorization_validity_too_short`.
+3. Mobile app POSTs the signed authorization to `takumipay-api`, which proxies it to Circle's **`POST /gateway/v1/x402/settle`** (base `https://gateway-api-testnet.circle.com` or `https://gateway-api.circle.com`). The request body is `{ paymentPayload, paymentRequirements }` — the payload wraps the EIP-3009 signature, the requirements echo the `scheme` / `network` (CAIP-2, e.g. `eip155:5042002`) / `asset` / `amount` / `payTo` / `maxTimeoutSeconds` / `extra.verifyingContract` values the mobile app already consumed. Circle validates the signature, locks the sender's Gateway balance, returns `{ success: true, transaction: <uuid>, network, payer }` in <500 ms — this is the attestation we show the user as "PAID." On failure Circle returns `{ success: false, errorReason }` with a well-defined enum (`insufficient_balance` / `nonce_already_used` / `authorization_expired` / `authorization_validity_too_short` / …); §9.1 maps each to a user-facing error. `/gateway/v1/x402/verify` is available as a read-only pre-flight check for the UX polish case but is not part of the correctness path — production uses `settle()` directly.
+4. Backend receives the settle 200 OK → marks the intent `SETTLED` → immediately fires the Xendit payout (§6.3). The UMKM's IDR/PHP/THB/MYR/VND lands within seconds.
+5. Later (seconds to minutes, batched), Circle settles the aggregated authorizations on-chain and credits the **platform's Gateway balance** on the destination domain. The platform withdraws on demand to its Arc hot wallet (or keeps the balance in the Gateway ledger as working capital) — user and merchant both saw completion long before this final settlement, and neither's experience is tied to the batch cadence.
 
 **Why this is the right default for UMKM:**
 
@@ -387,6 +404,56 @@ This is the path we default to for every scan-to-pay. It combines the three Circ
 - **Instant merchant UX.** Circle's attestation lands in <500 ms, so the merchant sees "PAID" on their screen before the user's phone leaves the QR code.
 - **x402-compatible.** The same signed EIP-3009 authorization is a valid `X-PAYMENT` header for any x402 merchant. Agent-driven payments (§8) reuse the exact primitive with zero extra code.
 - **Permissionless.** No Circle Developer account needed on the critical path — matches the product's distribution posture (any user with USDC can pay any registered UMKM).
+
+### 5.2.1 Path B-SVM — Solana x402 (M6 — slot ready, integration deferred)
+
+The chain-agnostic counterpart to §5.2's EVM scheme. Same product surface from the payer's perspective — scan, confirm, PIN, "PAID" — but the signing primitive and the settlement mechanic are different.
+
+**Wire format.** Per the x402 SVM spec (`scheme_exact_svm`), `paymentPayload.payload = { transaction: "<base64-encoded partially-signed versioned Solana transaction>" }`. The transaction contains:
+
+1. ComputeBudget: `SetComputeUnitLimit` (instruction 0)
+2. ComputeBudget: `SetComputeUnitPrice` (instruction 1)
+3. SPL Token (or Token-2022) `TransferChecked` — the actual USDC transfer
+4. *(optional)* SPL Memo program with `intent_id` for off-chain correlation
+5. *(optional)* Lighthouse program assertions
+
+**`PaymentRequirements` shape.** Mirrors the EVM block but populates Solana-flavored fields:
+
+```json
+{
+  "scheme":            "exact",
+  "network":           "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+  "asset":             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "amount":            "1000",
+  "payTo":             "<PLATFORM_TREASURY_ADDRESS_SVM>",
+  "maxTimeoutSeconds": 60,
+  "extra": {
+    "feePayer": "<facilitator's Solana pubkey>",
+    "memo":     "pi_<intentId>"
+  }
+}
+```
+
+The TransferChecked destination resolves to the Associated Token Account PDA for `(owner = payTo, mint = asset)`. The facilitator signs as `feePayer` (paying SOL gas) and submits the fully-signed transaction to Solana mainnet. The user signs only their own transfer authorization — they never see SOL, never hold SOL, never pay SOL.
+
+**Per-payment flow:**
+
+1. `POST /v1/pay/intents` — backend builds the partially-signed transaction (or hands the mobile app the instruction blueprint) and returns it as `PaymentIntent.nanopay` with discriminator `kind: "svm_partial_tx"`.
+2. Mobile app calls `kit.signX402SvmPayment({ transaction })` — the Solana wallet adds its signature over the message bytes. Returns the updated base64 transaction.
+3. Mobile app POSTs the signed payload to `takumipay-api`, which proxies to **either**: (a) Circle's `POST /gateway/v1/x402/settle` if `/gateway/v1/x402/supported` lists `solana:*` as a supported network, or (b) a Solana-compatible x402 facilitator's settle endpoint otherwise. Backend boot-time discovery decides which.
+4. Facilitator validates the partial signature, adds `feePayer` signature, submits to Solana, returns `{ success, transaction (signature), network, payer }` once confirmed.
+5. Backend marks intent `SETTLED` → fires Xendit (§6.4). Same downstream pipeline as Path B-EVM.
+
+**Economic profile vs. Path B-EVM:**
+
+| | Path B-EVM (Nanopayments) | Path B-SVM (Solana x402) |
+| --- | --- | --- |
+| Per-payment gas | ~0 (batched at Gateway layer) | ~$0.0001 (Solana per-tx, paid by facilitator) |
+| Sub-cent floor | ✅ down to $0.000001 | ✅ effective floor ~$0.001 (still well below UMKM minimums) |
+| Settlement latency | Synchronous (<500 ms attestation) | ~1–2 s (Solana confirmation + facilitator submit) |
+| Merchant UX | "PAID" instant | "PAID" within 2 s |
+
+For UMKM payment sizes (Rp 1 000 = $0.06 minimum), both schemes work cleanly. Sub-cent agentic flows in §8 stay EVM-only since Solana's per-tx floor exceeds the minimum.
 
 ### 5.3 Path C — Direct x402 on a non-Nanopayments merchant
 
@@ -410,17 +477,22 @@ The product promise: **user holds only USDC, pays only USDC, never touches ETH /
 // services/walletKit/types.ts (additions, M2 for EIP-3009, M3 for Paymaster)
 interface WalletKitAdapter {
   /**
-   * Signs EIP-3009 `TransferWithAuthorization` typed-data for USDC.
-   * Used by Circle Nanopayments (the default rail) and by stand-alone
-   * x402 merchant payments. Returns the raw 65-byte signature.
+   * Signs EIP-3009 `TransferWithAuthorization` typed-data bound to the
+   * Gateway batched-wallet contract (the EIP-712 domain's
+   * `verifyingContract`, NOT the USDC contract — see §5.5 for the full
+   * rationale). Used by Circle Nanopayments (the default rail) and by
+   * stand-alone x402 merchant payments. Returns the raw 65-byte signature.
    */
   signTransferWithAuthorization?(args: {
     wallet: TWallet;
     chain: ChainConfig;
+    gatewayWallet: string;            // EIP-712 `verifyingContract` (Gateway contract, not USDC)
+    domainName: string;               // from /gateway/v1/x402/supported
+    domainVersion: string;
     usdc: string;
     from: string; to: string;
     valueMicros: bigint;
-    validAfter: number; validBefore: number;
+    validAfter: number; validBefore: number;  // validBefore ≥ now + 3 days
     nonce: `0x${string}`;
   }): Promise<`0x${string}`>;
 
@@ -448,9 +520,12 @@ The app already has a first-party wallet (EVM + Solana, under the `WalletKitAdap
 
 **Scope decisions**
 
-- **Nanopayments is EVM-only in v1.** EIP-3009 is defined on USDC's EVM contracts. The Solana fee-payer workaround (§12 Q7) is not in scope. `SolanaWalletKit.signTransferWithAuthorization` stays `undefined`; the merchant-pay screen detects its absence and either (a) disables the scan-to-pay pill while the active wallet is Solana, with a "Switch to your EVM wallet" CTA, or (b) auto-switches to the user's EVM wallet under the same account if present. Pick (b) — mirrors the chain-auto-switch in §4.6.
-- **EVM source chain for v1 testnet = Base Sepolia.** Reason: Circle Gateway already supports it, USDC faucet at `faucet.circle.com`, zero bridge dependency. **Destination chain for v1 testnet = Arc Testnet (chainId `5042002`).** When Circle lights up Arc in Gateway (§12 Q1), this is already the target; until then, the settlement half of Path B runs on Base Sepolia too — the merchant treasury contract deploys on both, and the backend watches whichever is configured. *One knob, set in `takumipay-api` config; mobile doesn't know the difference.*
-- **Nanopayments submission is proxied through `takumipay-api`.** The mobile app never POSTs directly to `api.circle.com`. Reasons: (1) we want the attestation webhook uniform with the rest of our backend events so Xendit payout can fire off the same handler; (2) audit trail — every payment has a server-side record tied to the intent id; (3) we keep the Circle API key out of the device. Env flag `EXPO_PUBLIC_CIRCLE_NANOPAY_SUBMIT_VIA_SERVER` stays `true` — it exists only as a dev-time escape hatch.
+- **Chain-agnostic by architecture; phased rollout by milestone.** The product targets all 13 Gateway-supported domains long-term (Ethereum, Avalanche, OP, Arbitrum, **Solana**, Base, Polygon PoS, Unichain, Sonic, World Chain, Sei, HyperEVM, Arc) so any user holding USDC on any supported chain can pay any onboarded merchant. There are two distinct x402 schemes that get the user there:
+  - **EVM scheme (`exact` on `eip155:*` networks)** — EIP-3009 typed-data signed against `GatewayWallet`. Settles via Circle Nanopayments (batched, sub-cent capable). **Ships in M2.**
+  - **SVM scheme (`exact` on `solana:*` networks)** — base64 partially-signed Solana versioned transaction with TransferChecked + ComputeBudget instructions; facilitator signs as `feePayer` and submits per-tx. Whether Circle's Nanopayments x402 settle endpoint accepts the SVM scheme TBD — backend resolves via `GET /gateway/v1/x402/supported` at boot; if Circle doesn't support it natively yet, fall back to a Solana-compatible facilitator (Coinbase CDP, rapid402, or self-hosted). Per-tx Solana fees (~$0.0001 in SOL) are paid by the facilitator, not the user — still gasless from the payer's perspective. **Ships in M6** (§11). The wallet-kit method `signX402SvmPayment` (§5.5 below) is defined now so the integration is one adapter implementation when M6 lands, not a refactor.
+- **Source and destination chain for v1 testnet = Arc Testnet (chainId `5042002`, Circle domain `26`).** Arc is first-class in Gateway as of testnet Feb 2026 — `chain: "arcTestnet"` is the example chain in Circle's own buyer quickstart. Users who happen to hold USDC on Base Sepolia / Arbitrum Sepolia / Solana / etc. deposit from there into Gateway; the unified balance is payable from any source domain regardless. No separate "settlement chain" bookkeeping is required on mobile — the destination domain rides on `PaymentIntent.nanopay` from the backend.
+- **Merchant-pay screen is namespace-aware, not EVM-locked.** When the active wallet is Solana and M6 has not shipped, the screen detects the absent SVM adapter and offers (a) "Switch to your EVM wallet" CTA if the user has both, or (b) "Top up USDC on a supported chain" if they don't. Once M6 ships, both namespaces sign in place — no auto-switch.
+- **Nanopayments submission is proxied through `takumipay-api`.** The mobile app never POSTs directly to `gateway-api-testnet.circle.com`. Reasons: (1) we want the settle response uniform with the rest of our backend events so Xendit payout can fire off the same handler; (2) audit trail — every payment has a server-side record tied to the intent id; (3) keystore hygiene — the mobile wallet's private key stays in `expo-secure-store`; we sign on-device, proxy the signed payload. Gateway settle itself is permissionless (no API key — the OpenAPI shows `security: []`), so the proxy is a discipline choice, not a credential constraint. Env flag `EXPO_PUBLIC_CIRCLE_NANOPAY_SUBMIT_VIA_SERVER` stays `true` — it exists only as a dev-time escape hatch.
 
 **Wallet-kit surface (concrete additions)**
 
@@ -461,21 +536,49 @@ The app already has a first-party wallet (EVM + Solana, under the `WalletKitAdap
  * EIP-3009 `TransferWithAuthorization` — the signing primitive Circle
  * Nanopayments accepts. EVM-only; Solana kit leaves this undefined.
  *
+ * Crucial detail: the EIP-712 domain points at Circle's `GatewayWallet`
+ * contract on the source chain — NOT the USDC contract. Circle exposes
+ * `{ name, version, verifyingContract }` via `GET /gateway/v1/x402/supported`
+ * per source network; backend fetches that at boot and pipes it into
+ * `PaymentIntent.nanopay` so mobile doesn't hardcode anything. Signing
+ * against the USDC contract (the standard EIP-3009 domain) will pass
+ * `/gateway/v1/x402/verify` but fail settle — don't do it.
+ *
  * The adapter does NOT broadcast — it only returns a 65-byte signature.
  * Submission to Nanopayments is the caller's job (goes through our
  * server proxy, see §6.5).
  */
 signTransferWithAuthorization?(args: {
   wallet: TWallet;
-  chain: ChainConfig;                // source chain carrying the USDC balance
-  usdc: `0x${string}`;                // e.g. Base Sepolia USDC
+  chain: ChainConfig;                       // source chain carrying the USDC balance
+  gatewayWallet: `0x${string}`;             // EIP-712 `verifyingContract` — the Gateway batched-wallet contract
+  domainName: string;                       // e.g. "GatewayWalletBatched" — from /gateway/v1/x402/supported
+  domainVersion: string;                    // e.g. "1"
+  usdc: `0x${string}`;                      // the USDC asset address (embedded in TransferWithAuthorization type fields)
   from: `0x${string}`;
-  to: `0x${string}`;                  // merchant treasury or Nanopayments sink
-  valueMicros: bigint;                // 6-decimal USDC units
-  validAfter: number;                 // unix seconds; usually 0
-  validBefore: number;                // unix seconds; server-controlled
-  nonce: `0x${string}`;               // 32-byte random, generated by the server
+  to: `0x${string}`;                        // = PLATFORM_TREASURY_ADDRESS_EVM; merchant resolution is off-chain
+  valueMicros: bigint;                      // 6-decimal USDC units
+  validAfter: number;                       // unix seconds; usually 0
+  validBefore: number;                      // unix seconds; MUST be ≥ now + 3 days — shorter windows fail settle with `authorization_validity_too_short`
+  nonce: `0x${string}`;                     // 32-byte random, generated by the server
 }): Promise<`0x${string}`>;
+
+/**
+ * x402 SVM scheme — sign a partially-signed Solana versioned transaction
+ * for the Path B-SVM rail (§5.2.1). Only `SolanaWalletKit` implements this;
+ * EVM kits leave it `undefined`. The transaction comes pre-built by the
+ * backend (instructions: ComputeBudget × 2, TransferChecked, optional Memo).
+ * The wallet adds the user's signature over the transaction message bytes;
+ * the facilitator later adds the `feePayer` signature and submits.
+ *
+ * Returns the updated base64 transaction with the user's signature attached.
+ */
+signX402SvmPayment?(args: {
+  wallet: TWallet;
+  cluster: "mainnet-beta" | "devnet";
+  /** Base64-encoded versioned Solana transaction (partially signed by feePayer placeholder). */
+  transaction: string;
+}): Promise<string>;
 
 /**
  * One-time Gateway deposit wrapped as an ERC-4337 UserOp that pays gas
@@ -529,12 +632,21 @@ const result  = await submitAuthorization(intent.id, { signature: sig, payload }
 ### 5.6 Path Selector
 
 ```
-if (user has NOT completed Gateway deposit)      → prompt onboarding (one-time)
-else if (merchant registered for Nanopayments)   → Path B (Nanopayments)        ← default
-else if (intent.channel.kind === "x402")         → Path C (raw x402 + EIP-3009)
-else if (user has USDC on Arc ≥ quote.usdc)      → Path A (direct on Arc)
-else                                             → show "Top up USDC" CTA
+if (user has NOT completed Gateway deposit)              → prompt onboarding (one-time)
+else if (intent.channel.kind === "merchant") {
+    if      (activeWallet.namespace === "eip155")         → Path B-EVM (Nanopayments, EIP-3009)
+    else if (activeWallet.namespace === "solana"
+             && kit.signX402SvmPayment != null)           → Path B-SVM (Solana x402)
+    else                                                  → show "Switch to supported wallet" sheet
+}
+else if (intent.channel.kind === "x402")                  → Path C (raw x402, scheme matches namespace)
+else if (user has USDC on Arc ≥ quote.usdc)               → Path A (direct on Arc)
+else                                                      → show "Top up USDC" CTA
 ```
+
+Path B is the default for every merchant, not conditional on per-merchant registration. Nanopayments is permissionless on the seller side (Circle's `payTo` is our single `PLATFORM_TREASURY_ADDRESS_<NS>`); any `merchant` intent resolves to Path B automatically. The `merchant` kind covers both (a) TakumiPay-issued JWS QRs and (b) indexed QRIS stickers whose PAN matched a registered merchant in `takumipay-api`'s DB. If the scan is an EMVCo QR whose PAN is **not** in our DB, `POST /v1/pay/intents` returns `MERCHANT_NOT_ONBOARDED` and the mobile app surfaces the invite copy from §9.1.
+
+Namespace detection rides on `WalletKitAdapter` presence-of-method, not `if (ns === "X")` — per memory `feedback_chain_extension_discipline.md`. Adding a new chain's x402 scheme (e.g. HyperEVM's own variant, Sei's scheme) means implementing the corresponding adapter method; the path selector picks it up automatically.
 
 All paths converge on the same `takumipay-api` intent id, so the Xendit payout branch is uniform.
 
@@ -714,23 +826,77 @@ export interface CreateIntentRequest {
 
 export type PaymentPath = "nanopay" | "x402" | "direct_arc";
 
-export interface NanopayPayload {
+/** Discriminated union — namespace decides which scheme the wallet signs.
+ *  Backend picks based on the payer's source chain at intent creation. */
+export type NanopayPayload = EvmNanopayPayload | SvmNanopayPayload;
+
+export interface EvmNanopayPayload {
+  kind:          "evm_eip3009";
   usdc:          `0x${string}`;
   sourceChainId: number;
+  /** EIP-712 domain bound to Circle's `GatewayWallet` batched-wallet contract on the source chain,
+   *  pulled from `GET /gateway/v1/x402/supported` at backend boot time. The mobile adapter signs against
+   *  these values — do NOT sign against the USDC contract's domain (that passes verify but fails settle). */
+  domain: {
+    name:              string;         // e.g. "GatewayWalletBatched"
+    version:           string;         // e.g. "1"
+    verifyingContract: `0x${string}`;  // Gateway contract address on `sourceChainId`
+  };
   from:          `0x${string}`;
-  to:            `0x${string}`;    // merchant treasury (or Nanopayments sink depending on Circle's final routing)
+  to:            `0x${string}`;    // PLATFORM_TREASURY_ADDRESS_EVM — single platform-owned EOA; merchants resolved off-chain
   valueMicros:   number;
   validAfter:    number;
+  /** Must be ≥ now + 3 days (259 200 s). Gateway rejects shorter windows with `authorization_validity_too_short`. */
   validBefore:   number;
   nonce:         `0x${string}`;    // 32-byte random, server-generated per intent
   /** Where the mobile app POSTs the signed authorization. Always points to our proxy. */
   submitTo:      string;
+  /** Mirrors Circle's `PaymentRequirements` shape so the proxy can forward with zero transformation. */
+  requirements: {
+    scheme:            "exact";
+    network:           string;      // CAIP-2, e.g. "eip155:5042002" for Arc Testnet
+    asset:             `0x${string}`;
+    amount:            string;      // atomic units (= valueMicros stringified)
+    payTo:             `0x${string}`;
+    maxTimeoutSeconds: number;
+  };
+}
+
+export interface SvmNanopayPayload {
+  kind:        "svm_partial_tx";
+  cluster:     "mainnet-beta" | "devnet";
+  /** USDC SPL mint address on the cluster (mainnet: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v) */
+  usdcMint:    string;
+  /** Pre-built base64-encoded versioned Solana transaction. Contains:
+   *  ComputeBudget(SetComputeUnitLimit), ComputeBudget(SetComputeUnitPrice),
+   *  TransferChecked(amount, mint, decimals), optional Memo for intent correlation.
+   *  Mobile adapter signs over the message bytes and returns the updated base64. */
+  transaction: string;
+  from:        string;             // payer's Solana pubkey (base58)
+  to:          string;             // PLATFORM_TREASURY_ADDRESS_SVM (base58)
+  valueMicros: number;             // 6-decimal USDC units
+  submitTo:    string;             // takumipay-api proxy URL
+  requirements: {
+    scheme:            "exact";
+    network:           string;     // e.g. "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" (mainnet-beta)
+    asset:             string;     // = usdcMint
+    amount:            string;     // = valueMicros stringified
+    payTo:             string;
+    maxTimeoutSeconds: number;
+    extra: {
+      feePayer: string;            // facilitator's Solana pubkey
+      memo?:    string;            // = `pi_${intentId}` for off-chain correlation
+    };
+  };
 }
 
 export interface X402Payload {
   resource: string;
   scheme:   "exact";
-  network:  "base" | "base-sepolia" | "arbitrum" | "polygon" | "solana";
+  /** CAIP-2 network identifier — matches the wire format Circle Gateway and the Coinbase CDP facilitator use.
+   *  Examples: "eip155:5042002" (Arc Testnet), "eip155:84532" (Base Sepolia), "eip155:8453" (Base mainnet),
+   *  "eip155:42161" (Arbitrum), "eip155:137" (Polygon), "solana:mainnet". */
+  network:  string;
 }
 
 export interface GaslessBlock {
@@ -843,18 +1009,33 @@ Xendit callbacks `POST /webhooks/xendit` with `x-callback-token` for verificatio
 
 ### 6.5 Why the Nanopayments proxy (decision locked)
 
-`EXPO_PUBLIC_CIRCLE_NANOPAY_SUBMIT_VIA_SERVER=true` is the v1 default. The mobile app hits `takumipay-api /v1/pay/intents/:id/nanopay`; our backend is the one that talks to Circle Nanopayments.
+`EXPO_PUBLIC_CIRCLE_NANOPAY_SUBMIT_VIA_SERVER=true` is the v1 default. The mobile app POSTs signed authorizations to `takumipay-api /v1/pay/intents/:id/nanopay`; our backend is the one that talks to Circle's Gateway API.
 
-**Circle API distinction (important for backend engineer):** Nanopayments API and Gateway `/v1/transfer` are two different Circle products built on the same Gateway substrate.
+**Circle Gateway API surface** — all under base `https://gateway-api-testnet.circle.com` (test) / `https://gateway-api.circle.com` (prod). The entire Gateway OpenAPI declares `security: []` — no API key is required on any of these endpoints. Keys are only needed for the Developer Console (attestation inspection, dashboards, webhooks):
 
-- **Nanopayments API** — what `takumipay-api` calls for our merchant-pay flow. Accepts **EIP-3009 `TransferWithAuthorization`** payloads (`from` / `to` / `value` / `validAfter` / `validBefore` / `nonce` / `signature`). Handles burn-intent settlement internally. URL issued via Circle Developer Console post-approval. Permissionless from the client side; backend authenticates with `CIRCLE_API_KEY`.
-- **Gateway `/v1/transfer`** — takes a **`BurnIntent`** typed-data shape (`{ burnIntent: { maxBlockHeight, maxFee, spec: { version, sourceDomain, destinationDomain, sourceContract, destinationContract, sourceToken, destinationToken, sourceDepositor, destinationRecipient, sourceSigner, destinationCaller } }, signature }`), signed as EIP-712 on EVM. **Not called directly by our backend in v1.** Reference only, for when we need explicit cross-chain control (future).
+| Endpoint | Used by | Purpose |
+| --- | --- | --- |
+| `POST /gateway/v1/x402/settle` | `takumipay-api` | **The core endpoint** for Path B. Accepts `{ paymentPayload, paymentRequirements }`. Returns `{ success, transaction, network, payer?, errorReason? }` in <500 ms. This is the "PAID" attestation. |
+| `POST /gateway/v1/x402/verify` | `takumipay-api` (optional) | Read-only pre-flight check. Validates scheme / network / asset / signature / temporal / address+amount. Does **not** check balance or nonce. Use only for UX polish before showing the PIN sheet — production paths call `settle` directly. |
+| `GET /gateway/v1/x402/supported` | `takumipay-api` (at boot) | Returns supported payment kinds per network, including the `GatewayWallet` `extra.verifyingContract` the mobile app must sign against, asset list, and authorized signer addresses. Cache at backend boot; pipe verifying contract into `PaymentIntent.nanopay.domain`. |
+| `GET /gateway/v1/x402/transfers/{id}` | `takumipay-api` (reconciliation) | Fetches a settled transfer by the UUID returned from `/settle`. Status progresses `received → batched → confirmed → completed` (or `failed`). Use for reconciliation dashboards; not on the payout critical path (we fire Xendit off the settle 200 OK). |
+| `POST /v1/balances` | `takumipay-api` (ops) | Query the platform's Gateway balance across domains. Used by the withdrawal/liquidity job that moves USDC from Gateway to the Arc hot wallet. |
+| `POST /v1/deposits` | `takumipay-api` (onboarding) | Returns pending deposits for a depositor address — lets backend confirm the user's one-time `GatewayWallet.deposit(…)` tx was observed by Circle without re-watching the chain ourselves. |
+| `POST /v1/transfer` + `/v1/estimate` + `/v1/info` | reference only | Cross-chain `BurnIntent` product (different typed-data shape — `{ maxBlockHeight, maxFee, spec: { sourceDomain, destinationDomain, … } }`). Not on the scan-to-pay critical path. Used if/when we need explicit cross-chain withdrawal to an EVM chain other than Arc. |
+
+Domain IDs (`Domain` enum from `/v1/info`): 0 Ethereum · 1 Avalanche · 2 OP · 3 Arbitrum · 5 Solana · 6 Base · 7 Polygon PoS · 10 Unichain · 13 Sonic · 14 World Chain · 16 Sei · 19 HyperEVM · **26 Arc.** Network identifiers in x402 payloads are CAIP-2 strings (`eip155:<chainId>`, e.g. `eip155:5042002` for Arc Testnet).
+
+Circle SDK options if the backend engineer prefers typed helpers over raw HTTP:
+- `@circle-fin/x402-batching/server` — exposes `createGatewayMiddleware({ sellerAddress })` (Express) and `BatchFacilitatorClient` (framework-agnostic). Use `facilitator.settle(payload, requirements)` directly; the docs explicitly call out that `settle()` is optimized for low latency and should be used in production instead of `verify() → settle()`.
+- `@circle-fin/x402-batching/client` — buyer-side SDK with `GatewayClient.deposit()` / `pay()` / `withdraw()` / `getBalances()`. **Not** used on mobile (requires a raw `privateKey` in-process, which breaks our `expo-secure-store` invariant). The mobile app signs EIP-3009 through its own `WalletKitAdapter` and sends the signed payload to `takumipay-api`. The SDK is fine on backend for withdrawal / balance ops where the relayer key lives in env.
+
+Settle failure enum (from the OpenAPI) maps 1:1 to §9.1 error codes: `unsupported_scheme` / `unsupported_network` / `unsupported_asset` / `invalid_payload` / `address_mismatch` / `amount_mismatch` / `invalid_signature` → `SIGNATURE_INVALID`; `authorization_not_yet_valid` / `authorization_expired` / `authorization_validity_too_short` → `QUOTE_EXPIRED`; `self_transfer` / `unsupported_domain` / `wallet_not_found` → `CIRCLE_UPSTREAM_ERROR`; `insufficient_balance` → `INSUFFICIENT_GATEWAY_BALANCE`; `nonce_already_used` → `NONCE_REUSED`.
 
 Rationale for the v1 proxy:
 
 - **Uniform pipeline.** Every settled intent flows through the same backend handler that fires Xendit payout, writes receipts, emits FCM. No branching between "mobile hit Circle directly" vs "server hit Circle."
 - **Audit trail.** Every payment has a server-side row tied to the intent id before Circle even returns. Disputes and refunds have a canonical record.
-- **Key hygiene.** Circle Developer API key (for Gateway enrollment / attestation inspection) stays server-side. The mobile app carries no Circle credentials — Nanopayments is permissionless on the client side anyway (§5.2), so this costs us nothing.
+- **Keystore hygiene.** Mobile wallet keys stay in `expo-secure-store`; we sign on-device, proxy the signed payload. No private-key export to an SDK. Gateway settle is permissionless (no API key — `security: []`), so the proxy is a discipline choice, not a credential constraint.
 - **Evolvability.** When we add our own Arc facilitator or swap in CCTP v2 as a fallback, the mobile app doesn't learn about it. One endpoint, stable shape.
 
 ### 6.6 Database schema (`takumipay-api`)
@@ -892,7 +1073,7 @@ Merchant profile. Created by `POST /v1/merchants/signup` (§6.1). One row per au
 
 #### `payment_intents`
 
-Every scan-to-pay attempt. Created by `POST /v1/pay/intents` (§6.2). `nanopay_nonce` is the correlation key the backend uses to match an incoming USDC `Transfer` event to the right intent — the same nonce lives inside the EIP-3009 authorization the user signs.
+Every scan-to-pay attempt. Created by `POST /v1/pay/intents` (§6.2). `nanopay_nonce` is the 32-byte random the EIP-3009 authorization is signed against. For Path A (direct on Arc) it's also the correlation key the on-chain `Transfer(to=PLATFORM_TREASURY_ADDRESS)` event watcher matches against. For Path B (Nanopayments, the default) we don't need an event watcher — the settle response's `transaction` UUID is stored on the row instead (column `circle_settle_tx_uuid` on `nanopay_submissions`).
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -927,10 +1108,11 @@ The signed authorizations the mobile app POSTs to our proxy, which we then forwa
 | `intent_id` | `FK payment_intents` | |
 | `signature` | `BYTEA NOT NULL` | 65 bytes |
 | `submitted_at` | `TIMESTAMPTZ NOT NULL` | |
-| `circle_attestation_id` | `TEXT NULL` | populated once Circle responds |
-| `circle_attestation_received_at` | `TIMESTAMPTZ NULL` | |
-| `failure_code` | `TEXT NULL` | one of `NanopayFailureCode` (§6.2) |
-| `failure_message` | `TEXT NULL` | |
+| `circle_settle_tx_uuid` | `UUID NULL` | `transaction` from `POST /gateway/v1/x402/settle` 200 response |
+| `circle_settle_response_received_at` | `TIMESTAMPTZ NULL` | wall clock when settle returned |
+| `circle_settle_network` | `TEXT NULL` | CAIP-2 network identifier from settle response |
+| `failure_code` | `TEXT NULL` | one of `NanopayFailureCode` (§6.2) — mapped from settle `errorReason` |
+| `failure_message` | `TEXT NULL` | raw `errorReason` echo for debugging |
 
 #### `xendit_payouts`
 
@@ -998,7 +1180,7 @@ CREATE INDEX        ON merchant_qris_claims (qris_pan);
 
 - **No `is_merchant` flag on `users`.** Existence of a `merchants.user_id = users.id` row is the source of truth. Cheaper than denormalizing, no drift risk.
 - **No `channels` table.** Xendit `channel_code` enum is served by `takumipay-api` as config (either a hand-maintained JSON file or fetched from Xendit's channel-list endpoint and cached). Hardcoding a table would just add churn when Xendit renames channels (`SHOPEEPAY_ID` has moved before).
-- **No `merchant_treasury_contracts` table.** v1 treasury is a platform EOA per §7 — one address per environment, lives in env vars, doesn't need a DB row.
+- **No `treasury_contracts` table.** v1 treasury is a single platform EOA per §7 — one address per environment, lives in env vars, doesn't need a DB row.
 
 ## 7. On-Chain: Arc Network Specifics
 
@@ -1013,7 +1195,7 @@ CREATE INDEX        ON merchant_qris_claims (qris_pan);
   - `GatewayWallet` (source chains) `0x0077777d7EBA4688BDeF3E311b846F25870A19B9`
   - `GatewayMinter` (mint target) `0x0022222ABE238Cc2C7Bb1f21003F0a260052475B`
 - **Mainnet addresses:** TBD — filed in §12 Q1 until Arc publishes its mainnet reference page. **v1 ships on testnet.**
-- **Treasury:** v1 uses a **platform-owned EOA** (not a contract) as the USDC destination for every merchant payment. Backend matches incoming `Transfer(to=treasury, value, …)` events to pending intents by the `(value, nonce)` pair set at intent creation (§6.2 `NanopayPayload`). A `MerchantTreasury.sol` contract — referenced in the architecture diagram, §5.1, §10.1, and §13 as a forward-looking concept — is **out of v1 scope.** We'll add it when bulk settlement, on-chain fee splits, or per-merchant escrow become load-bearing. Until then, treasury = one EOA per environment, custody = our relayer key, rescue = off-chain.
+- **Treasury:** v1 uses a **platform-owned EOA** (`PLATFORM_TREASURY_ADDRESS`) as the single USDC seller address for all payments, both Path A and Path B. For Path B (Nanopayments, the default), the platform treasury is Circle's `payTo` — funds credit to the platform's Gateway balance and are withdrawn on demand. For Path A (direct-on-Arc fallback), the same address receives USDC via a plain ERC-20 `transfer`. Merchant accounting (which merchant the payment belongs to, how much IDR to disburse, which Xendit channel) lives in `takumipay-api`'s DB only — never on-chain. A `PlatformTreasury.sol` contract with on-chain fee splits, bulk settlement, or escrow is **out of v1 scope.** We'll add it when those features become load-bearing. Until then, treasury = one EOA per environment, custody = our relayer key, rescue = off-chain.
 
 ### 7.1 Backend database setup for Arc (`takumipay-api`)
 
@@ -1078,14 +1260,113 @@ Add a new `ChainConfig` entry to `constants/configs/chainConfig.ts`:
 
 No new `WalletKitAdapter` is needed — Arc is EVM, so `EvmWalletKit` already handles address validation, native balance, and signed transfers. What is new is a **tokenized** write path on `WalletKitAdapter` (§11 follow-up) so we stop piggybacking on `erc20Abi` calls inline from `app/send.tsx:414-421`.
 
-## 8. AI Agent Mode (future extension, not v1 scope)
+## 8. AI Agent Mode (integration-ready; actual integration post-v1)
 
-Same `PaymentIntent` and same `PayExecutor` can be invoked by the Takumi Agent when a user says "book me a Gojek at this address." Agent returns a structured UI card that embeds the intent id and the x402 resource — user taps Pay, same `/pay-merchant` flow fires. Per memory `feedback_agent_prompt_namespace.md`, the wallet-context prompt surfaces `namespace` and merchant availability only — it does not prescribe "EVM-only" or list disabled tools.
+This section is **architecture only** — no code ships for agent mode in v1. The goal is that when we do wire agent mode in (post-M6), it is a thin connector on `takumi-agent-api` plus a chat-message renderer on mobile, not a rewrite of any primitive in this spec.
+
+### 8.1 Integration surface — what agent mode consumes
+
+The existing primitives already compose cleanly for agent-initiated payments because none of them assume a human-driven origin:
+
+| Primitive | Who owns it | Already agent-ready? |
+| --- | --- | --- |
+| `POST /v1/pay/intents` (§6.2) | `takumipay-api` | ✅ — the request shape (`merchant` + `amountMinor` + `currency`) accepts either a scanned QR payload *or* a structured merchant reference. Agent uses the latter. |
+| `GET /v1/pay/intents/:id` (§6.2) | `takumipay-api` | ✅ — polling is already the mobile-side status model. Agent-initiated intents surface via the same endpoint. |
+| `GET /v1/merchants/lookup?q=…` *(new, post-v1)* | `takumipay-api` | Stub it **now** as an empty 501 so the agent-api MCP tool contract can point at a stable URL. Implement when agent mode ships. |
+| `NanopayPayload` discriminated union (§6.2) | shared type | ✅ — EVM / SVM discrimination means agent-initiated intents work on whichever namespace the user's active wallet is in. |
+| `kit.signTransferWithAuthorization` / `signX402SvmPayment` (§5.5) | mobile `WalletKitAdapter` | ✅ — the signer doesn't know who typed the intent into existence. |
+| `/pay-merchant?intentId=…` route | mobile `app/pay-merchant.tsx` | ✅ — agent-emitted intents are rendered by the same screen, just deep-linked instead of reached by scan. This is the load-bearing reason the route takes `intentId` (not raw payload) as its primary param. |
+
+**Explicit non-goals for agent mode** (these stay human-only by design):
+
+- Agent does not sign transactions. Never. The three-role invariant (memory `feedback_role_separation.md`) is load-bearing. Signing requires user PIN/biometric, which means the physical device holder — not an LLM.
+- Agent does not pick the namespace, chain, or gasless rail. The path selector (§5.6) is mobile-side; the agent produces an intent and hands control to the wallet.
+- Agent does not bypass merchant onboarding. Unknown merchant → same `MERCHANT_NOT_ONBOARDED` error as a manual scan (§9.1) — the agent surfaces the invite flow in chat rather than forcing a payment.
+
+### 8.2 MCP tool contract (to be added on `takumi-agent-api` post-v1)
+
+When we ship agent mode, `takumi-agent-api` gains three MCP tools. Their names and shapes are pinned now so the current engineering doesn't accidentally couple to a different naming scheme:
+
+```ts
+// takumi-agent-api/src/mcp/tools/merchants.ts — sketch, not v1 scope
+
+tool("lookup_merchant", {
+  description: "Find an onboarded TakumiPay merchant by name, phone, or QRIS PAN.",
+  input: z.object({
+    query:   z.string().min(2),
+    country: z.enum(["ID"]).default("ID"),
+  }),
+  // returns a short list of `{ merchantId, displayName, country }` — the agent
+  // picks one and confirms with the user before creating an intent.
+});
+
+tool("create_payment_intent", {
+  description: "Create a payment intent so the user can pay a merchant in local fiat.",
+  input: z.object({
+    merchantId:  z.string().regex(/^mch_/),
+    amountMinor: z.number().int().positive(),  // IDR smallest unit
+    currency:    z.enum(["IDR"]),
+    memo:        z.string().max(140).optional(),
+  }),
+  // delegates to takumipay-api `POST /v1/pay/intents` with a server-to-server
+  // bearer token scoped to agent-initiated intents. Returns the same
+  // `PaymentIntent` shape from §6.2.
+});
+
+tool("get_payment_intent_status", {
+  description: "Check whether a payment intent has been paid, failed, or expired.",
+  input: z.object({ intentId: z.string().regex(/^pi_/) }),
+  // wraps GET /v1/pay/intents/:id; agent uses this to close the loop
+  // ("I see your coffee is paid — receipt on the way").
+});
+```
+
+No `sign_payment` tool. No `submit_authorization` tool. The agent's surface stops at intent creation.
+
+### 8.3 How agent mode renders a payment intent in chat
+
+When `create_payment_intent` returns, the agent's tool-result payload is a structured block the mobile chat renders as a tappable card — not a raw JSON dump:
+
+```ts
+// The shape the agent emits as an `@ai-sdk/react` tool-result. Mobile renders
+// it via a new <PaymentIntentCard> in components/home/TakumiAgent/.
+interface AgentPaymentCard {
+  type:         "payment_intent";
+  intentId:     `pi_${string}`;
+  merchant:     { displayName: string; country: CountryISO };
+  fiat:         MoneyMinor;
+  usdc:         USDCAmount;          // pre-computed, rendered as "~1.54 USDC"
+  expiresAt:    number;
+  /** Deep-link the card's "Pay" button navigates to. Expo Router already
+   *  handles this scheme; see app/_layout.tsx linking config. */
+  deepLink:     `takumipay://pay-merchant?intentId=${string}`;
+}
+```
+
+Tap on the card → deep-link fires → `app/pay-merchant.tsx` opens with `intentId` as the route param → identical pay screen the user sees after a QR scan → PIN → sign → settle → Xendit → IDR lands. The agent's involvement ends when the card renders.
+
+**Why a card, not a button that auto-signs:** three-role separation. A "confirm with one tap" card that auto-signs would mean the agent, in effect, decided to spend the user's USDC. A card that routes to the regular pay screen means the user re-confirms amount + merchant + PIN every time. Identical UX to a manual scan-to-pay — the agent just replaced the camera.
+
+### 8.4 Namespace and chain discipline in agent mode
+
+Per memory `feedback_agent_prompt_namespace.md`, the agent's wallet-context prompt surfaces `namespace` only — it does not prescribe "EVM-only", list disabled tools, or tell the model "this won't work on Solana." The MCP tool surface above is namespace-agnostic: `create_payment_intent` returns a `PaymentIntent` whose `NanopayPayload` discriminator (§6.2) is already resolved by the backend for whichever namespace the payer's active wallet is in. The agent never branches on `"eip155"` vs `"solana"`. If a namespace hasn't shipped its x402 scheme yet (e.g. pre-M6 Solana), the path selector on mobile (§5.6) handles the "switch to supported wallet" affordance — same UX as a manual scan, zero agent-specific code.
+
+Per memory `feedback_chain_extension_discipline.md`, no `if (ns === "X")` appears in the MCP tool implementations or in `<PaymentIntentCard>`. Adding a chain is still "register detector + implement adapter method" — agent mode does not become a new place where chain-specific logic leaks.
+
+### 8.5 What ships in v1 to make §8.1–8.4 work
+
+Nothing extra. Every v1 deliverable (M1–M6 in §11) already produces the primitives agent mode consumes. The only v1 work that exists *because* of this section is:
+
+1. **`/pay-merchant?intentId=…` accepts the intent id as the source of truth.** Do not wire the screen to require the raw QR payload; always resolve the intent by id. This is the deep-link contract agent mode needs.
+2. **`PaymentIntent` is self-contained** — `displayName`, `fiat`, `usdc`, `expiresAt` are all on the shape. No additional fetch required to render a card. Already the case in §6.2.
+3. **Idempotency on `POST /v1/pay/intents`** — agents retry. The endpoint should treat `(userId, merchantId, amountMinor, currency)` within a short window (30 s) as the same intent. Already hinted in §6.1 ("Idempotent on (userId, latest submission)") for merchant signup; apply the same discipline here. Low-effort backend change in M3.
+
+When agent mode ships, the actual integration work is: one MCP tool file on `takumi-agent-api`, one `<PaymentIntentCard>` component in `components/home/TakumiAgent/`, one linking entry in `app/_layout.tsx`. No changes to the payment primitives.
 
 ## 9. Security Model
 
 - **QR authenticity** — TakumiPay QRs are JWS-signed (ES256). EMVCo QRs carry CRC-16 but no signature; we require the *merchant_id* returned by `takumipay-api`'s national-QR lookup to be whitelisted before quoting — unknown merchant IDs fall back to a "merchant not registered" error instead of proceeding.
-- **Replay** — intent id is the idempotency key end-to-end (Xendit `Idempotency-key` header, Gateway attestation, on-chain `Settled(intentId, …)` event). Same id can be retried safely.
+- **Replay** — intent id is the idempotency key end-to-end (Xendit `Idempotency-key` header; Path B correlation via the Gateway settle response's `transaction` UUID stored against `intent_id`; Path A correlation via the on-chain USDC `Transfer(to=PLATFORM_TREASURY_ADDRESS)` event matched on `(value, nonce)`). Circle's own nonce-reuse guard (`nonce_already_used` in the settle `errorReason` enum) closes the last hole: resubmitting the same signed authorization is always a no-op at Circle. Same intent id can be retried safely.
 - **FX manipulation** — the mobile app shows the *local-fiat* amount as the source of truth. USDC amount is a function of it. User approves IDR, not USDC micros. Rate freeze is 60 s; after that we re-quote before the signing modal opens.
 - **Scope creep** — the mobile app never handles merchant bank credentials. Xendit creds live in `takumipay-api` only.
 - **Clipboard hygiene** — see `docs/clipboard-policy.md`; do not copy any merchant token / intent id to clipboard.
@@ -1098,7 +1379,7 @@ Every error the mobile app can encounter on the scan→pay→settle path, mapped
 | --- | --- | --- | --- | --- |
 | `QR_UNRECOGNIZED` | scanner classifier | "We couldn't read that QR code. Try again." | "Scan again" (reopens camera) | Back |
 | `QR_TAMPERED` | TakumiPay JWS detector (signature fail) | "This TakumiPay QR isn't valid. It may have been altered." | "Scan again" | Help: `support@…` |
-| `MERCHANT_NOT_ONBOARDED` | `POST /v1/pay/intents` (404) | "This merchant isn't on TakumiPay yet. Invite them?" | "Copy invite link" (WhatsApp share) | "Scan again" |
+| `MERCHANT_NOT_ONBOARDED` | `POST /v1/pay/intents` (404) | "This merchant isn't part of the TakumiPay ecosystem yet. Invite them?" | "Copy invite link" (WhatsApp share) | "Scan again" |
 | `PAN_ALREADY_CLAIMED` | `POST /v1/merchants/signup` (409) | "This QRIS sticker is already linked to another TakumiPay merchant. If this is you, open a dispute." | "Contact support" | "Link a different QRIS" |
 | `QUOTE_EXPIRED` | intent `expiresAt` elapsed OR Nanopay submit 410 | "The quoted rate expired. Refreshing…" | auto-retry → new `POST /v1/pay/intents` | Back |
 | `INSUFFICIENT_GATEWAY_BALANCE` | Nanopay submit (`NanopayFailureCode`) | "You don't have enough USDC on TakumiPay. Top up first." | "Top up USDC" (launches onboarding-deposit flow) | Back |
@@ -1132,36 +1413,31 @@ EXPO_PUBLIC_ARC_RPC_URL=https://rpc.testnet.arc.network
 EXPO_PUBLIC_ARC_CHAIN_ID=5042002                                    # Arc Testnet; mainnet TBD
 EXPO_PUBLIC_USDC_ARC_ADDRESS=0x3600000000000000000000000000000000000000
 
-# Source chain for v1 Nanopayments development — USDC faucet available
-# at faucet.circle.com. See §5.5 for the "source = destination = Base
-# Sepolia until Arc Gateway lights up" rationale.
-EXPO_PUBLIC_NANOPAY_SOURCE_CHAIN_ID=84532                            # Base Sepolia
-EXPO_PUBLIC_USDC_BASE_SEPOLIA_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e
+# Default source chain for the user's one-time Gateway deposit. Most
+# users land here on Arc Testnet directly (USDC faucet at
+# faucet.circle.com covers Arc); the user can deposit from any other
+# supported source chain — Gateway unifies the balance across all 13
+# domains. Read by the onboarding screen only.
+EXPO_PUBLIC_NANOPAY_SOURCE_CHAIN_ID=5042002                          # Arc Testnet (Circle domain 26)
+EXPO_PUBLIC_USDC_BASE_SEPOLIA_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e   # only used when the user explicitly picks Base Sepolia at deposit
 
-# Circle Gateway — public URLs and contract addresses; no secret needed
-# on-device. (Attestation requests go through `takumipay-api`.) Gateway
-# is the substrate Nanopayments is built on — the mobile app only reads
-# these addresses to show the user which contract they're depositing
-# into during onboarding.
+# Circle Gateway — public contract addresses, no secret required.
+# `GatewayWallet` is also the EIP-712 `verifyingContract` for the
+# EIP-3009 signature (the canonical address per source chain is fetched
+# at backend boot from `GET /gateway/v1/x402/supported`; the env value
+# below is the testnet default for Arc and is shown to the user during
+# onboarding so they know which contract they're depositing into).
 EXPO_PUBLIC_CIRCLE_GATEWAY_WALLET=0x0077777d7EBA4688BDeF3E311b846F25870A19B9
 EXPO_PUBLIC_CIRCLE_GATEWAY_MINTER=0x0022222ABE238Cc2C7Bb1f21003F0a260052475B
 
-# Circle Nanopayments — the default gasless rail for this product.
-# Nanopayments is a higher-level product built on Gateway that accepts
-# EIP-3009 TransferWithAuthorization and handles the burn-intent
-# settlement internally. **Not the same as Gateway /v1/transfer**, which
-# takes a different typed-data shape (BurnIntent, not EIP-3009) and
-# isn't called directly from our flow — see
-# https://developers.circle.com/api-reference/gateway/all/create-transfer-attestation
-#
-# The exact Nanopayments API base URL is issued via Circle Developer
-# Console after early-access approval. Use the provisional value below
-# until backend has it confirmed and overrides via server-side config.
-# No API key needed on-device; Nanopayments is permissionless from the
-# client's perspective. Mobile never hits Circle directly in v1 — see
-# EXPO_PUBLIC_CIRCLE_NANOPAY_SUBMIT_VIA_SERVER.
-EXPO_PUBLIC_CIRCLE_NANOPAY_API=   # TBD — fill from Circle Developer Console post-approval
-EXPO_PUBLIC_CIRCLE_NANOPAY_SUBMIT_VIA_SERVER=true   # v1 locked to true; mobile POSTs to takumipay-api proxy
+# Circle Nanopayments — the default gasless rail. Endpoint is part of
+# the public Gateway API, no key required (the OpenAPI declares
+# `security: []` for /gateway/v1/x402/*). Mobile never hits Circle
+# directly in v1 — every signed authorization is POSTed to
+# takumipay-api, which proxies to the URL below. The flag exists only
+# as a dev-time escape hatch.
+EXPO_PUBLIC_CIRCLE_NANOPAY_API=https://gateway-api-testnet.circle.com   # https://gateway-api.circle.com in prod
+EXPO_PUBLIC_CIRCLE_NANOPAY_SUBMIT_VIA_SERVER=true                       # v1 locked to true; mobile POSTs to takumipay-api proxy
 
 # Circle Paymaster — permissionless, no API key required. Only used for
 # the one-time Gateway deposit (and future non-USDC-transfer calls).
@@ -1188,8 +1464,11 @@ EXPO_PUBLIC_TAKUMIPAY_QR_PUBKEY_JWK=
 # takumipay-api/.env (server)
 XENDIT_SECRET_KEY=xnd_production_…            # HTTP Basic, empty password
 XENDIT_WEBHOOK_TOKEN=…                         # x-callback-token verifier
-CIRCLE_API_KEY=SAND_API_KEY:…                  # attestation + Mint
-ARC_SETTLER_PRIVATE_KEY=0x…                    # relayer that calls GatewayMinter / submits attestations
+CIRCLE_API_KEY=SAND_API_KEY:…                  # OPTIONAL — Developer Console only; settle endpoints are permissionless
+PLATFORM_TREASURY_ADDRESS_EVM=0x…              # platform-owned EOA; seller `payTo` for Path B-EVM + Path A
+PLATFORM_TREASURY_ADDRESS_SVM=…                # platform-owned Solana keypair pubkey (base58); seller `payTo` for Path B-SVM — M6 only, can be blank until then
+ARC_SETTLER_PRIVATE_KEY=0x…                    # EVM private key for PLATFORM_TREASURY_ADDRESS_EVM — also signs balance withdrawals
+SVM_SETTLER_PRIVATE_KEY=…                      # Solana private key for PLATFORM_TREASURY_ADDRESS_SVM — M6 only
 TAKUMIPAY_QR_PRIVATE_KEY_PEM=…                 # signs merchant QRs
 ```
 
@@ -1203,8 +1482,8 @@ EXPO_PUBLIC_ARC_RPC_URL=https://rpc.arc.network                       # was: rpc
 EXPO_PUBLIC_ARC_CHAIN_ID=<MAINNET_ID>                                 # was: 5042002    — fill from docs.arc.network once published (§12 Q1)
 EXPO_PUBLIC_USDC_ARC_ADDRESS=<MAINNET_USDC>                           # was: 0x3600…00   — confirm with Circle / Arc
 
-EXPO_PUBLIC_NANOPAY_SOURCE_CHAIN_ID=8453                              # was: 84532       — Base mainnet
-EXPO_PUBLIC_USDC_BASE_SEPOLIA_ADDRESS= → EXPO_PUBLIC_USDC_BASE_ADDRESS=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+EXPO_PUBLIC_NANOPAY_SOURCE_CHAIN_ID=<ARC_MAINNET_ID>                  # was: 5042002 (Arc Testnet) — flip to Arc mainnet domain when published (§12 Q1)
+EXPO_PUBLIC_USDC_BASE_SEPOLIA_ADDRESS= → EXPO_PUBLIC_USDC_BASE_ADDRESS=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913    # only relevant if users still deposit from Base; Arc remains the recommended default
 
 EXPO_PUBLIC_CIRCLE_GATEWAY_WALLET=<MAINNET_WALLET>                    # confirm with Circle
 EXPO_PUBLIC_CIRCLE_GATEWAY_MINTER=<MAINNET_MINTER>                    # confirm with Circle
@@ -1223,7 +1502,9 @@ EXPO_PUBLIC_TAKUMIPAY_QR_PUBKEY_JWK=<ROTATED_KEY>                      # rotate 
 # takumipay-api — swap these
 XENDIT_SECRET_KEY=xnd_production_…                                     # was: xnd_development_…
 XENDIT_ENV=production                                                   # was: sandbox
-CIRCLE_API_KEY=LIVE_API_KEY:…                                           # was: SAND_API_KEY:…
+CIRCLE_API_KEY=LIVE_API_KEY:…                                           # only if using Developer Console; settle is permissionless
+EXPO_PUBLIC_CIRCLE_NANOPAY_API=https://gateway-api.circle.com           # was: gateway-api-testnet.circle.com (server-side env mirror)
+PLATFORM_TREASURY_ADDRESS=<prod EOA — NEW KEY>                          # was: testnet platform treasury
 ARC_SETTLER_PRIVATE_KEY=<prod relayer — NEW KEY, funded with mainnet USDC>
 TAKUMIPAY_QR_PRIVATE_KEY_PEM=<prod signing key — NEW KEY>
 ```
@@ -1231,8 +1512,8 @@ TAKUMIPAY_QR_PRIVATE_KEY_PEM=<prod signing key — NEW KEY>
 Migration runbook (server-side):
 
 1. Generate fresh prod signing key-pair for JWS merchant QRs. Bundle the new public JWK with an EAS OTA update — roll out 48h before go-live so pre-update clients upgrade.
-2. Deploy `MerchantTreasury.sol` on Arc mainnet (when available) or the fallback settlement chain; pin address.
-3. Fund prod relayer wallet with mainnet USDC on each Gateway source chain we support.
+2. Generate a fresh `PLATFORM_TREASURY_ADDRESS` (EOA) for mainnet; pin in `takumipay-api/.env`. No contract to deploy in v1 — see §7. If/when the `PlatformTreasury.sol` contract becomes load-bearing, its mainnet deploy step lands here.
+3. Fund the prod relayer wallet with mainnet USDC on each Gateway source chain we support.
 4. Flip `XENDIT_ENV=production` last — triggers real IDR disbursements on the next webhook.
 5. Re-issue every onboarded merchant's TakumiPay JWS QR (server-side script, no merchant action needed — the JWS is chain-agnostic per §4.4 so merchants don't reprint). Old testnet-signed JWSes get rejected by the new pubkey; the script runs in the same window as the EAS OTA.
 6. Watch the first production intent end-to-end before taking the feature out of staff-only rollout.
@@ -1248,8 +1529,9 @@ Each milestone is shippable on its own. **Do not** ship partial work at mileston
 - **M3 — Xendit payout.** Backend integration: real quotes, real `POST /v2/payouts` calls, webhook handler, receipts. Mobile shows live status via TanStack Query invalidation. Now a Nanopayments attestation actually disburses IDR to the merchant.
 - **M4 — Gateway onboarding + Paymaster-wrapped deposit.** The one-time USDC deposit into `GatewayWallet`. On Base/Arbitrum source chains, route the deposit through Circle Paymaster so the user's first-ever interaction is also gasless. Implements `sendUserOpWithUsdcPaymaster`. Everywhere else the user pays source-chain gas for this single step.
 - **M5 — Raw x402 (Path C) + direct-on-Arc (Path A) fallbacks.** Re-use the EIP-3009 signer from M2 against arbitrary x402 resources (unlocks online merchants + agent payments). Implement direct-on-Arc settlement for large transfers where Nanopayments batch latency is undesirable.
+- **M6 — Solana x402 scheme (Path B-SVM).** Implement `SolanaWalletKit.signX402SvmPayment` — the adapter slot defined in M2 stays `undefined` until this milestone. Backend: discover Solana support via `/gateway/v1/x402/supported` at boot; if Circle's settle endpoint accepts `solana:*` networks, use it directly — otherwise integrate a Solana-compatible x402 facilitator (Coinbase CDP, rapid402, or self-hosted). Provision `PLATFORM_TREASURY_ADDRESS_SVM` (a Solana keypair) and its USDC ATA. Unlocks every user who holds USDC on Solana — a meaningful reach expansion since Solana is one of the largest USDC footprints outside Ethereum. **Shippable:** a Solana-native payer scans the same UMKM QR and pays without switching wallets.
 
-Re-order is acceptable. Rule of thumb: every milestone must preserve the three-role separation and leave the Home Scan button functional.
+Re-order is acceptable for M4–M6. Rule of thumb: every milestone must preserve the three-role separation and leave the Home Scan button functional.
 
 ### 11.1 Dependencies (npm packages to add)
 
@@ -1261,7 +1543,7 @@ All compatible with Expo 54 + Hermes. Pin exact versions in `package.json`; upgr
 | `@emvco-qrcps/parser` *(or equivalent — see note)* | EMVCo TLV decoder + CRC-16 validation for QRIS / PromptPay / DuitNow / VietQR / QR Ph (§4.3) | M1 | No single dominant library. Short-list: `emv-qr-cps` (npm, minimal), or write ~120 LoC ourselves from the EMVCo spec. Engineer chooses — both are fine. Tests are the real contract. |
 | `viem` | Already a dep. EIP-3009 typed-data signing rides its `signTypedData`; ERC-20 `transfer` for direct-on-Arc settlement (§5.1, §5.5) | — (existing) | Current version already covers everything we need. |
 | `permissionless` | ERC-4337 UserOperation builder for Gateway deposit wrapped via Circle Paymaster (§5.4 table row, §5.5 `sendUserOpWithUsdcPaymaster`) | M4 | Ships with bundler clients for Pimlico/Alchemy/Stackup. Pick Pimlico unless infra already uses Alchemy. |
-| `@circle-fin/gateway-sdk` *(or direct REST)* | Gateway deposit intent + attestation calls on the server. Mobile doesn't use this directly. | M4 (backend-only) | If the SDK is still pre-1.0, roll REST calls against the documented endpoints — avoid API churn. |
+| `@circle-fin/x402-batching` *(server entry)* | Gateway settle + verify + balance / deposit / withdraw calls on the server. Use `BatchFacilitatorClient.settle(payload, requirements)` directly — Circle's docs explicitly recommend `settle()` over `verify() → settle()` in production for latency. Mobile doesn't import this (the buyer-side `GatewayClient` requires a raw private key, which breaks our `expo-secure-store` invariant). | M2 (backend-only) | If the SDK is pre-1.0 or you hit issues, the underlying HTTP API (`POST /gateway/v1/x402/settle`) is permissionless and stable — fall back to `fetch`. |
 | `expo-camera` | Already a dep. Powers `app/scan-to-pay.tsx` + the "Scan my QRIS" merchant onboarding step (§1.1.1). | — (existing) | No version bump needed. |
 | `expo-image-picker` / `expo-image-manipulator` | Capture the QRIS sticker photo during merchant onboarding (§1.1.1, §12 Q9) + compress before upload. | M3 | Compress to ≤200 KB JPEG before POST; server stores the key on the `MerchantSignupRequest.qrisLink.stickerPhotoKey` field. |
 | `react-native-qrcode-svg` | Render the merchant's JWS QR on `app/merchant/qr.tsx` + export to PNG for `Save to Photos`. | M1 (onboarding shell) | High-density 400×400 at 10 % error correction is fine for a sticker print at business-card size. |
@@ -1272,15 +1554,15 @@ All compatible with Expo 54 + Hermes. Pin exact versions in `package.json`; upgr
 
 ## 12. Open Questions
 
-- **Q1 — Arc mainnet ID & Gateway availability.** The reference page currently only documents testnet addresses; Circle's "coming soon" list names Arc for Gateway. If Gateway isn't live on Arc at launch, Path B becomes `Gateway → Base → CCTP v2 → Arc`. Confirm before M4 kicks off.
+- **Q1 — Arc mainnet ID & Gateway availability.** ✅ Partially resolved (testnet). Arc is Circle domain `26` and is first-class in Gateway as of testnet Feb 2026 — `chain: "arcTestnet"` is the example chain in Circle's own buyer SDK quickstart, and the supported-chains list returned by `GET /v1/info` includes Arc alongside the other 12 EVM/Solana domains. Path B's "Gateway → Base → CCTP v2 → Arc" fallback is no longer required. Mainnet domain ID + USDC contract still TBD until Arc publishes its mainnet reference page; flip in `EXPO_PUBLIC_ARC_CHAIN_ID` (§10.1) when available.
 - **Q2 — Merchant onboarding UX.** ✅ Locked: in-app, §1.1.1. Two buttons on `login.tsx` + single-screen form + QR home screen. No separate web portal in v1.
 - **Q3 — National-QR coverage.** ✅ Locked for v1: **Indonesia QRIS only.** PromptPay (TH), DuitNow (MY), VietQR (VN), QR Ph (PH) each become their own detector + `MerchantChannelsResponse` entry when we expand. Not blocking M1–M5.
 - **Q4 — KYC / transaction limits.** Xendit has per-channel holding limits (e.g. max balance in OVO/GoPay). Backend must reject quotes that would exceed the channel cap. Not a mobile concern but will surface as a 400 on `/intents`.
-- **Q5 — Refund path.** If Arc-side settlement succeeds but Xendit payout fails after retries, funds are stuck in the merchant treasury. Define the manual refund runbook before production.
+- **Q5 — Refund path.** If Circle settle succeeds (Path B) or the Arc on-chain transfer confirms (Path A) but the Xendit payout fails after retries, USDC is sitting in `PLATFORM_TREASURY_ADDRESS` (or the platform's Gateway balance) against an intent that never disbursed IDR. Define the manual refund runbook before production — likely: refund back to the payer's source chain via Gateway `POST /v1/transfer` (cross-chain) or a plain ERC-20 return on Arc.
 - **Q6 — Paymaster on EOAs.** ✅ Resolved upstream — Circle Paymaster supports EOAs via EIP-7702 since July 2025 (post-Pectra), live on Arbitrum + Base. No special smart-account onboarding required; existing EOA wallets can consume Paymaster-sponsored UserOps via `authorization_list`. Engineer should still gate the path behind the existing `EIP7702_ALLOWLIST` per our own security discipline.
-- **Q7 — Solana gasless.** ✅ Locked: **Solana is out of v1 Nanopayments scope** (§5.5). EIP-3009 is EVM-only; the Solana fee-payer workaround is deferred. If the payer's active wallet is Solana when they tap Scan, the merchant-pay screen auto-switches to their EVM wallet (same auth principal) — same pattern as §4.6.
+- **Q7 — Solana gasless.** ✅ In scope, shipping in **M6** (§11). Architectural slot defined in M2 (`SolanaWalletKit.signX402SvmPayment`, `NanopayPayload` discriminated union). M2–M5 run EVM-only while the Solana integration lands; until M6 ships, a Solana-active payer is offered "Switch to supported wallet" in the path selector (§5.6). **Open questions still live:** (a) does Circle's Nanopayments `/gateway/v1/x402/settle` accept `solana:*` networks natively, or do we integrate a separate Solana x402 facilitator? Answered at M6 kickoff via `GET /gateway/v1/x402/supported`. (b) Is the x402 SVM scheme (`scheme_exact_svm`) stable enough to build on — track the RFC in `github.com/coinbase/x402/issues/646` (Deadline Validation + Smart Wallet Support).
 - **Q9 — QRIS PAN claim verification.** At onboarding the merchant asserts "this QRIS Merchant PAN is mine." v1 mitigations: unique-constraint the `qrisPan` column (first claim wins → duplicate claim returns `PAN_ALREADY_CLAIMED`), require a photo upload of the physical sticker as lightweight evidence archived for manual dispute review, and trust-on-first-use otherwise. Real merchants notice immediately when TakumiPay payouts stop reaching them; dispute reverses the claim. Stronger verification (e.g. SMS to a phone number bound to the QRIS at the acquirer level) requires acquirer API access — post-v1.
-- **Q8 — Closed vs open merchant network.** V1 assumes the scanned QRIS / PromptPay / DuitNow / VietQR / QR Ph merchant has **already onboarded with us** (their merchant ID is in `takumipay-api`'s registry alongside a Xendit `channel_code` + `account_number`). Paying a merchant the backend has never seen requires either (a) proxying through a QRIS acquirer license so we can route over the national QR rails natively, or (b) Xendit exposing a "pay any QRIS acquirer ID" disbursement channel. Decide before marketing says "pay any UMKM." If we ship closed-network v1, the unknown-merchant error on `POST /v1/pay/intents` must be explicit in the mobile UI: *"This merchant isn't on TakumiPay yet — invite them."*
+- **Q8 — Closed vs open merchant network.** V1 assumes the scanned QRIS / PromptPay / DuitNow / VietQR / QR Ph merchant has **already onboarded with us** (their merchant ID is in `takumipay-api`'s registry alongside a Xendit `channel_code` + `account_number`). Paying a merchant the backend has never seen requires either (a) proxying through a QRIS acquirer license so we can route over the national QR rails natively, or (b) Xendit exposing a "pay any QRIS acquirer ID" disbursement channel. Decide before marketing says "pay any UMKM." If we ship closed-network v1, the unknown-merchant error on `POST /v1/pay/intents` surfaces as `MERCHANT_NOT_ONBOARDED` in §9.1 with copy *"This merchant isn't part of the TakumiPay ecosystem yet. Invite them?"* — merchant-framed, no USDC/IDR language in the fallback.
 
 ## 13. Credential Setup Guide (for the user to do later)
 
@@ -1296,15 +1578,16 @@ All compatible with Expo 54 + Hermes. Pin exact versions in `package.json`; upgr
      XENDIT_ENV=sandbox                         # "sandbox" | "production"
      ```
    - Sandbox testing: Xendit's test mode simulates payouts instantly, no real IDR moves. Flip `XENDIT_ENV` once you're confident. Per-channel fees are only billed in production.
-2. **Circle Gateway + Nanopayments** *(blocker for M2 — apply in parallel with Xendit)*
-   - Apply for early access at [`circle.com/gateway`](https://www.circle.com/gateway) (access window runs through 2026-06-30; enrolment covers both Gateway and Nanopayments — same approval).
-   - Once approved, [`app.circle.com`](https://app.circle.com) → *Developer Console → API Keys* → generate a key. Save as `CIRCLE_API_KEY` in `takumipay-api/.env`. **Do not** put this in mobile `.env` — Nanopayments is client-permissionless, the key is backend-only.
-   - Fund a server-side relayer wallet with testnet USDC via [`faucet.circle.com`](https://faucet.circle.com) on Base Sepolia (v1 source chain) and Arc Testnet (v1 destination). Save the relayer private key as `ARC_SETTLER_PRIVATE_KEY`.
-   - In the Circle Dashboard, wire the Nanopayments merchant-attestation webhook to `https://<your-takumipay-api-host>/webhooks/circle-nanopay`. The instant attestation Circle emits after each authorization is what unblocks the Xendit payout in §6.4.
+2. **Circle Gateway + Nanopayments** *(blocker for M2)*
+   - **No early-access application required for testnet.** The Gateway x402 endpoints (`/gateway/v1/x402/settle`, `/verify`, `/supported`, `/transfers`) are permissionless — the OpenAPI declares `security: []` for the whole API. Just point `takumipay-api` at `https://gateway-api-testnet.circle.com` and start sending requests. Mainnet base URL is `https://gateway-api.circle.com`; same shape, no key.
+   - **Optional:** Sign up at [`app.circle.com`](https://app.circle.com) and generate `CIRCLE_API_KEY` if you want the Developer Console (transfer history dashboards, webhook configuration, attestation inspection). Not on the critical path for v1. If used, save as `CIRCLE_API_KEY` in `takumipay-api/.env`. **Do not** put this in mobile `.env`.
+   - Mint the platform's seller address: generate a fresh EOA, save the private key as `ARC_SETTLER_PRIVATE_KEY` in `takumipay-api/.env`, save its public address as `PLATFORM_TREASURY_ADDRESS` (this is the `payTo` Circle sees on every settle call). Fund it with testnet USDC via [`faucet.circle.com`](https://faucet.circle.com) on Arc Testnet (v1 source + destination) — additional source chains are nice-to-have for users who deposit from elsewhere.
+   - At backend boot, `takumipay-api` calls `GET /gateway/v1/x402/supported` once and caches `{ name, version, verifyingContract }` per source chain — these are the EIP-712 domain values the mobile adapter signs against. Refresh on a slow cron (daily) or on settle errors that look domain-related.
+   - **No webhooks needed for the critical path.** The settle response is synchronous and is the trigger for Xendit (§6.4). Circle's transfer-status endpoint (`GET /gateway/v1/x402/transfers/{id}`) is for reconciliation, not for unblocking the payout.
    - No mobile-app Circle keys anywhere. The mobile app carries Gateway *contract addresses* (public) and the chain IDs, that's it.
 3. **Arc Network**
    - No account needed. For testnet, fund a wallet at Arc's Circle Faucet (link in `docs.arc.network`). For mainnet, Arc + USDC go live per Arc's release schedule.
-   - Deploy `MerchantTreasury.sol` from `takumipay-api/contracts/` via `forge create --rpc-url $ARC_RPC --private-key $ARC_SETTLER_PRIVATE_KEY`.
+   - No contract to deploy in v1 — `PLATFORM_TREASURY_ADDRESS` is an EOA funded per environment. If/when a `PlatformTreasury.sol` contract becomes load-bearing (on-chain fee splits, escrow, bulk settle), deploy it via `forge create --rpc-url $ARC_RPC --private-key $ARC_SETTLER_PRIVATE_KEY` and repoint `PLATFORM_TREASURY_ADDRESS`.
 4. **Circle Paymaster**
    - **No account required.** Pull the canonical paymaster contract address per chain from `developers.circle.com/paymaster` and paste into `EXPO_PUBLIC_CIRCLE_PAYMASTER_V07`. Arbitrum and Base are the two supported mainnets at the time of writing; Arc support tracked in §12 Q1.
    - Provision an ERC-4337 bundler per chain — Pimlico and Alchemy both offer permissioned endpoints; obtain API keys and paste them into the `EXPO_PUBLIC_ERC4337_BUNDLER_*` vars.
@@ -1325,5 +1608,5 @@ All compatible with Expo 54 + Hermes. Pin exact versions in `package.json`; upgr
 - Circle Paymaster *(only for the one-time Gateway deposit + future non-transfer calls)* — `developers.circle.com/paymaster`, product page `circle.com/paymaster`, launch post "Introducing Circle Paymaster: Pay gas fees in USDC" (`circle.com/blog/introducing-circle-paymaster`), Arbitrum quickstart at `docs.arbitrum.io/for-devs/third-party-docs/Circle/usdc-paymaster-quickstart`
 - EIP-3009 `transferWithAuthorization` (gasless primitive USDC v2 implements natively) — `eips.ethereum.org/EIPS/eip-3009`
 - ERC-4337 account abstraction (paymaster contract shape) — `eips.ethereum.org/EIPS/eip-4337`
-- x402 — `x402.org`, spec at `github.com/coinbase/x402`, EVM exact scheme at `github.com/coinbase/x402/blob/main/specs/schemes/exact/scheme_exact_evm.md`, CDP facilitator at `docs.cdp.coinbase.com/x402/welcome`, network support at `docs.cdp.coinbase.com/x402/network-support`
+- x402 — `x402.org`, official docs at `docs.x402.org/introduction`, spec at `github.com/coinbase/x402`, **EVM `exact` scheme** at `github.com/coinbase/x402/blob/main/specs/schemes/exact/scheme_exact_evm.md`, **SVM (Solana) `exact` scheme** at `github.com/coinbase/x402/blob/main/specs/schemes/exact/scheme_exact_svm.md`, Solana getting-started guide at `solana.com/developers/guides/getstarted/intro-to-x402`, CDP facilitator at `docs.cdp.coinbase.com/x402/welcome`, network support at `docs.cdp.coinbase.com/x402/network-support`, candidate Solana facilitators: `github.com/rapid402/rapid402-sdk`, `x402-solana.com`
 - Repo anchors — `app/index.tsx:86`, `components/home/Main/ScanToPayChatModeFloatingButtons.tsx:36`, `app/scan-to-pay.tsx:29-62`, `app/send.tsx:398-435`, `app/withdraw.tsx:28-33`, `services/walletKit/types.ts:66`, `constants/configs/chainConfig.ts:68`
