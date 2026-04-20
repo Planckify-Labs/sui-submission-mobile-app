@@ -58,7 +58,7 @@ Net-new entry points, three screens total:
    | --- | --- | --- | --- |
    | Display name | `merchant.displayName` | ✅ from QRIS tag 59 (merchant edits casing — QRIS is ALL CAPS) | yes — on `/pay-merchant` confirmation |
    | WhatsApp number | `merchant.contactPhone` | ❌ not in QRIS — merchant types | no — contact/dispute only |
-   | Payout channel | `merchant.xendit.channelCode` — v1 Indonesia enum: e-wallets `GOPAY` / `OVO` / `DANA` / `LINKAJA` / `SHOPEEPAY_ID`, banks `BCA` / `MANDIRI` / `BNI` / `BRI` / `CIMB` / `PERMATA` / `DANAMON` / `BSI`, plus "Don't see your bank?" expander. **Fetched from `takumipay-api GET /v1/merchants/channels?country=ID`** — not hardcoded in the app. | ❌ not in QRIS — merchant picks | no |
+   | Payout channel | `merchant.xendit.channelCode` — v1 Indonesia enum: e-wallets `GOPAY` / `OVO` / `DANA` / `LINKAJA` / `SHOPEEPAY` / `ASTRAPAY` / `JENIUSPAY`, banks `BCA` / `MANDIRI` / `BNI` / `BRI` / `CIMB` / `PERMATA` / `DANAMON` / `BSI`, plus "Don't see your bank?" expander. **Fetched from `takumipay-api GET /v1/merchants/channels?country=ID`** — not hardcoded in the app. | ❌ not in QRIS — merchant picks | no |
    | Account number | `merchant.xendit.accountNumber` — **polymorphic by channel**: e-wallet → phone (`+628…` for GoPay / OVO / DANA / LinkAja / ShopeePay); bank → digits-only account #. Input label, keyboard type, and length hint switch on the picked channel. | ❌ not in QRIS — merchant types | no |
    | Account holder name | `merchant.xendit.accountHolderName` — must match e-wallet/bank record exactly; Xendit validates. The name in QRIS tag 59 is the *store* name, not necessarily the e-wallet owner's legal name, so don't pre-fill. | ❌ not in QRIS — merchant types | no |
 
@@ -549,9 +549,18 @@ All types below are the **canonical interfaces** the mobile app codes against. I
 
 /** Xendit channel code, narrowed to Indonesia v1. Update the enum when we ship other countries. */
 export type ChannelCode =
-  | "GOPAY" | "OVO" | "DANA" | "LINKAJA" | "SHOPEEPAY_ID"
+  | "GOPAY" | "OVO" | "DANA" | "LINKAJA" | "SHOPEEPAY" | "ASTRAPAY" | "JENIUSPAY"
   | "BCA" | "MANDIRI" | "BNI" | "BRI" | "CIMB" | "PERMATA" | "DANAMON" | "BSI"
   | (string & { readonly __brand: "OtherIdBank" });    // full Xendit list via /v1/merchants/channels
+
+// Verification note: the exact channel_code strings above are based on
+// Xendit's public docs + acceptance-channels page. Xendit occasionally
+// renames codes (e.g. MANDIRI_SYARIAH → BSI in 2021, SHOPEEPAY has
+// suffixed variants in some regions). Backend engineer should sanity-
+// check each code against Xendit Test Mode during M3 by submitting a
+// dry-run POST /v2/payouts — the API returns a validation error for
+// unknown channel_codes. Any corrections land in the Xendit config
+// file (no mobile release needed — served via /v1/merchants/channels).
 
 export type ChannelKind = "ewallet" | "bank";
 
@@ -834,7 +843,14 @@ Xendit callbacks `POST /webhooks/xendit` with `x-callback-token` for verificatio
 
 ### 6.5 Why the Nanopayments proxy (decision locked)
 
-`EXPO_PUBLIC_CIRCLE_NANOPAY_SUBMIT_VIA_SERVER=true` is the v1 default. The mobile app hits `takumipay-api /v1/pay/intents/:id/nanopay`; our backend is the one that talks to Circle. Rationale:
+`EXPO_PUBLIC_CIRCLE_NANOPAY_SUBMIT_VIA_SERVER=true` is the v1 default. The mobile app hits `takumipay-api /v1/pay/intents/:id/nanopay`; our backend is the one that talks to Circle Nanopayments.
+
+**Circle API distinction (important for backend engineer):** Nanopayments API and Gateway `/v1/transfer` are two different Circle products built on the same Gateway substrate.
+
+- **Nanopayments API** — what `takumipay-api` calls for our merchant-pay flow. Accepts **EIP-3009 `TransferWithAuthorization`** payloads (`from` / `to` / `value` / `validAfter` / `validBefore` / `nonce` / `signature`). Handles burn-intent settlement internally. URL issued via Circle Developer Console post-approval. Permissionless from the client side; backend authenticates with `CIRCLE_API_KEY`.
+- **Gateway `/v1/transfer`** — takes a **`BurnIntent`** typed-data shape (`{ burnIntent: { maxBlockHeight, maxFee, spec: { version, sourceDomain, destinationDomain, sourceContract, destinationContract, sourceToken, destinationToken, sourceDepositor, destinationRecipient, sourceSigner, destinationCaller } }, signature }`), signed as EIP-712 on EVM. **Not called directly by our backend in v1.** Reference only, for when we need explicit cross-chain control (future).
+
+Rationale for the v1 proxy:
 
 - **Uniform pipeline.** Every settled intent flows through the same backend handler that fires Xendit payout, writes receipts, emits FCM. No branching between "mobile hit Circle directly" vs "server hit Circle."
 - **Audit trail.** Every payment has a server-side row tied to the intent id before Circle even returns. Disputes and refunds have a canonical record.
@@ -1130,13 +1146,22 @@ EXPO_PUBLIC_USDC_BASE_SEPOLIA_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e
 EXPO_PUBLIC_CIRCLE_GATEWAY_WALLET=0x0077777d7EBA4688BDeF3E311b846F25870A19B9
 EXPO_PUBLIC_CIRCLE_GATEWAY_MINTER=0x0022222ABE238Cc2C7Bb1f21003F0a260052475B
 
-# Circle Nanopayments — the default gasless rail for this product. The
-# mobile app posts signed EIP-3009 authorizations here (optionally
-# proxied through takumipay-api). No API key required on-device —
-# Nanopayments is permissionless. During testnet early access, the
-# URL is provisional.
-EXPO_PUBLIC_CIRCLE_NANOPAY_API=https://api.circle.com/v1/gateway
-EXPO_PUBLIC_CIRCLE_NANOPAY_SUBMIT_VIA_SERVER=true   # if true, client POSTs to takumipay-api proxy; if false, client hits Circle directly
+# Circle Nanopayments — the default gasless rail for this product.
+# Nanopayments is a higher-level product built on Gateway that accepts
+# EIP-3009 TransferWithAuthorization and handles the burn-intent
+# settlement internally. **Not the same as Gateway /v1/transfer**, which
+# takes a different typed-data shape (BurnIntent, not EIP-3009) and
+# isn't called directly from our flow — see
+# https://developers.circle.com/api-reference/gateway/all/create-transfer-attestation
+#
+# The exact Nanopayments API base URL is issued via Circle Developer
+# Console after early-access approval. Use the provisional value below
+# until backend has it confirmed and overrides via server-side config.
+# No API key needed on-device; Nanopayments is permissionless from the
+# client's perspective. Mobile never hits Circle directly in v1 — see
+# EXPO_PUBLIC_CIRCLE_NANOPAY_SUBMIT_VIA_SERVER.
+EXPO_PUBLIC_CIRCLE_NANOPAY_API=   # TBD — fill from Circle Developer Console post-approval
+EXPO_PUBLIC_CIRCLE_NANOPAY_SUBMIT_VIA_SERVER=true   # v1 locked to true; mobile POSTs to takumipay-api proxy
 
 # Circle Paymaster — permissionless, no API key required. Only used for
 # the one-time Gateway deposit (and future non-USDC-transfer calls).
@@ -1252,7 +1277,7 @@ All compatible with Expo 54 + Hermes. Pin exact versions in `package.json`; upgr
 - **Q3 — National-QR coverage.** ✅ Locked for v1: **Indonesia QRIS only.** PromptPay (TH), DuitNow (MY), VietQR (VN), QR Ph (PH) each become their own detector + `MerchantChannelsResponse` entry when we expand. Not blocking M1–M5.
 - **Q4 — KYC / transaction limits.** Xendit has per-channel holding limits (e.g. max balance in OVO/GoPay). Backend must reject quotes that would exceed the channel cap. Not a mobile concern but will surface as a 400 on `/intents`.
 - **Q5 — Refund path.** If Arc-side settlement succeeds but Xendit payout fails after retries, funds are stuck in the merchant treasury. Define the manual refund runbook before production.
-- **Q6 — Paymaster on EOAs.** Circle Paymaster requires ERC-4337 smart accounts; EOA support lands once EIP-7702 is live on each target chain. For v1 we either (a) upgrade each existing EOA wallet via the `authorization_list` flow gated by `EIP7702_ALLOWLIST`, or (b) gate Path A′ to users who create a smart account at onboarding. Decide before M2 ships.
+- **Q6 — Paymaster on EOAs.** ✅ Resolved upstream — Circle Paymaster supports EOAs via EIP-7702 since July 2025 (post-Pectra), live on Arbitrum + Base. No special smart-account onboarding required; existing EOA wallets can consume Paymaster-sponsored UserOps via `authorization_list`. Engineer should still gate the path behind the existing `EIP7702_ALLOWLIST` per our own security discipline.
 - **Q7 — Solana gasless.** ✅ Locked: **Solana is out of v1 Nanopayments scope** (§5.5). EIP-3009 is EVM-only; the Solana fee-payer workaround is deferred. If the payer's active wallet is Solana when they tap Scan, the merchant-pay screen auto-switches to their EVM wallet (same auth principal) — same pattern as §4.6.
 - **Q9 — QRIS PAN claim verification.** At onboarding the merchant asserts "this QRIS Merchant PAN is mine." v1 mitigations: unique-constraint the `qrisPan` column (first claim wins → duplicate claim returns `PAN_ALREADY_CLAIMED`), require a photo upload of the physical sticker as lightweight evidence archived for manual dispute review, and trust-on-first-use otherwise. Real merchants notice immediately when TakumiPay payouts stop reaching them; dispute reverses the claim. Stronger verification (e.g. SMS to a phone number bound to the QRIS at the acquirer level) requires acquirer API access — post-v1.
 - **Q8 — Closed vs open merchant network.** V1 assumes the scanned QRIS / PromptPay / DuitNow / VietQR / QR Ph merchant has **already onboarded with us** (their merchant ID is in `takumipay-api`'s registry alongside a Xendit `channel_code` + `account_number`). Paying a merchant the backend has never seen requires either (a) proxying through a QRIS acquirer license so we can route over the national QR rails natively, or (b) Xendit exposing a "pay any QRIS acquirer ID" disbursement channel. Decide before marketing says "pay any UMKM." If we ship closed-network v1, the unknown-merchant error on `POST /v1/pay/intents` must be explicit in the mobile UI: *"This merchant isn't on TakumiPay yet — invite them."*
