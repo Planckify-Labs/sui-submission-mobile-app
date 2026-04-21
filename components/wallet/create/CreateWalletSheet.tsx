@@ -443,7 +443,7 @@ const CreateWalletSheet: React.FC<Props> = memo(function CreateWalletSheet({
         <View className="flex-row items-start gap-2">
           <Info size={20} color="#c71c4b" />
           <Text className="text-light-matte-black flex-1 font-medium">
-            Never share this phrase. Takumi Wallet will never ask for it.
+            Never share this phrase. TakumiPay will never ask for it.
           </Text>
         </View>
       </View>

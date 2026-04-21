@@ -34,7 +34,7 @@ export function SheetModal({ onDismiss, children }: Props): React.ReactElement {
             `injectedJavaScript` in `app/dapps-browser.tsx`).
           */}
           <View
-            accessibilityLabel="Takumi Wallet trusted prompt"
+            accessibilityLabel="TakumiPay trusted prompt"
             className="items-center py-3"
           >
             <View className="w-10 h-1 bg-light-matte-black/20 rounded-full" />

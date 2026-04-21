@@ -493,7 +493,7 @@ export default function Wallet() {
           <TouchableOpacity
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="About Takumi Wallet"
+            accessibilityLabel="About TakumiPay"
             accessibilityHint="Show bundle IDs, signing certificate fingerprint, and official distribution links"
             className="bg-light rounded-2xl p-4 mb-4 flex-row items-center justify-between mx-4"
             onPress={() =>

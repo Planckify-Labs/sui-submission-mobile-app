@@ -1,4 +1,4 @@
-# 😕 Takumi Wallet Technical Debt
+# 😕 TakumiPay Technical Debt
 ## add chainIdFromDb to activeChain in useWallet hooks
 ### what's the catch?
 check this AI generated shit codes broh

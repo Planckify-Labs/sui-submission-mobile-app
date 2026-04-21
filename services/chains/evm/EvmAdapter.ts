@@ -157,7 +157,7 @@ export class EvmAdapter implements ChainAdapter {
       networkVersion: String(config?.chain.id ?? 1),
       info: {
         uuid: getInstallUuid(),
-        name: "TakumiAI Wallet",
+        name: "TakumiPay",
         icon: takumipayLogoBase64,
         rdns: "com.takumi.wallet",
       },
@@ -226,7 +226,7 @@ export class EvmAdapter implements ChainAdapter {
           // avoids noisy "Method not supported" warnings in dApp
           // telemetry. Shape matches MetaMask's
           // `MetaMask/v11.x.y/mobile/Chrome/…` pattern, trimmed.
-          return resolved("TakumiAI/v1.0.0");
+          return resolved("TakumiPay/v1.0.0");
         }
         case "eth_protocolVersion": {
           // Another legacy probe some dApps run; `0x41` = 65 is what

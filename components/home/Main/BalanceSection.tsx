@@ -29,7 +29,7 @@ import {
 import DepositIcon from "@/assets/icons/deposit-duotone.svg";
 import WithdrawIcon from "@/assets/icons/withdraw-duotone.svg";
 import ChainSelector from "@/components/common/ChainSelector";
-import TakumiWalletHeaderLogo from "@/components/common/TakumiWalletHeaderLogo";
+import TakumipayHeaderLogo from "@/components/common/TakumipayHeaderLogo";
 import { useIsAuthenticated } from "@/hooks/queries/useAuth";
 import { useBlockchains } from "@/hooks/queries/useBlockchains";
 import { usePointBalance } from "@/hooks/queries/usePoints";
@@ -260,7 +260,7 @@ const BalanceSection = forwardRef<BalanceSectionRef>((props, ref) => {
         <View className="bg-light rounded-2xl w-full p-5 shadow-sm">
           <View className="flex-row items-center justify-between mb-5">
             <View className="flex-row items-center">
-              <TakumiWalletHeaderLogo width={100} color="#c71c4b" />
+              <TakumipayHeaderLogo width={100} color="#c71c4b" />
             </View>
 
             <ChainSelector />

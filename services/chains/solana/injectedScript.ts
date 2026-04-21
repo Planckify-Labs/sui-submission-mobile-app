@@ -78,7 +78,7 @@ function S(m,p){return new Promise(function(ok,ng){var id=R();P.set(id,{r:ok,j:n
 var H=window._handleEthereumResponse;
 window._handleEthereumResponse=function(x){try{if(x&&x.type==="bridge_response"&&P.has(x.id)){var p=P.get(x.id);P.delete(x.id);if(x.error){var e=new Error(x.error.message||"rejected");e.code=x.error.code;p.j(e);}else p.r(x.result);return;}}catch(e){}if(H)try{H(x);}catch(e){}};
 function K(a){if(!a)return null;var u=bd(a);return{toBytes:function(){return u;},toBase58:function(){return a;},toString:function(){return a;},equals:function(o){return o&&o.toBase58&&o.toBase58()===a;}};}
-function MA(a){return{address:a,publicKey:bd(a),chains:C,features:F,label:"Takumi Wallet"};}
+function MA(a){return{address:a,publicKey:bd(a),chains:C,features:F,label:"TakumiPay"};}
 function NA(r){var a=(r&&r.accounts)||[],o=[],i;for(i=0;i<a.length;i++)o.push(MA(a[i].address));return o;}
 var lsn={change:new Set()};
 function EV(e,cb){var s=lsn[e]||(lsn[e]=new Set());s.add(cb);return function(){s.delete(cb);};}
@@ -121,7 +121,7 @@ var feats={
 // "already connected" and skip the connect flow entirely — user taps
 // Connect and nothing happens. Accounts are only populated after the
 // dApp calls standard:connect and the user approves on our sheet.
-var W={version:"1.0.0",name:"TakumiAI Wallet",icon:${I},chains:C,features:feats,accounts:[]};
+var W={version:"1.0.0",name:"TakumiPay",icon:${I},chains:C,features:feats,accounts:[]};
 // Stash on window so re-injects can re-dispatch register-wallet with
 // the same identity — dApps that mount their listener after our first
 // dispatch (e.g. React Wallet Adapter after hydration) will catch us.

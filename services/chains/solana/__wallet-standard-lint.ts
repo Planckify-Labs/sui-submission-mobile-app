@@ -91,8 +91,8 @@ describe("wallet-standard lint — object shape (§10.6)", () => {
     assert.equal(wallet?.version, "1.0.0");
   });
 
-  it("wallet.name is 'TakumiAI Wallet'", () => {
-    assert.equal(wallet?.name, "TakumiAI Wallet");
+  it("wallet.name is 'TakumiPay'", () => {
+    assert.equal(wallet?.name, "TakumiPay");
   });
 
   it("wallet.icon matches data URL format", () => {

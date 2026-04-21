@@ -320,7 +320,7 @@ function DepositContent({ bottomOffset }: DepositContentProps) {
           token={selectedToken}
           spenderAddress={contractAddress}
           amount={tokenAmountNeeded.raw.toString()}
-          spenderName="Takumi Wallet"
+          spenderName="TakumiPay"
           isInternalContract
         />
       )}

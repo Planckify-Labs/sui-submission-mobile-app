@@ -10,9 +10,9 @@ const getBundleId = () => {
 };
 
 const getAppName = () => {
-  if (IS_DEV) return "Takumi Wallet (Dev)";
-  if (IS_PREVIEW) return "Takumi Wallet (Preview)";
-  return "Takumi Wallet";
+  if (IS_DEV) return "TakumiPay (Dev)";
+  if (IS_PREVIEW) return "TakumiPay (Preview)";
+  return "TakumiPay";
 };
 
 const getScheme = () => {

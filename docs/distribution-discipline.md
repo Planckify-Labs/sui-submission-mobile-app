@@ -10,7 +10,7 @@ private ops folder. That document is not committed here.
 
 ## 1. Distribution channels we sign
 
-Users install Takumi Wallet only through:
+Users install TakumiPay only through:
 
 1. **Apple App Store** — published under team `cstralpt`,
    bundle `com.planckify.takumiwallet`.
@@ -47,7 +47,7 @@ The About screen (`app/about.tsx`, populated by
 - Expected SHA-256 fingerprint of the signing certificate for the
   current build profile.
 - Version, build number, commit hash.
-- The verbatim warning: "Never download a Takumi Wallet desktop or
+- The verbatim warning: "Never download a TakumiPay desktop or
   browser component from search results..."
 
 Users can verify the fingerprint against:

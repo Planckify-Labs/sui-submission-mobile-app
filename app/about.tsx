@@ -124,7 +124,7 @@ export default function AboutScreen() {
           </Pressable>
 
           <Text className="text-light-matte-black text-3xl font-bold mb-1">
-            About Takumi Wallet
+            About TakumiPay
           </Text>
           {/*
             Show the build-profile badge ONLY on non-production builds so

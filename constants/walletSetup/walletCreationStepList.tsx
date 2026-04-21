@@ -36,11 +36,11 @@ export const createWalletSteps = (
           <View className="flex-row items-center mb-4">
             <Shield color="#c71c4b" size={24} className="mr-2" />
             <Text className="text-light-matte-black font-medium">
-              Takumi Wallet Setup
+              TakumiPay Setup
             </Text>
           </View>
           <Text className="text-light-matte-black mb-4">
-            Takumi Wallet provides you with a self-custodial wallet — a private
+            TakumiPay provides you with a self-custodial wallet — a private
             vault for your tokens and digital assets.
           </Text>
 
@@ -85,7 +85,7 @@ export const createWalletSteps = (
             <View className="flex-row mb-2">
               <Text className="text-light-primary-red mr-2">•</Text>
               <Text className="text-light-matte-black">
-                Swap assets on Takumi Wallet
+                Swap assets on TakumiPay
               </Text>
             </View>
 
@@ -133,7 +133,7 @@ export const createWalletSteps = (
           <View className="flex-row items-start gap-2">
             <Info size={22} color="#c71c4b" className="mr-3 mt-0.5" />
             <Text className="text-light-matte-black flex-1 font-medium">
-              Never share this phrase with anyone. Takumi Wallet will never ask
+              Never share this phrase with anyone. TakumiPay will never ask
               for it.
             </Text>
           </View>

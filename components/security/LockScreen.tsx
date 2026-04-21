@@ -90,7 +90,7 @@ export default function LockScreen({ onUnlocked }: Props) {
       // prompt is the single source of truth — we never re-auth at
       // the SecureStore layer afterwards.
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Unlock TakumiAI Wallet",
+        promptMessage: "Unlock TakumiPay",
         disableDeviceFallback: false,
         cancelLabel: "Cancel",
       });

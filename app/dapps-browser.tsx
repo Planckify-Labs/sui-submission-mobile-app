@@ -358,8 +358,8 @@ export default function DappsBrowser() {
             onMessage={handleMessage}
             // UA suffix so dApps that fall back to user-agent sniffing (or
             // want to branch on "in-app wallet browser") can detect us by
-            // matching /TakumiWallet/.
-            applicationNameForUserAgent="TakumiWallet/1.0"
+            // matching /TakumiPay/.
+            applicationNameForUserAgent="TakumiPay/1.0"
             // Inject BEFORE the page's own scripts run. `injectedJavaScript`
             // fires after load, which is too late for EIP-6963 — dApps have
             // already dispatched `eip6963:requestProvider` during startup

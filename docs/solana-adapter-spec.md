@@ -275,7 +275,7 @@ const walletAccount: WalletAccount = {
     "solana:signTransaction",
     "solana:signAndSendTransaction",
   ],
-  label: wallet.name ?? "Takumi Wallet",
+  label: wallet.name ?? "TakumiPay",
   icon: wallet.icon, // optional WalletIcon data URL per-account; we usually omit
 };
 ```

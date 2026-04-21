@@ -130,7 +130,7 @@ export const OFFICIAL_LINKS: OfficialLinks = {
  * copy above the fold.
  */
 export const DISTRIBUTION_WARNING =
-  "Never download a Takumi Wallet desktop or browser component from " +
+  "Never download a TakumiPay desktop or browser component from " +
   "search results, paid ads, or a link sent in chat. The only " +
   "official distribution channels are listed above. If a site claims " +
   "to host a Takumi installer, it is not us.";

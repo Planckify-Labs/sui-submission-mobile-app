@@ -299,7 +299,7 @@ const ActivitySection = forwardRef<ActivitySectionRef>((props, ref) => {
 
             <View className="items-center max-w-[280px] mb-8">
               <Text className="text-light-matte-black font-bold text-2xl mb-3 text-center">
-                Welcome to your Takumi AI Wallet 🎉
+                Welcome to your TakumiPay 🎉
               </Text>
               <Text className="text-light-matte-black/45 text-center text-sm leading-6">
                 Sign in to unlock your activity timeline and track all your

@@ -1,8 +1,8 @@
-# Takumi Wallet (mobile)
+# TakumiPay (mobile)
 
 ## Official distribution channels (TWV-2026-065)
 
-These are the **only** places a genuine Takumi Wallet binary is ever
+These are the **only** places a genuine TakumiPay binary is ever
 published. If you found a "Takumi" installer somewhere that is not
 listed here — a paid search ad, a sideloaded `.apk`, a desktop app, a
 browser extension — it is not ours. Do not install it.

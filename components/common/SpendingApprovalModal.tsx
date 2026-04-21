@@ -285,7 +285,7 @@ const SpendingApprovalModal: React.FC<SpendingApprovalModalProps> = ({
                       </View>
                       <View className="flex-1">
                         <Text className="text-green-700 text-xs">
-                          This is a trusted Takumi Wallet contract that will
+                          This is a trusted TakumiPay contract that will
                           securely handle this action. Your {token.symbol}{" "}
                           tokens will be used only for this transaction.
                         </Text>

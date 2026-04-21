@@ -162,10 +162,10 @@ export default function Login() {
               </View>
 
               <Text className="text-light-matte-black text-4xl font-bold text-center mb-2">
-                Takumi Wallet
+                TakumiPay
               </Text>
               <Text className="text-light-matte-black/70 text-base text-center max-w-72">
-                Next-Gen AI Wallet for All Your Payment Needs
+                Your Financial AI Companion
               </Text>
             </View>
 
