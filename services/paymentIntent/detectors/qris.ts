@@ -93,31 +93,78 @@ const crc16CcittFalse = (input: string): number => {
 };
 
 /**
- * Find the QRIS merchant-account-information tag. Indonesia ships in
- * a fixed slot on any given sticker but tag IDs 26-51 are all valid
- * "Merchant Account Information" tags per EMVCo; we pick the first
- * one whose sub-tag 00 is a GUID that is not purely numeric (i.e. a
- * reverse-DNS acquirer label like `ID.CO.QRIS.WWW`). Non-match falls
- * through — the detector will reject the payload downstream on the
- * country-code check.
+ * Parsed shape of an EMVCo "Merchant Account Information" block
+ * (tags 26-51). Sub-tag 00 is the acquirer / registry GUI, sub-tag 01
+ * is the PAN, sub-tag 02 is the NMID, sub-tag 03 is the merchant
+ * criteria ("UMI", "UKE", "UME", "UBE" in Indonesia).
  */
-const findMerchantAcctInfo = (
-  tags: Tlv[],
-): { tlv: Tlv; aidGui: string; pan: string } | null => {
+interface MerchantAcctInfo {
+  tlv: Tlv;
+  aidGui: string;
+  pan: string;
+  nmid?: string;
+  criteria?: string;
+}
+
+/**
+ * Find the **primary** (acquirer) merchant-account-information tag.
+ * Tag IDs 26-51 are all valid "Merchant Account Information" tags per
+ * EMVCo; we pick the first one whose sub-tag 00 is a reverse-DNS label
+ * (e.g. `COM.GO-JEK.WWW`, `ID.CO.QRIS.WWW`). Purely-numeric GUIs are
+ * skipped to avoid mis-matching PromptPay/PayNow tags that could sit
+ * in the same range.
+ *
+ * On acquirer-direct stickers the acquirer is the QRIS national
+ * registry itself — in that case tag 26's GUI is `ID.CO.QRIS.WWW` and
+ * `findQrisNationalAcctInfo()` will return the same block.
+ */
+const findMerchantAcctInfo = (tags: Tlv[]): MerchantAcctInfo | null => {
   for (const t of tags) {
     const tagNum = Number.parseInt(t.tag, 10);
     if (tagNum < 26 || tagNum > 51) continue;
     const subTags = parseTlv(t.value);
     if (!subTags) continue;
     const sub00 = subTags.find((s) => s.tag === "00");
-    const sub01 = subTags.find((s) => s.tag === "01");
     if (!sub00) continue;
-    // QRIS acquirer GUI is reverse-DNS (e.g. "ID.CO.QRIS.WWW" or a
-    // bank-specific label); reject purely numeric GUIs to avoid
-    // mis-matching a PromptPay tag that could sit in the same range.
     if (/^\d+$/.test(sub00.value)) continue;
-    const pan = sub01?.value ?? "";
-    return { tlv: t, aidGui: sub00.value, pan };
+    return {
+      tlv: t,
+      aidGui: sub00.value,
+      pan: subTags.find((s) => s.tag === "01")?.value ?? "",
+      nmid: subTags.find((s) => s.tag === "02")?.value,
+      criteria: subTags.find((s) => s.tag === "03")?.value,
+    };
+  }
+  return null;
+};
+
+/**
+ * Find the QRIS **national** merchant-account-information block — the
+ * one whose GUI is `ID.CO.QRIS.WWW`. A standard Indonesian QRIS sticker
+ * with an acquirer like GoPay or DANA carries this block at tag 51
+ * alongside the acquirer's block at tag 26. An acquirer-direct QRIS
+ * collapses the two: the same block (usually tag 26) has the national
+ * GUI and doubles as both records.
+ *
+ * Returns `null` when no block carries the national GUI — typically
+ * means this isn't a QRIS sticker at all (and the country-code gate
+ * would have already rejected it), or the sticker is malformed.
+ */
+const findQrisNationalAcctInfo = (tags: Tlv[]): MerchantAcctInfo | null => {
+  for (const t of tags) {
+    const tagNum = Number.parseInt(t.tag, 10);
+    if (tagNum < 26 || tagNum > 51) continue;
+    const subTags = parseTlv(t.value);
+    if (!subTags) continue;
+    const sub00 = subTags.find((s) => s.tag === "00");
+    if (sub00?.value !== "ID.CO.QRIS.WWW") continue;
+    return {
+      tlv: t,
+      aidGui: sub00.value,
+      pan: subTags.find((s) => s.tag === "01")?.value ?? "",
+      nmid: subTags.find((s) => s.tag === "02")?.value,
+      criteria: subTags.find((s) => s.tag === "03")?.value,
+    };
   }
   return null;
 };
@@ -140,6 +187,24 @@ const parseAmountMinor = (raw: string, currency: "IDR"): number | undefined => {
   }
   // Reserved branch for PHP/THB/MYR/VND once they ship (§4.2).
   return undefined;
+};
+
+/**
+ * Dev-only log of every field we parse out of a successful QRIS decode.
+ * Fires on merchant-signup scans (task 11) and payer scans (task 07)
+ * alike since both funnel through `qrisDetector.detect()`. Guarded on
+ * Metro's `__DEV__` global so:
+ *   - RN dev: always logs.
+ *   - RN prod: silenced (Metro replaces `__DEV__` with literal `false`).
+ *   - Node tests: silenced (global is `undefined`).
+ * No PII gate needed — merchant name, city, and PAN are printed on
+ * physical QRIS stickers and are not secret.
+ */
+const logQrisDecode = (details: Record<string, unknown>): void => {
+  const g = globalThis as { __DEV__?: boolean };
+  if (g.__DEV__ !== true) return;
+  // eslint-disable-next-line no-console
+  console.log("[QRIS] decoded", JSON.stringify(details, null, 2));
 };
 
 export const qrisDetector: Detector = {
@@ -191,6 +256,7 @@ export const qrisDetector: Detector = {
 
     const merchantAcct = findMerchantAcctInfo(tags);
     if (!merchantAcct) return null;
+    const nationalAcct = findQrisNationalAcctInfo(tags);
 
     const currencyNum = tags.find((t) => t.tag === "53")?.value;
     // QRIS always carries "360" (IDR); if tag 53 is missing or
@@ -204,19 +270,72 @@ export const qrisDetector: Detector = {
         ? parseAmountMinor(amountRaw, currency)
         : undefined;
 
+    const merchantName = tags.find((t) => t.tag === "59")?.value;
+    const merchantCity = tags.find((t) => t.tag === "60")?.value;
+    const merchantCategoryCode = tags.find((t) => t.tag === "52")?.value;
+    const postalCode = tags.find((t) => t.tag === "61")?.value;
+    // Tag 62 is the "Additional Data Field Template" — a nested TLV
+    // container (terminal id, reference label, loyalty token, bill id).
+    // We don't model it yet; log the raw value for debugging.
+    const additionalDataTemplateRaw = tags.find((t) => t.tag === "62")?.value;
+
+    logQrisDecode({
+      poi: poi === "11" ? "static" : "dynamic",
+      poiRaw: poi,
+      country,
+      currencyNum,
+      currency,
+      amountRaw,
+      amountMinor,
+      merchantName,
+      merchantCity,
+      merchantCategoryCode,
+      postalCode,
+      additionalDataTemplateRaw,
+      acquirer: {
+        block: merchantAcct.tlv.tag,
+        gui: merchantAcct.aidGui,
+        pan: merchantAcct.pan,
+        nmid: merchantAcct.nmid,
+        criteria: merchantAcct.criteria,
+      },
+      national: nationalAcct
+        ? {
+            block: nationalAcct.tlv.tag,
+            gui: nationalAcct.aidGui,
+            pan: nationalAcct.pan || undefined,
+            nmid: nationalAcct.nmid,
+            criteria: nationalAcct.criteria,
+          }
+        : null,
+      crc: crcClaim,
+      rawPayloadLength: trimmed.length,
+      rawPayload: trimmed,
+    });
+
     return {
       source: "qr",
       channel: {
         kind: "merchant",
         provider: "xendit_qris",
-        // Server resolves the merchantId from the raw payload by
-        // parsing EMVCo tag 26 sub-tag 02 (NMID) or looking up the
-        // PAN in the merchant registry (task 27). The mobile
-        // detector deliberately leaves it empty.
+        // Server resolves the merchantId from `qris.nationalNmid`
+        // against the BI QRIS registry (task 27). The mobile detector
+        // leaves `merchantId` empty — only the server has the registry
+        // credentials.
         merchantId: "",
         amountMinor,
         currency,
         rawPayload: trimmed,
+        qris: {
+          pan: merchantAcct.pan,
+          acquirerGui: merchantAcct.aidGui,
+          acquirerNmid: merchantAcct.nmid,
+          nationalNmid: nationalAcct?.nmid,
+          merchantName,
+          merchantCity,
+          merchantCategoryCode,
+          postalCode,
+        },
       },
       rawScan: raw,
     };

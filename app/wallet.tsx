@@ -27,7 +27,6 @@ import {
 } from "react-native-safe-area-context";
 import { runWithChainSwitchingOverlay } from "@/components/common/ChainSwitchingOverlay";
 import { usePerformance } from "@/components/providers/PerformanceProvider";
-import AddWalletSheet from "@/components/wallet/create/AddWalletSheet";
 import WalletCompactCard from "@/components/wallet/WalletCompactCard";
 import WalletDetails from "@/components/wallet/WalletDetails";
 import WalletSwitcherModal from "@/components/wallet/WalletSwitcherModal";
@@ -44,11 +43,6 @@ export default function Wallet() {
   const [refreshing, setRefreshing] = useState(false);
   const [showWalletInfo, setShowWalletInfo] = useState(false);
   const [showSwitcherModal, setShowSwitcherModal] = useState(false);
-  // One sheet instance, three entry points ("+", empty-state CTA,
-  // WalletSwitcherModal's onAddWallet). Lifting visibility here so all
-  // three triggers flip the same flag. Backup UX moved to a separate
-  // wallet-settings flow (not prompted during creation).
-  const [addWalletSheetVisible, setAddWalletSheetVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const detailsOpacity = useRef(new Animated.Value(1)).current;
   const queryClient = useQueryClient();
@@ -302,7 +296,7 @@ export default function Wallet() {
               <TouchableOpacity
                 activeOpacity={0.7}
                 className="bg-light w-10 h-10 rounded-full items-center justify-center shadow-sm"
-                onPress={() => setAddWalletSheetVisible(true)}
+                onPress={() => router.push("/login")}
                 style={{
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 1 },
@@ -331,17 +325,11 @@ export default function Wallet() {
               accessibilityRole="button"
               accessibilityLabel="Add wallet"
               className="bg-light-primary-red py-3 px-8 rounded-full mt-6"
-              onPress={() => setAddWalletSheetVisible(true)}
+              onPress={() => router.push("/login")}
             >
               <Text className="text-light font-bold">Add wallet</Text>
             </TouchableOpacity>
           </View>
-
-          <AddWalletSheet
-            visible={addWalletSheetVisible}
-            onClose={() => setAddWalletSheetVisible(false)}
-            onWalletAdded={() => setAddWalletSheetVisible(false)}
-          />
         </SafeAreaView>
       </>
     );
@@ -376,7 +364,7 @@ export default function Wallet() {
               <TouchableOpacity
                 activeOpacity={0.7}
                 className="bg-light w-10 h-10 rounded-full items-center justify-center shadow-sm"
-                onPress={() => setAddWalletSheetVisible(true)}
+                onPress={() => router.push("/login")}
                 style={{
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 1 },
@@ -556,19 +544,12 @@ export default function Wallet() {
             handleWalletSwitch(index);
           }}
           onAddWallet={() => {
-            // Close the switcher first so the sheet doesn't stack on
-            // top of another modal — WalletSwitcherModal already calls
-            // its own `closeModal` before firing `onAddWallet`, so this
-            // branch runs AFTER the switcher starts its dismiss anim.
+            // Route through /login so users can reach the "Register as
+            // Merchant" CTA alongside "Create New Wallet" — the sole
+            // entry point for both flows lives on the login screen.
             setShowSwitcherModal(false);
-            setAddWalletSheetVisible(true);
+            router.push("/login");
           }}
-        />
-
-        <AddWalletSheet
-          visible={addWalletSheetVisible}
-          onClose={() => setAddWalletSheetVisible(false)}
-          onWalletAdded={() => setAddWalletSheetVisible(false)}
         />
       </SafeAreaView>
     </>

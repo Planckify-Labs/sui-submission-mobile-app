@@ -11,6 +11,12 @@ export { classify } from "./classify.ts";
 export type { DetectContext, Detector } from "./detectorRegistry.ts";
 export { register } from "./detectorRegistry.ts";
 export {
+  NoQrInImageError,
+  PickCanceledError,
+  PickPermissionDeniedError,
+  pickQrFromGallery,
+} from "./pickQrFromGallery.ts";
+export {
   type NavParams,
   type SwitchToScannedTargetResult,
   switchToScannedTarget,

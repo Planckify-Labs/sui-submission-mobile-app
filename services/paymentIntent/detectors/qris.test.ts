@@ -42,6 +42,15 @@ const QRIS_STATIC_IDN =
 const QRIS_DYNAMIC_IDN =
   "00020101021226660014ID.CO.QRIS.WWW01189360091400000099990215ID12345678901230303UMI5204581253033605405250005802ID5920WARUNG KOPI IBU SARI6007JAKARTA61051031063041D7A";
 
+// Real-world two-block sticker captured from a GoPay-acquired GTron
+// merchant in Selong, East Lombok. Tag 26 carries the acquirer block
+// (GUI `COM.GO-JEK.WWW`, NMID `G669405532`), tag 51 carries the QRIS
+// national block (GUI `ID.CO.QRIS.WWW`, NMID `ID1024347475146`). CRC
+// `BD21`. Used to prove the detector distinguishes acquirer vs
+// national records when both are present.
+const QRIS_STATIC_TWO_BLOCK_GTRON =
+  "00020101021126610014COM.GO-JEK.WWW01189360091436694055320210G6694055320303UMI51440014ID.CO.QRIS.WWW0215ID10243474751460303UMI5204762953033605802ID5913GTron, SELONG6012LOMBOK TIMUR61058361162070703A016304BD21";
+
 describe("qrisDetector", () => {
   beforeEach(() => {
     __resetForTest();
@@ -59,6 +68,41 @@ describe("qrisDetector", () => {
       assert.equal(hit.channel.currency, "IDR");
       assert.equal(hit.channel.amountMinor, undefined);
       assert.equal(hit.channel.rawPayload, QRIS_STATIC_IDN);
+      // Acquirer-direct sticker (single block on tag 26 with GUI
+      // `ID.CO.QRIS.WWW`) — acquirer and national NMIDs collapse to
+      // the same value.
+      assert.ok(hit.channel.qris, "expected qris metadata");
+      assert.equal(hit.channel.qris?.pan, "936009140000009999");
+      assert.equal(hit.channel.qris?.acquirerGui, "ID.CO.QRIS.WWW");
+      assert.equal(hit.channel.qris?.acquirerNmid, "ID1234567890123");
+      assert.equal(hit.channel.qris?.nationalNmid, "ID1234567890123");
+      assert.equal(hit.channel.qris?.merchantName, "WARUNG KOPI IBU SARI");
+      assert.equal(hit.channel.qris?.merchantCity, "JAKARTA");
+      assert.equal(hit.channel.qris?.merchantCategoryCode, "5812");
+      assert.equal(hit.channel.qris?.postalCode, "10310");
+    }
+  });
+
+  it("distinguishes acquirer vs national blocks on a two-block QRIS sticker", () => {
+    const hit = qrisDetector.detect(QRIS_STATIC_TWO_BLOCK_GTRON);
+    assert.ok(hit, "expected QRIS detection");
+    assert.equal(hit?.channel.kind, "merchant");
+    if (hit?.channel.kind === "merchant") {
+      // Primary (acquirer) block is tag 26 — GoPay.
+      assert.equal(hit.channel.qris?.pan, "936009143669405532");
+      assert.equal(hit.channel.qris?.acquirerGui, "COM.GO-JEK.WWW");
+      assert.equal(hit.channel.qris?.acquirerNmid, "G669405532");
+      // National block is tag 51 — QRIS registry. NMID differs from
+      // the acquirer's internal id and is the stable server-side key.
+      assert.equal(hit.channel.qris?.nationalNmid, "ID1024347475146");
+      assert.notEqual(
+        hit.channel.qris?.acquirerNmid,
+        hit.channel.qris?.nationalNmid,
+      );
+      assert.equal(hit.channel.qris?.merchantName, "GTron, SELONG");
+      assert.equal(hit.channel.qris?.merchantCity, "LOMBOK TIMUR");
+      assert.equal(hit.channel.qris?.merchantCategoryCode, "7629");
+      assert.equal(hit.channel.qris?.postalCode, "83611");
     }
   });
 

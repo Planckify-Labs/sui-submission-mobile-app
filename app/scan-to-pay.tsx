@@ -8,8 +8,8 @@ import "@/services/paymentIntent/detectors";
 
 import { type BarcodeScanningResult, Camera, CameraView } from "expo-camera";
 import { router } from "expo-router";
-import { ArrowLeft } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
+import { ArrowLeft, ImageIcon } from "lucide-react-native";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Image,
   Pressable,
@@ -20,7 +20,14 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { classify, switchToScannedTarget } from "@/services/paymentIntent";
+import {
+  classify,
+  NoQrInImageError,
+  PickCanceledError,
+  PickPermissionDeniedError,
+  pickQrFromGallery,
+  switchToScannedTarget,
+} from "@/services/paymentIntent";
 
 /**
  * Cross-platform toast shim. `ToastAndroid` is Android-only; on iOS we
@@ -49,17 +56,11 @@ export default function ScanToPay() {
     getBarCodeScannerPermissions();
   }, []);
 
-  // Drives classify + route dispatch after a successful scan. The
-  // function never signs, never hits the network, and never inspects
-  // `namespace` directly — namespace-specific activation is the send
-  // flow's job at render time (chain-extension discipline, memory
-  // `feedback_chain_extension_discipline.md`).
-  const handleBarCodeScanned = async (result: BarcodeScanningResult) => {
-    if (scanned) return;
-    setScanned(true);
-
+  // Route a decoded raw string through classify + switchToScannedTarget.
+  // Shared by the live-camera `onBarcodeScanned` path and the
+  // gallery-pick path — both sources produce the same raw-string shape.
+  const handleDecodedRaw = useCallback(async (raw: string) => {
     try {
-      const raw = result.data.trim();
       const intent = await classify(raw);
 
       if (!intent) {
@@ -89,7 +90,34 @@ export default function ScanToPay() {
       showToast("Couldn't understand this QR");
       setScanned(false);
     }
+  }, []);
+
+  const handleBarCodeScanned = async (result: BarcodeScanningResult) => {
+    if (scanned) return;
+    setScanned(true);
+    await handleDecodedRaw(result.data.trim());
   };
+
+  const handlePickFromGallery = useCallback(async () => {
+    if (scanned) return;
+    setScanned(true);
+    try {
+      const raw = await pickQrFromGallery();
+      await handleDecodedRaw(raw);
+    } catch (err) {
+      if (err instanceof PickCanceledError) {
+        // Silent reset — user backed out of the picker.
+      } else if (err instanceof PickPermissionDeniedError) {
+        showToast("Allow photo library access to pick an image");
+      } else if (err instanceof NoQrInImageError) {
+        showToast("No QR code found in that image");
+      } else {
+        console.error("scan-to-pay gallery pick failed:", err);
+        showToast("Couldn't read that image");
+      }
+      setScanned(false);
+    }
+  }, [scanned, handleDecodedRaw]);
 
   if (hasPermission === null) {
     return (
@@ -156,9 +184,20 @@ export default function ScanToPay() {
         </View>
 
         <View className="p-5 items-center absolute bottom-8 left-0 right-0">
-          <Text className="text-white text-center bg-light-matte-black/70 px-4 py-1 rounded-full">
+          <Text className="text-white text-center bg-light-matte-black/70 px-4 py-1 rounded-full mb-3">
             Position the QR code within the frame to scan
           </Text>
+          <Pressable
+            onPress={handlePickFromGallery}
+            className="flex-row items-center bg-white/95 px-5 py-3 rounded-full"
+            accessibilityRole="button"
+            accessibilityLabel="Pick a QR image from your photo library"
+          >
+            <ImageIcon color="#20222c" size={18} />
+            <Text className="text-light-matte-black font-semibold ml-2">
+              Pick from gallery
+            </Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     </>

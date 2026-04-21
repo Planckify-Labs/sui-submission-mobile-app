@@ -4,7 +4,9 @@
  * Merchant" on `app/login.tsx` (task 10). It forks the path into:
  *
  *   - Scan my QRIS sticker → camera, decode EMVCo locally, route to
- *     `/merchant/signup-form?source=qris&qris=<raw>&stickerPhotoKey=<k>`.
+ *     `/merchant/signup-form?source=qris&qris=<raw>`.
+ *   - Pick from my gallery → system image picker, decode the QR
+ *     statically via `Camera.scanFromURLAsync`, route same as scan.
  *   - Enter my details manually → straight to
  *     `/merchant/signup-form?source=manual`.
  *
@@ -25,7 +27,12 @@
 
 import { type BarcodeScanningResult, Camera, CameraView } from "expo-camera";
 import { router } from "expo-router";
-import { ArrowLeft, Camera as CameraIcon, Pencil } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Camera as CameraIcon,
+  ImageIcon,
+  Pencil,
+} from "lucide-react-native";
 import React, { useCallback, useState } from "react";
 import {
   Pressable,
@@ -38,11 +45,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  CaptureCanceledError,
-  CapturePermissionDeniedError,
-  UploadFailedError,
-  useCaptureStickerPhoto,
-} from "@/hooks/useCaptureStickerPhoto";
+  NoQrInImageError,
+  PickCanceledError,
+  PickPermissionDeniedError,
+  pickQrFromGallery,
+} from "@/services/paymentIntent";
 import { qrisDetector } from "@/services/paymentIntent/detectors";
 
 /**
@@ -64,10 +71,6 @@ export default function MerchantSignupIntro() {
   const [mode, setMode] = useState<Mode>("intro");
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
-  // Task 14: capture + compress + upload the sticker photo after a
-  // successful QRIS decode. Hook owns all media I/O; this screen
-  // only orchestrates the sequence and surfaces toast copy.
-  const { captureFromCamera, compress, upload } = useCaptureStickerPhoto();
 
   const handlePressScan = useCallback(async () => {
     const { status } = await Camera.requestCameraPermissionsAsync();
@@ -80,79 +83,57 @@ export default function MerchantSignupIntro() {
     router.push("/merchant/signup-form?source=manual" as never);
   }, []);
 
+  // Route a decoded raw string through the QRIS detector and navigate
+  // on success. Shared by the live-camera `onBarcodeScanned` path and
+  // the gallery-pick path — both sources produce the same raw-string
+  // shape, so this is the single validation + routing funnel.
+  const handleDecodedRaw = useCallback(async (raw: string) => {
+    // QRIS is the only scan target on this surface (spec §1.1.1).
+    // `Promise.resolve` collapses the `Detector.detect` sync/async
+    // union so this call site stays robust if the QRIS detector is
+    // ever refactored to do async work.
+    const intent = await Promise.resolve(qrisDetector.detect(raw));
+
+    if (!intent || intent.channel.kind !== "merchant") {
+      showToast("Couldn't read QRIS, try manually");
+      setScanned(false);
+      return;
+    }
+
+    router.replace(
+      `/merchant/signup-form?source=qris&qris=${encodeURIComponent(raw)}` as never,
+    );
+  }, []);
+
   const handleBarCodeScanned = useCallback(
     async (result: BarcodeScanningResult) => {
       if (scanned) return;
       setScanned(true);
-
-      const raw = result.data.trim();
-      // QRIS is the only scan target on this surface (spec §1.1.1).
-      // The QRIS detector is synchronous (see
-      // `services/paymentIntent/detectors/qris.ts` — no `await` inside
-      // `detect`), so the return type union's `Promise` branch is
-      // unreachable in practice. The `Detector` interface is shared
-      // with async detectors (e.g. TakumiPay JWS) which is why the
-      // union exists. Narrow via `Promise.resolve` so the union
-      // collapses safely whether the call stays sync or evolves.
-      const intent = await Promise.resolve(qrisDetector.detect(raw));
-
-      if (!intent || intent.channel.kind !== "merchant") {
-        showToast("Couldn't read QRIS, try manually");
-        setScanned(false);
-        return;
-      }
-
-      // Task 14: capture a still of the physical sticker as
-      // lightweight dispute evidence (§12 Q9). We briefly unmount the
-      // barcode scanner (by flipping `mode` back to "intro") and
-      // hand off to `expo-image-picker`'s system camera — sharing
-      // the live `CameraView` for a still capture is not supported
-      // by `expo-camera` on Android's current SDK.
-      //
-      // Three-role separation: the hook posts to our backend; the
-      // wallet is not involved. Upload failure is NON-BLOCKING per
-      // spec §12 Q9 (the merchant record is still valid; ops just
-      // loses a dispute-review artifact). Base64 is in-memory only
-      // and discarded once we have `stickerPhotoKey`.
-      setMode("intro");
-      let stickerPhotoKey: string | undefined;
-      try {
-        const captured = await captureFromCamera();
-        const compressed = await compress(captured.uri);
-        console.log(
-          `[signup-intro] sticker compressed to ${compressed.bytes} bytes`,
-        );
-        const uploaded = await upload({ uri: compressed.uri });
-        stickerPhotoKey = uploaded.stickerPhotoKey;
-        showToast("Photo attached \u2713");
-      } catch (err) {
-        if (err instanceof CaptureCanceledError) {
-          // User dismissed the camera after the QR decode. We still
-          // proceed to signup — the photo is optional evidence.
-          console.log("[signup-intro] sticker capture canceled");
-        } else if (err instanceof CapturePermissionDeniedError) {
-          showToast("Camera permission needed for sticker photo");
-        } else if (err instanceof UploadFailedError) {
-          // M1 backend (task 45) may still be stubbed; a 404 here is
-          // expected and must not block the merchant from signing up.
-          console.warn("[signup-intro] sticker upload failed:", err.message);
-          showToast("Couldn't attach sticker photo, continuing");
-        } else {
-          console.warn("[signup-intro] unexpected capture error:", err);
-        }
-      }
-
-      const qrisParam = encodeURIComponent(raw);
-      const photoSuffix = stickerPhotoKey
-        ? `&stickerPhotoKey=${encodeURIComponent(stickerPhotoKey)}`
-        : "";
-
-      router.replace(
-        `/merchant/signup-form?source=qris&qris=${qrisParam}${photoSuffix}` as never,
-      );
+      await handleDecodedRaw(result.data.trim());
     },
-    [scanned, captureFromCamera, compress, upload],
+    [scanned, handleDecodedRaw],
   );
+
+  const handlePressGallery = useCallback(async () => {
+    if (scanned) return;
+    setScanned(true);
+    try {
+      const raw = await pickQrFromGallery();
+      await handleDecodedRaw(raw);
+    } catch (err) {
+      if (err instanceof PickCanceledError) {
+        // Silent — user backed out of the picker.
+      } else if (err instanceof PickPermissionDeniedError) {
+        showToast("Allow photo library access to pick your QRIS");
+      } else if (err instanceof NoQrInImageError) {
+        showToast("No QRIS code found in that image");
+      } else {
+        console.warn("[signup-intro] gallery pick failed:", err);
+        showToast("Couldn't read that image");
+      }
+      setScanned(false);
+    }
+  }, [scanned, handleDecodedRaw]);
 
   const handleCancelScan = useCallback(() => {
     setMode("intro");
@@ -219,9 +200,20 @@ export default function MerchantSignupIntro() {
           </View>
 
           <View className="p-5 items-center absolute bottom-8 left-0 right-0">
-            <Text className="text-white text-center bg-light-matte-black/70 px-4 py-1 rounded-full">
+            <Text className="text-white text-center bg-light-matte-black/70 px-4 py-1 rounded-full mb-3">
               Aim at your QRIS sticker to get started
             </Text>
+            <Pressable
+              onPress={handlePressGallery}
+              className="flex-row items-center bg-white/95 px-5 py-3 rounded-full"
+              accessibilityRole="button"
+              accessibilityLabel="Pick a QRIS image from your gallery"
+            >
+              <ImageIcon color="#20222c" size={18} />
+              <Text className="text-light-matte-black font-semibold ml-2">
+                Pick from gallery
+              </Text>
+            </Pressable>
           </View>
         </SafeAreaView>
       </>
@@ -265,6 +257,26 @@ export default function MerchantSignupIntro() {
                 </Text>
                 <Text className="text-light-matte-black/60 text-sm">
                   Use your phone camera to read the QRIS you already have.
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.7}
+            className="bg-light rounded-2xl p-5 mb-4 border border-light-matte-black/10"
+            onPress={handlePressGallery}
+          >
+            <View className="flex-row items-center">
+              <View className="w-12 h-12 bg-light-primary-red/10 rounded-full items-center justify-center mr-4">
+                <ImageIcon color="#c71c4b" size={22} />
+              </View>
+              <View className="flex-1">
+                <Text className="text-light-matte-black font-semibold text-base mb-1">
+                  Pick from my gallery
+                </Text>
+                <Text className="text-light-matte-black/60 text-sm">
+                  Choose a photo of your QRIS sticker from your phone.
                 </Text>
               </View>
             </View>

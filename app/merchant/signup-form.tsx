@@ -3,7 +3,7 @@
  * milestone M1). Landing screen from `app/merchant/signup-intro.tsx` on
  * both the scan and manual paths:
  *
- *   /merchant/signup-form?source=qris&qris=<raw>&stickerPhotoKey=<key>
+ *   /merchant/signup-form?source=qris&qris=<raw>
  *   /merchant/signup-form?source=manual
  *
  * M1 stub behaviour — the `POST /v1/merchants/signup` endpoint is a
@@ -21,15 +21,13 @@
  * validates format + required fields, server authorizes. Do not encode
  * server-side rules (payout min/max, blacklists, KYC thresholds) here.
  *
- * Polymorphic account input — the hardcoded channel list below covers
- * Indonesia's six most common payout rails (4 e-wallets + 2 banks).
- * TODO(task 28): replace the constant with a TanStack Query hook
- * `useMerchantChannels()` that calls `GET /v1/merchants/channels?
- * country=ID` and reads `accountFormat` off each descriptor (spec §6.1
- * `ChannelDescriptor.accountFormat`), so adding a new channel (e.g.
- * LinkAja, BRI, JeniusPay) is a backend-only change. Until then, the
- * validator below switches on `kind` with a safe fallback for unknown
- * codes (10–20 alphanumeric chars).
+ * Polymorphic account input — the channel list is served by
+ * `GET /v1/merchants/channels?country=ID` (task 28) and cached
+ * per-country in MMKV via `useChannelsWithStorage`. Adding a new QRIS
+ * rail (LinkAja, BRI, JeniusPay, …) is a backend-only change now. The
+ * validator below still switches on `kind` (`"ewallet" | "bank"`) with
+ * a safe fallback for unknown kinds (10–20 alphanumeric chars), so a
+ * channel with a novel kind never hard-errors the form.
  */
 
 import { router, useLocalSearchParams } from "expo-router";
@@ -43,6 +41,8 @@ import {
 import React, { useCallback, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
+  ActivityIndicator,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -53,12 +53,14 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import type { TChannel } from "@/api/types/channel";
+import { useChannelsWithStorage } from "@/hooks/useChannelsWithStorage";
 
 /**
- * Hardcoded channel list for M1. See top-of-file comment for the task-28
- * plan to swap this for a server-driven list. `kind` drives polymorphic
- * validation; `helper` drives the context-aware helper text under the
- * account-number input.
+ * UI-layer shape of a channel. Derived from the backend `TChannel` via
+ * {@link toChannelOption} — fields like `helper` / `placeholder` /
+ * `keyboardType` / `maxLength` are presentation concerns the backend
+ * deliberately does not ship, so they're computed from `kind`.
  */
 type ChannelKind = "ewallet" | "bank";
 
@@ -70,73 +72,53 @@ interface ChannelOption {
   placeholder: string;
   keyboardType: "phone-pad" | "number-pad";
   maxLength: number;
+  iconUrl: string | null;
 }
 
-const CHANNELS: ChannelOption[] = [
-  {
-    code: "GOPAY",
-    label: "GoPay",
-    kind: "ewallet",
-    helper: "Use the Indonesian mobile number linked to your GoPay account.",
-    placeholder: "08123456789",
-    keyboardType: "phone-pad",
-    maxLength: 13,
-  },
-  {
-    code: "OVO",
-    label: "OVO",
-    kind: "ewallet",
-    helper: "Use the Indonesian mobile number linked to your OVO account.",
-    placeholder: "08123456789",
-    keyboardType: "phone-pad",
-    maxLength: 13,
-  },
-  {
-    code: "DANA",
-    label: "DANA",
-    kind: "ewallet",
-    helper: "Use the Indonesian mobile number linked to your DANA account.",
-    placeholder: "08123456789",
-    keyboardType: "phone-pad",
-    maxLength: 13,
-  },
-  {
-    code: "SHOPEEPAY",
-    label: "ShopeePay",
-    kind: "ewallet",
-    helper:
-      "Use the Indonesian mobile number linked to your ShopeePay account.",
-    placeholder: "08123456789",
-    keyboardType: "phone-pad",
-    maxLength: 13,
-  },
-  {
-    code: "BCA",
-    label: "BCA",
-    kind: "bank",
-    helper: "Enter your 10-digit BCA account number.",
+/**
+ * Project a backend `TChannel` row onto the UI's `ChannelOption`.
+ * Helper copy is personalised with the channel label so the
+ * e-wallet line reads "…linked to your GoPay account." rather than a
+ * generic template. `iconUrl` is passed through unchanged; the picker
+ * renders it when present and falls back to a kind-based glyph when
+ * null.
+ */
+const toChannelOption = (row: TChannel): ChannelOption => {
+  const kind: ChannelKind = row.kind === "bank" ? "bank" : "ewallet";
+  if (kind === "ewallet") {
+    return {
+      code: row.channelCode,
+      label: row.label,
+      kind,
+      helper: `Use the Indonesian mobile number linked to your ${row.label} account.`,
+      placeholder: "08123456789",
+      keyboardType: "phone-pad",
+      maxLength: 13,
+      iconUrl: row.iconUrl,
+    };
+  }
+  return {
+    code: row.channelCode,
+    label: row.label,
+    kind,
+    helper: `Enter your ${row.label} account number.`,
     placeholder: "1234567890",
     keyboardType: "number-pad",
     maxLength: 16,
-  },
-  {
-    code: "MANDIRI",
-    label: "Mandiri",
-    kind: "bank",
-    helper: "Enter your 13-digit Mandiri account number.",
-    placeholder: "1234567890123",
-    keyboardType: "number-pad",
-    maxLength: 16,
-  },
-];
+    iconUrl: row.iconUrl,
+  };
+};
 
 /**
- * Return the channel by code. Falls back to `null` so the form can
- * treat "nothing picked" and "unknown code" uniformly — both force the
- * user to pick from the list.
+ * Return the channel by code from a given list. Falls back to `null`
+ * so the form treats "nothing picked" and "unknown code" uniformly —
+ * both force the user to pick from the list.
  */
-const findChannel = (code: string | null): ChannelOption | null =>
-  CHANNELS.find((c) => c.code === code) ?? null;
+const findChannel = (
+  channels: ChannelOption[],
+  code: string | null,
+): ChannelOption | null =>
+  channels.find((c) => c.code === code) ?? null;
 
 /**
  * Polymorphic account-number validator. Returns `null` on success, a
@@ -152,7 +134,7 @@ const validateAccountNumber = (
 ): string | null => {
   const trimmed = value.trim();
   if (!trimmed) return "Account number is required.";
-  if (!channel) return "Pick a payout channel first.";
+  if (!channel) return "Pick a QRIS type first.";
 
   if (channel.kind === "ewallet") {
     // Indonesian mobile number: 08 + 8-11 more digits (10-13 total).
@@ -248,19 +230,26 @@ export default function MerchantSignupForm() {
   const params = useLocalSearchParams<{
     source?: string;
     qris?: string;
-    stickerPhotoKey?: string;
   }>();
 
   const source = params.source === "qris" ? "qris" : "manual";
   const qrisRaw = typeof params.qris === "string" ? params.qris : undefined;
-  const stickerPhotoKey =
-    typeof params.stickerPhotoKey === "string"
-      ? params.stickerPhotoKey
-      : undefined;
 
   const qrisExtract = useMemo<QrisExtract>(
     () => (source === "qris" && qrisRaw ? extractQrisFields(qrisRaw) : {}),
     [source, qrisRaw],
+  );
+
+  // Server-fed QRIS type list — MMKV-cached for frame-0 render on
+  // return visits and offline opens (task 28 backend + the mirror hook
+  // `useChannelsWithStorage`). Empty array while the first fetch is in
+  // flight on a cold install; the picker surfaces the loading state
+  // below so the user doesn't get a silently-empty modal.
+  const { data: backendChannels, isLoading: isLoadingChannels } =
+    useChannelsWithStorage("ID");
+  const channels = useMemo<ChannelOption[]>(
+    () => (backendChannels ?? []).map(toChannelOption),
+    [backendChannels],
   );
 
   const {
@@ -282,8 +271,8 @@ export default function MerchantSignupForm() {
 
   const pickedChannelCode = watch("payoutChannel");
   const pickedChannel = useMemo(
-    () => findChannel(pickedChannelCode || null),
-    [pickedChannelCode],
+    () => findChannel(channels, pickedChannelCode || null),
+    [channels, pickedChannelCode],
   );
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -315,16 +304,13 @@ export default function MerchantSignupForm() {
         accountHolderName: values.payoutAccountHolderName.trim(),
         qrisLink:
           source === "qris" && qrisExtract.qrisPan
-            ? {
-                qrisPan: qrisExtract.qrisPan,
-                stickerPhotoKey: stickerPhotoKey ?? "",
-              }
+            ? { qrisPan: qrisExtract.qrisPan }
             : undefined,
       };
       console.log("[merchant/signup-form] MerchantSignupRequest:", payload);
       router.replace("/merchant/qr" as never);
     },
-    [source, qrisExtract.qrisPan, stickerPhotoKey],
+    [source, qrisExtract.qrisPan],
   );
 
   return (
@@ -365,11 +351,6 @@ export default function MerchantSignupForm() {
                   {qrisExtract.qrisPan.slice(0, 6)}****
                   {qrisExtract.qrisPan.slice(-4)}
                 </Text>
-                {stickerPhotoKey ? (
-                  <Text className="text-light-matte-black/50 text-xs mt-1">
-                    Sticker photo saved.
-                  </Text>
-                ) : null}
               </View>
             ) : null}
 
@@ -442,15 +423,15 @@ export default function MerchantSignupForm() {
               )}
             </View>
 
-            {/* Payout channel */}
+            {/* QRIS type */}
             <View className="mb-5">
               <Text className="text-light-matte-black font-medium mb-2">
-                Payout channel
+                QRIS type
               </Text>
               <Controller
                 control={control}
                 name="payoutChannel"
-                rules={{ required: "Pick a payout channel." }}
+                rules={{ required: "Pick a QRIS type." }}
                 render={({ field: { value } }) => (
                   <TouchableOpacity
                     activeOpacity={0.7}
@@ -459,8 +440,14 @@ export default function MerchantSignupForm() {
                   >
                     <View className="flex-row items-center">
                       {pickedChannel ? (
-                        <View className="w-8 h-8 bg-light-primary-red/10 rounded-full items-center justify-center mr-3">
-                          {pickedChannel.kind === "ewallet" ? (
+                        <View className="w-8 h-8 bg-light-primary-red/10 rounded-full items-center justify-center mr-3 overflow-hidden">
+                          {pickedChannel.iconUrl ? (
+                            <Image
+                              source={{ uri: pickedChannel.iconUrl }}
+                              style={{ width: 32, height: 32 }}
+                              resizeMode="contain"
+                            />
+                          ) : pickedChannel.kind === "ewallet" ? (
                             <Wallet color="#c71c4b" size={16} />
                           ) : (
                             <Building2 color="#c71c4b" size={16} />
@@ -609,36 +596,60 @@ export default function MerchantSignupForm() {
               className="bg-light rounded-t-3xl px-5 pt-5 pb-8"
             >
               <Text className="text-light-matte-black font-semibold text-lg mb-4">
-                Pick a payout channel
+                Pick a QRIS type
               </Text>
-              {CHANNELS.map((c) => {
-                const active = c.code === pickedChannelCode;
-                return (
-                  <TouchableOpacity
-                    key={c.code}
-                    activeOpacity={0.7}
-                    onPress={() => handlePickChannel(c.code)}
-                    className="flex-row items-center py-3 border-b border-light-matte-black/5"
-                  >
-                    <View className="w-10 h-10 bg-light-primary-red/10 rounded-full items-center justify-center mr-3">
-                      {c.kind === "ewallet" ? (
-                        <Wallet color="#c71c4b" size={18} />
-                      ) : (
-                        <Building2 color="#c71c4b" size={18} />
-                      )}
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-light-matte-black font-medium">
-                        {c.label}
+              {channels.length === 0 ? (
+                <View className="items-center py-8">
+                  {isLoadingChannels ? (
+                    <>
+                      <ActivityIndicator color="#c71c4b" />
+                      <Text className="text-light-matte-black/60 text-sm mt-3">
+                        Loading QRIS types…
                       </Text>
-                      <Text className="text-light-matte-black/50 text-xs">
-                        {c.kind === "ewallet" ? "E-wallet" : "Bank"}
-                      </Text>
-                    </View>
-                    {active ? <Check color="#c71c4b" size={18} /> : null}
-                  </TouchableOpacity>
-                );
-              })}
+                    </>
+                  ) : (
+                    <Text className="text-light-matte-black/60 text-sm text-center">
+                      Couldn't load QRIS types. Check your connection and try
+                      again.
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                channels.map((c) => {
+                  const active = c.code === pickedChannelCode;
+                  return (
+                    <TouchableOpacity
+                      key={c.code}
+                      activeOpacity={0.7}
+                      onPress={() => handlePickChannel(c.code)}
+                      className="flex-row items-center py-3 border-b border-light-matte-black/5"
+                    >
+                      <View className="w-10 h-10 bg-light-primary-red/10 rounded-full items-center justify-center mr-3 overflow-hidden">
+                        {c.iconUrl ? (
+                          <Image
+                            source={{ uri: c.iconUrl }}
+                            style={{ width: 40, height: 40 }}
+                            resizeMode="contain"
+                          />
+                        ) : c.kind === "ewallet" ? (
+                          <Wallet color="#c71c4b" size={18} />
+                        ) : (
+                          <Building2 color="#c71c4b" size={18} />
+                        )}
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-light-matte-black font-medium">
+                          {c.label}
+                        </Text>
+                        <Text className="text-light-matte-black/50 text-xs">
+                          {c.kind === "ewallet" ? "E-wallet" : "Bank"}
+                        </Text>
+                      </View>
+                      {active ? <Check color="#c71c4b" size={18} /> : null}
+                    </TouchableOpacity>
+                  );
+                })
+              )}
             </Pressable>
           </Pressable>
         </Modal>
