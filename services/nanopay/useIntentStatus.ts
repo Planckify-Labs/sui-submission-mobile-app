@@ -1,0 +1,116 @@
+/**
+ * `services/nanopay/useIntentStatus.ts` — TanStack Query bindings for
+ * Circle Nanopayments Path B (spec §6.2, §6.3).
+ *
+ * Three hooks:
+ *   - `useCreateIntent()` — mutation wrapping `POST /v1/pay/intents`.
+ *   - `useSubmitNanopay()` — mutation wrapping `submitNanopayAuthorization`.
+ *   - `useIntentStatus(intentId)` — query polling `GET /v1/pay/intents/:id`.
+ *     `refetchInterval` returns `false` once `status` reaches a terminal
+ *     value (`paid | paid_out | failed | expired`), so the component
+ *     re-renders one more time and polling halts without the screen
+ *     having to unmount the hook. See `isTerminalIntentStatus` in
+ *     `./types.ts` for the canonical list.
+ *
+ * Conventions match `hooks/queries/*` (shared QueryClient from
+ * `app/_layout.tsx`, shared `api` ky instance, `queryKey` as a tuple
+ * literal the consumer can predict). We deliberately do NOT fork a
+ * second query client — one cache, one dev-tools graph.
+ */
+
+import {
+  type UseQueryResult,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { api } from "@/constants/configs/ky";
+import {
+  type SubmitNanopayAuthorizationArgs,
+  type SubmitResult,
+  submitNanopayAuthorization,
+} from "./submit";
+import {
+  type CreateIntentRequest,
+  isTerminalIntentStatus,
+  type PaymentIntentResponse,
+} from "./types";
+
+/** Shared query-key tuple for a single intent — callers can invalidate off the same key. */
+export const intentQueryKey = (intentId: string | undefined) =>
+  ["pay-intent", intentId] as const;
+
+async function fetchIntent(intentId: string): Promise<PaymentIntentResponse> {
+  return api
+    .get(`v1/pay/intents/${encodeURIComponent(intentId)}`)
+    .json<PaymentIntentResponse>();
+}
+
+async function createIntent(
+  body: CreateIntentRequest,
+): Promise<PaymentIntentResponse> {
+  return api
+    .post("v1/pay/intents", { json: body })
+    .json<PaymentIntentResponse>();
+}
+
+/**
+ * Polls the backend for intent status. Stops polling once the status is
+ * terminal (`paid | paid_out | failed | expired`). While in-flight
+ * statuses (`pending | submitting | settling`), re-fetches every 3 s —
+ * matches spec §6.3 ("Nanopay attestation is sub-second; one poll after
+ * POST is usually enough").
+ */
+export function useIntentStatus(
+  intentId: string | undefined,
+): UseQueryResult<PaymentIntentResponse> {
+  return useQuery<PaymentIntentResponse>({
+    queryKey: intentQueryKey(intentId),
+    queryFn: () => {
+      if (!intentId) {
+        // The `enabled` gate prevents this path, but keep the runtime
+        // invariant narrow so TS treats `intentId` as `string` below.
+        throw new Error("useIntentStatus: intentId is required");
+      }
+      return fetchIntent(intentId);
+    },
+    enabled: !!intentId,
+    staleTime: 5_000,
+    refetchInterval: (query) => {
+      const data = query.state.data as PaymentIntentResponse | undefined;
+      if (isTerminalIntentStatus(data?.status)) return false;
+      return 3_000;
+    },
+    // Keep polling paused when the screen backgrounds; iOS suspends the
+    // query engine anyway, but being explicit beats a mysterious "why
+    // isn't my poll firing" in the debugger.
+    refetchIntervalInBackground: false,
+  });
+}
+
+/** `POST /v1/pay/intents` — returns the server-signed payment intent. */
+export function useCreateIntent() {
+  const queryClient = useQueryClient();
+  return useMutation<PaymentIntentResponse, Error, CreateIntentRequest>({
+    mutationFn: (body) => createIntent(body),
+    onSuccess: (intent) => {
+      // Seed the cache so the first `useIntentStatus` render hits a
+      // warm entry and skips the cold 200 ms network dip.
+      queryClient.setQueryData(intentQueryKey(intent.id), intent);
+    },
+  });
+}
+
+/** POST /v1/pay/intents/:id/nanopay — wraps `submitNanopayAuthorization`. */
+export function useSubmitNanopay() {
+  const queryClient = useQueryClient();
+  return useMutation<SubmitResult, Error, SubmitNanopayAuthorizationArgs>({
+    mutationFn: (args) => submitNanopayAuthorization(args),
+    onSuccess: ({ intentId }) => {
+      // Signal the polling query that something changed upstream so the
+      // next status read happens immediately (instead of waiting for
+      // the 3 s interval).
+      queryClient.invalidateQueries({ queryKey: intentQueryKey(intentId) });
+    },
+  });
+}

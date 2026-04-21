@@ -77,7 +77,9 @@ import AgentOnboarding from "./AgentModeOnboarding/AgentOnboarding";
 import ChatInput from "./ChatInput";
 import ConversationHistory from "./ConversationHistory";
 import MessageContent from "./MessageContent";
+import { paidAcknowledgement } from "./mintPaymentIntentTool";
 import QuickPrompts from "./QuickPrompts";
+import { useMintPaymentIntentTool } from "./useMintPaymentIntentTool";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -223,6 +225,14 @@ export default function AgentMode() {
   const { data: blockchains = [] } = useBlockchainsWithStorage({
     isActive: true,
   });
+
+  // Agent-mode integration slot (task 46): `mintPaymentIntent` AI tool.
+  // The hook owns (a) the Idempotency-Key cache so retries collapse to
+  // the same `pi_…` id server-side, (b) the `/pay-merchant?intentId=…`
+  // hand-off, and (c) the cross-screen "intent-paid" event bus. The
+  // wallet still owns signing + submission — this hook never touches
+  // the signer (three-role separation).
+  const mintIntentTool = useMintPaymentIntentTool();
 
   // ── Conversation state ────────────────────────────────────────────
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -406,6 +416,17 @@ export default function AgentMode() {
     if (!address) return null;
     const symbol = getNativeSymbol(activeChain);
     if (!symbol) return null;
+    // `capabilities` surfaces mobile-resolved tools alongside the
+    // wallet's `namespace` discriminator (memory
+    // `feedback_agent_prompt_namespace.md`). Listing a tool here does
+    // NOT claim it is "EVM-only" / "Solana-only" — the server's tool
+    // router makes that call per-namespace. The mobile merely advertises
+    // what the scan-to-pay slot (task 46) offers on this device.
+    //
+    // The field is a forward-compat extension; the server treats
+    // unknown wallet_context keys as opaque metadata so older builds
+    // ignore it safely.
+    const capabilities = ["mintPaymentIntent"] as const;
     return {
       address,
       namespace: activeChain.namespace,
@@ -414,6 +435,11 @@ export default function AgentMode() {
       chain_symbol: symbol,
       label: activeWallet?.name,
       points_authenticated: pointsAuthenticated,
+      // Cast to permissive shape — `capabilities` isn't in the
+      // `WalletContext` wire type (`protocol.ts` is a verbatim mirror
+      // of the server file). Adding it here avoids editing the mirrored
+      // wire type while still sending the hint.
+      ...({ capabilities } as { capabilities: readonly string[] }),
     };
   }, [activeWallet, activeChain, pointsAuthenticated]);
 
@@ -541,6 +567,10 @@ export default function AgentMode() {
     currentAssistantIdRef.current = null;
     lastUserMessageRef.current = "";
     pendingTxStore.clear();
+    // Drop the agent-mode integration slot's idempotency cache + any
+    // pending intent-paid event so a fresh conversation doesn't
+    // acknowledge a payment from the previous session.
+    mintIntentTool.reset();
     setMessages([]);
     setCurrentStatus(null);
     setInlinePreview(null);
@@ -550,7 +580,33 @@ export default function AgentMode() {
     setRetryableError(null);
     setNonRetryableError(null);
     setActiveConversationId(null);
-  }, [rejectOpenPrompts]);
+  }, [rejectOpenPrompts, mintIntentTool]);
+
+  // ── Intent-paid event subscription (task 46) ──────────────────────
+  // When the wallet finishes paying an intent the agent minted, the
+  // receipt screen flips `intent-paid` in the global event bus
+  // (`INTENT_PAID_EVENT_KEY`). We surface an inline assistant message
+  // acknowledging the payment — three-role separation holds because
+  // the agent NEVER signed anything; it's purely a readback of a
+  // wallet-emitted event. No tx hashes / signatures in the copy
+  // (enforced by `paidAcknowledgement` in `mintPaymentIntentTool.ts`).
+  const ackedIntentPaidRef = useRef<string | null>(null);
+  useEffect(() => {
+    const { intentId, paidAt } = mintIntentTool.intentPaidEvent;
+    if (!intentId || paidAt === null) return;
+    if (ackedIntentPaidRef.current === intentId) return;
+    ackedIntentPaidRef.current = intentId;
+
+    const nowIso = new Date().toISOString();
+    const ackMessage: ChatMessage = {
+      id: genId(),
+      role: "assistant",
+      parts: [{ type: "text", text: paidAcknowledgement(intentId) }],
+      createdAt: nowIso,
+    };
+    setMessages((prev) => [...prev, ackMessage]);
+    mintIntentTool.acknowledgeIntentPaid();
+  }, [mintIntentTool]);
 
   // ── Busy state publisher + cancel-handler registration ───────────
   // Exposes the agent's busy state globally so the wallet / chain

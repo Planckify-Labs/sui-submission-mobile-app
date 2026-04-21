@@ -18,11 +18,27 @@
 export const ZERO_ADDRESS =
   "0x0000000000000000000000000000000000000000" as const;
 
-// Compiled-in allowlist — see `docs/eip7702-delegator-allowlist-spec.md`
-// for the governance flow. Adding an entry requires a second reviewer.
-// All addresses lowercased.
-export const AUTHORIZED_DELEGATORS: ReadonlySet<string> = new Set([
+// Compiled-in allowlist baseline. Extended at module load from the
+// OTA-rotatable `EXPO_PUBLIC_EIP7702_ALLOWLIST` env var (comma-separated
+// hex addresses, lowercased) per umkm-usdc-payout-spec §10 — governance
+// approvals land via `eas update` instead of a store release. See
+// `docs/eip7702-delegator-allowlist-spec.md` for the review flow.
+// All addresses are normalized to lowercase.
+const COMPILED_IN_DELEGATORS: ReadonlyArray<string> = [
   ZERO_ADDRESS, // revoke is always allowed
+];
+
+function parseAllowlistEnv(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => /^0x[0-9a-f]{40}$/i.test(s));
+}
+
+export const AUTHORIZED_DELEGATORS: ReadonlySet<string> = new Set([
+  ...COMPILED_IN_DELEGATORS,
+  ...parseAllowlistEnv(process.env.EXPO_PUBLIC_EIP7702_ALLOWLIST),
 ]);
 
 export type Eip7702Decision =

@@ -25,6 +25,10 @@ import {
   mmkvPersister,
   shouldPersistQuery,
 } from "@/lib/storage/queryPersister";
+import {
+  registerForPushNotifications,
+  usePushNotificationHandler,
+} from "@/services/push";
 import { installQRMatrixCache } from "@/services/qrMatrixCache";
 // Ordering (spec §6.2): polyfill import → bootWalletKits() → any screen/provider.
 import { bootWalletKits } from "@/services/walletKit/boot";
@@ -114,6 +118,21 @@ function AppShell() {
   const queryClient = useQueryClient();
   const [locked, setLocked] = useState<boolean>(hasStoredWallets());
   const [didUnlockThisSession, setDidUnlockThisSession] = useState(false);
+
+  // Task 32 — install the global push receive + tap handlers so a
+  // server-sent PAID_OUT push invalidates the polling intent query
+  // (foreground) and deep-links to the receipt (tap / cold-start).
+  // Must live inside the QueryClient provider — the hook reads the
+  // client via `useQueryClient()`.
+  usePushNotificationHandler();
+
+  // Fire-and-forget permission + token registration on mount. The
+  // function is idempotent (gated by `didRegisterThisSession`) and
+  // fails-closed on every branch (denied permission, simulator,
+  // backend 404), so the app never blocks on it.
+  useEffect(() => {
+    void registerForPushNotifications();
+  }, []);
 
   // Two-phase unlock — lift the gate first (so all `useAppLocked()`
   // consumers fire their gated effects + the React re-render cascade

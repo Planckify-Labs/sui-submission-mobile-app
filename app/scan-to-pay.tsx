@@ -1,4 +1,12 @@
-import { BarcodeScanningResult, Camera, CameraView } from "expo-camera";
+// Boot step: importing the detectors barrel is the single side-effect
+// import that registers every `Detector` with `detectorRegistry.ts`.
+// Must stay at the top of the module — `classify()` below returns
+// `null` for every payload if this import is missing. Task 05 (the
+// TakumiPay JWS detector) lands in parallel with task 07; whatever
+// the barrel currently exports is what the scanner recognises.
+import "@/services/paymentIntent/detectors";
+
+import { type BarcodeScanningResult, Camera, CameraView } from "expo-camera";
 import { router } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
@@ -8,10 +16,25 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  ToastAndroid,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { isValidSolanaAddress } from "@/utils/walletUtils";
+import { classify, switchToScannedTarget } from "@/services/paymentIntent";
+
+/**
+ * Cross-platform toast shim. `ToastAndroid` is Android-only; on iOS we
+ * fall back to a `console.warn` rather than block the scanner on new
+ * toast infra. Task 44 (error-matrix component) is expected to
+ * upgrade this to a proper UI toast.
+ */
+const showToast = (message: string) => {
+  if (ToastAndroid && typeof ToastAndroid.show === "function") {
+    ToastAndroid.show(message, ToastAndroid.SHORT);
+    return;
+  }
+  console.warn(message);
+};
 
 export default function ScanToPay() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -26,39 +49,46 @@ export default function ScanToPay() {
     getBarCodeScannerPermissions();
   }, []);
 
-  const handleBarCodeScanned = (result: BarcodeScanningResult) => {
+  // Drives classify + route dispatch after a successful scan. The
+  // function never signs, never hits the network, and never inspects
+  // `namespace` directly — namespace-specific activation is the send
+  // flow's job at render time (chain-extension discipline, memory
+  // `feedback_chain_extension_discipline.md`).
+  const handleBarCodeScanned = async (result: BarcodeScanningResult) => {
     if (scanned) return;
-
     setScanned(true);
-    // Strip common URI prefixes used by wallet QR codes so the raw
-    // address regex matches. `solana:<addr>?...` is the Solana Pay
-    // convention; EVM wallets sometimes use `ethereum:<addr>@<chainId>`.
-    const raw = result.data.trim();
-    const withoutScheme = raw
-      .replace(/^solana:/i, "")
-      .replace(/^ethereum:/i, "")
-      .split("?")[0]
-      .split("@")[0];
 
-    const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
-    if (ethAddressRegex.test(withoutScheme)) {
+    try {
+      const raw = result.data.trim();
+      const intent = await classify(raw);
+
+      if (!intent) {
+        showToast("Couldn't understand this QR");
+        setScanned(false);
+        return;
+      }
+
+      const next = switchToScannedTarget(intent);
+      if (next.kind === "unsupported") {
+        showToast(next.reason);
+        setScanned(false);
+        return;
+      }
+
+      // `/pay-merchant` and `/pay-x402` are typed-routes-registered by
+      // task 08 / task 39 respectively; until the generated
+      // `.expo/types/router.d.ts` union catches up, the literal isn't
+      // in the typed routes. Cast narrowly so we don't erase the
+      // pathname typing at every other callsite.
       router.replace({
-        pathname: "/send",
-        params: { recipientAddress: withoutScheme },
+        pathname: next.route as "/send",
+        params: next.params,
       });
-      return;
+    } catch (error) {
+      console.error("scan-to-pay classify failed:", error);
+      showToast("Couldn't understand this QR");
+      setScanned(false);
     }
-    if (isValidSolanaAddress(withoutScheme)) {
-      router.replace({
-        pathname: "/send",
-        params: { recipientAddress: withoutScheme },
-      });
-      return;
-    }
-    console.error(
-      "Invalid QR Code: The scanned QR code does not contain a valid wallet address.",
-    );
-    setScanned(false);
   };
 
   if (hasPermission === null) {

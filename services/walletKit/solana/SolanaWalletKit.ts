@@ -48,9 +48,15 @@ import type {
   CreateWalletFromPrivateKeyParams,
   EstimateMaxTransferableArgs,
   NativeTransferArgs,
+  SignX402SvmPaymentArgs,
   TruncateAddressOptions,
   WalletKitAdapter,
 } from "../types.ts";
+import { SvmWalletNamespaceMismatchError } from "../types.ts";
+import {
+  assertSolanaSigner,
+  signX402SvmPaymentWithSigner,
+} from "./signX402SvmPayment.ts";
 
 // 5,000 lamports signature fee + 890,880 lamports minimum rent-exempt
 // buffer (empty account) so native transfer never drains below rent.
@@ -187,6 +193,40 @@ export function createSolanaWalletKit(): WalletKitAdapter {
       return balance > FEE_RESERVE_LAMPORTS
         ? balance - FEE_RESERVE_LAMPORTS
         : 0n;
+    },
+
+    // ── Path B-SVM x402 signer (spec §5.2.1, §5.5, milestone M6) ────
+    //
+    // Solana counterpart to `EvmWalletKit.signTransferWithAuthorization`.
+    // The facilitator hands us a pre-built partially-signed versioned
+    // transaction (ComputeBudget × 2, TransferChecked, optional Memo);
+    // this method resolves the wallet's Solana signer via the
+    // walletService dwell site and delegates to the pure
+    // `signX402SvmPaymentWithSigner` primitive, which attaches the
+    // user's signature over the existing message bytes without
+    // mutating instructions. Returns the updated base64 wire tx.
+    //
+    // EVM kit leaves this `undefined` — consumers presence-check per
+    // the chain-extension discipline (memory:
+    // `feedback_chain_extension_discipline.md`).
+    async signX402SvmPayment(args: SignX402SvmPaymentArgs): Promise<string> {
+      // Guard: the wallet must belong to this kit's namespace. We
+      // narrow on `wallet.namespace` (not on a `ChainConfig`) because
+      // the SVM x402 scheme erases the per-chain config — the
+      // facilitator's pre-built tx already encodes the cluster
+      // (mainnet-beta / devnet) via its blockhash lifetime, and the
+      // `cluster` field on `args` is just carried through to the
+      // downstream facilitator POST (task 43). Wrong-namespace
+      // wallets fail loud here instead of silently returning an
+      // unsigned tx.
+      if (args.wallet.namespace !== SOLANA_NAMESPACE) {
+        throw new SvmWalletNamespaceMismatchError(args.wallet.namespace);
+      }
+      const signer: KeyPairSigner | null = await getSolanaSignerForWallet(
+        args.wallet,
+      );
+      assertSolanaSigner(signer, args.wallet.address);
+      return signX402SvmPaymentWithSigner(signer, args.transaction);
     },
 
     // ── Display ─────────────────────────────────────────────────────

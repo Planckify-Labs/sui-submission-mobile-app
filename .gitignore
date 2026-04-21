@@ -36,6 +36,9 @@ yarn-error.*
 .env*.local
 .env
 
+# local secrets (PEM keys etc.)
+.secrets/
+
 # typescript
 *.tsbuildinfo
 

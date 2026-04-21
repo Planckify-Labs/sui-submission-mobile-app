@@ -1,5 +1,11 @@
 import { router } from "expo-router";
-import { ChevronRight, KeyRound, Plus, ShieldCheck } from "lucide-react-native";
+import {
+  ChevronRight,
+  KeyRound,
+  Plus,
+  ShieldCheck,
+  Store,
+} from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -196,7 +202,7 @@ export default function Login() {
 
               <TouchableOpacity
                 activeOpacity={0.7}
-                className="bg-light-primary-red py-4 px-5 rounded-xl flex-row items-center justify-between"
+                className="bg-light-primary-red py-4 px-5 rounded-xl flex-row items-center justify-between mb-3"
                 onPress={handleCreateWallet}
                 disabled={creating}
               >
@@ -210,6 +216,23 @@ export default function Login() {
                   </View>
                   <Text className="text-light font-semibold">
                     {creating ? "Creating wallet…" : "Create New Wallet"}
+                  </Text>
+                </View>
+                <ChevronRight color="#ffffff" size={18} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                className="bg-light-primary-red py-4 px-5 rounded-xl flex-row items-center justify-between"
+                onPress={() => router.push("/merchant/signup-intro" as never)}
+                disabled={creating}
+              >
+                <View className="flex-row items-center">
+                  <View className="w-11 h-11 bg-light/20 rounded-full items-center justify-center mr-3">
+                    <Store color="#ffffff" size={20} />
+                  </View>
+                  <Text className="text-light font-semibold">
+                    Register as Merchant
                   </Text>
                 </View>
                 <ChevronRight color="#ffffff" size={18} />

@@ -119,12 +119,21 @@ importers:
       expo-image:
         specifier: ~3.0.11
         version: 3.0.11(expo@54.0.33)(react-native-web@0.21.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0)
+      expo-image-manipulator:
+        specifier: ~14.0.8
+        version: 14.0.8(expo@54.0.33)
+      expo-image-picker:
+        specifier: ~17.0.10
+        version: 17.0.10(expo@54.0.33)
       expo-linking:
         specifier: ~8.0.11
         version: 8.0.11(expo@54.0.33)(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0)
       expo-local-authentication:
         specifier: ~17.0.8
         version: 17.0.8(expo@54.0.33)
+      expo-media-library:
+        specifier: ~18.2.1
+        version: 18.2.1(expo@54.0.33)(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))
       expo-notifications:
         specifier: ^55.0.19
         version: 55.0.19(expo@54.0.33)(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
@@ -158,6 +167,9 @@ importers:
       fastestsmallesttextencoderdecoder:
         specifier: ^1.0.22
         version: 1.0.22
+      jose:
+        specifier: ^6.2.2
+        version: 6.2.2
       ky:
         specifier: ^1.8.2
         version: 1.11.0
@@ -3408,6 +3420,21 @@ packages:
     peerDependencies:
       expo: '*'
 
+  expo-image-loader@6.0.0:
+    resolution: {integrity: sha512-nKs/xnOGw6ACb4g26xceBD57FKLFkSwEUTDXEDF3Gtcu3MqF3ZIYd3YM+sSb1/z9AKV1dYT7rMSGVNgsveXLIQ==}
+    peerDependencies:
+      expo: '*'
+
+  expo-image-manipulator@14.0.8:
+    resolution: {integrity: sha512-sXsXjm7rIxLWZe0j2A41J/Ph53PpFJRdyzJ3EQ/qetxLUvS2m3K1sP5xy37px43qCf0l79N/i6XgFgenFV36/Q==}
+    peerDependencies:
+      expo: '*'
+
+  expo-image-picker@17.0.10:
+    resolution: {integrity: sha512-a2xrowp2trmvXyUWgX3O6Q2rZaa2C59AqivKI7+bm+wLvMfTEbZgldLX4rEJJhM8xtmEDTNU+lzjtObwzBRGaw==}
+    peerDependencies:
+      expo: '*'
+
   expo-image@3.0.11:
     resolution: {integrity: sha512-4TudfUCLgYgENv+f48omnU8tjS2S0Pd9EaON5/s1ZUBRwZ7K8acEr4NfvLPSaeXvxW24iLAiyQ7sV7BXQH3RoA==}
     peerDependencies:
@@ -3443,6 +3470,12 @@ packages:
     resolution: {integrity: sha512-oxDUnURPcL4ZsOBY6X1DGWGuoZgVAFzp6PISWV7lPP2J0r8u1/ucuChBgpK7u1eLGFp6sDIPwXyEUCkI386XSQ==}
     peerDependencies:
       expo: '*'
+
+  expo-media-library@18.2.1:
+    resolution: {integrity: sha512-dV1acx6Aseu+I5hmF61wY8UkD4vdt8d7YXHDfgNp6ZSs06qxayUxgrBsiG2eigLe54VLm3ycbFBbWi31lhfsCA==}
+    peerDependencies:
+      expo: '*'
+      react-native: '*'
 
   expo-modules-autolinking@3.0.24:
     resolution: {integrity: sha512-TP+6HTwhL7orDvsz2VzauyQlXJcAWyU3ANsZ7JGL4DQu8XaZv/A41ZchbtAYLfozNA2Ya1Hzmhx65hXryBMjaQ==}
@@ -4085,6 +4118,9 @@ packages:
   jiti@1.21.7:
     resolution: {integrity: sha512-/imKNG4EbWNrVjoNC/1H5/9GFy+tqjGBHCaSsN+P2RnPqjsLmv6UD3Ej+Kj8nBWaRAwyk7kK5ZUc+OEatnTR3A==}
     hasBin: true
+
+  jose@6.2.2:
+    resolution: {integrity: sha512-d7kPDd34KO/YnzaDOlikGpOurfF0ByC2sEV4cANCtdqLlTfBlw2p14O/5d/zv40gJPbIQxfES3nSx1/oYNyuZQ==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -9988,6 +10024,20 @@ snapshots:
     dependencies:
       expo: 54.0.33(@babel/core@7.28.4)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native-webview@13.15.0(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
 
+  expo-image-loader@6.0.0(expo@54.0.33):
+    dependencies:
+      expo: 54.0.33(@babel/core@7.28.4)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native-webview@13.15.0(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
+
+  expo-image-manipulator@14.0.8(expo@54.0.33):
+    dependencies:
+      expo: 54.0.33(@babel/core@7.28.4)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native-webview@13.15.0(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
+      expo-image-loader: 6.0.0(expo@54.0.33)
+
+  expo-image-picker@17.0.10(expo@54.0.33):
+    dependencies:
+      expo: 54.0.33(@babel/core@7.28.4)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native-webview@13.15.0(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
+      expo-image-loader: 6.0.0(expo@54.0.33)
+
   expo-image@3.0.11(expo@54.0.33)(react-native-web@0.21.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0):
     dependencies:
       expo: 54.0.33(@babel/core@7.28.4)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native-webview@13.15.0(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
@@ -10025,6 +10075,11 @@ snapshots:
       expo-json-utils: 0.15.0
     transitivePeerDependencies:
       - supports-color
+
+  expo-media-library@18.2.1(expo@54.0.33)(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0)):
+    dependencies:
+      expo: 54.0.33(@babel/core@7.28.4)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native-webview@13.15.0(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
+      react-native: 0.81.5(@babel/core@7.28.4)(@types/react@19.1.16)(react@19.1.0)
 
   expo-modules-autolinking@3.0.24:
     dependencies:
@@ -10754,6 +10809,8 @@ snapshots:
   jimp-compact@0.16.1: {}
 
   jiti@1.21.7: {}
+
+  jose@6.2.2: {}
 
   js-tokens@4.0.0: {}
 

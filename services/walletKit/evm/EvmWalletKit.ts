@@ -33,9 +33,14 @@ import type {
   CreateWalletFromPrivateKeyParams,
   EstimateMaxTransferableArgs,
   NativeTransferArgs,
+  SendUserOpResult,
+  SendUserOpWithUsdcPaymasterArgs,
+  SignTransferWithAuthorizationArgs,
   TruncateAddressOptions,
   WalletKitAdapter,
 } from "../types.ts";
+import { sendUserOpWithUsdcPaymaster as sendUserOpWithUsdcPaymasterPure } from "./sendUserOpWithUsdcPaymaster.ts";
+import { signTransferWithAuthorization as signTransferWithAuthorizationPure } from "./signTransferWithAuthorization.ts";
 
 const EVM_NAMESPACE = "eip155" as const;
 
@@ -119,6 +124,47 @@ export function createEvmWalletKit(): WalletKitAdapter {
         value: amount,
       });
       return hash;
+    },
+
+    // ── Gasless USDC signer (spec §5.5, milestone M2) ──────────────
+    //
+    // Routes through the shared viem `signTypedData` primitive — zero
+    // new keystore access patterns, zero new biometric plumbing. The
+    // EIP-712 domain / type shape is pinned in
+    // `signTransferWithAuthorization.ts` so Circle's Gateway struct
+    // lives in exactly one place.
+    async signTransferWithAuthorization(
+      args: SignTransferWithAuthorizationArgs,
+    ): Promise<`0x${string}`> {
+      assertEvm(args.chain);
+      const account = getAccountForWallet(args.wallet);
+      if (!account) {
+        throw new Error(
+          "EvmWalletKit.signTransferWithAuthorization: unable to reconstruct signer",
+        );
+      }
+      return signTransferWithAuthorizationPure(account, args);
+    },
+
+    // ── Circle Paymaster ERC-4337 UserOp (spec §5.4 / §12 Q6, M4) ──
+    //
+    // Routes through the pure `sendUserOpWithUsdcPaymaster` module so
+    // the viem `toSimple7702SmartAccount` + `sendUserOperation`
+    // wiring lives in exactly one place. The kit's job is to resolve
+    // the wallet's signer and narrow the chain — everything else
+    // (approve-preamble, EIP-7702 authorization, bundler submit) is
+    // pure-function and Node-testable.
+    async sendUserOpWithUsdcPaymaster(
+      args: SendUserOpWithUsdcPaymasterArgs,
+    ): Promise<SendUserOpResult> {
+      assertEvm(args.chain);
+      const account = getAccountForWallet(args.wallet);
+      if (!account) {
+        throw new Error(
+          "EvmWalletKit.sendUserOpWithUsdcPaymaster: unable to reconstruct signer",
+        );
+      }
+      return sendUserOpWithUsdcPaymasterPure(account, args);
     },
 
     async estimateMaxTransferable({

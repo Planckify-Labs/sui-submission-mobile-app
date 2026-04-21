@@ -239,6 +239,28 @@ describe("SolanaWalletKit network methods — namespace guard", () => {
     assert.equal(typeof kit.getSignerForWallet, "function");
   });
 
+  it("signX402SvmPayment is defined on SolanaWalletKit (M6 capability)", () => {
+    // Path selector (task 41) presence-checks this method to route
+    // Solana wallets down Path B-SVM. A typeof drift here would
+    // silently break the selector without any other test catching it.
+    assert.equal(typeof kit.signX402SvmPayment, "function");
+  });
+
+  it("signX402SvmPayment rejects a non-solana wallet namespace", async () => {
+    await assert.rejects(
+      () =>
+        (kit.signX402SvmPayment as NonNullable<typeof kit.signX402SvmPayment>)({
+          wallet: {
+            address: VALID_EVM_ADDRESS,
+            namespace: "eip155",
+          } as never,
+          cluster: "mainnet-beta",
+          transaction: "AAAA",
+        }),
+      /expected solana wallet/,
+    );
+  });
+
   // TODO(Task 13+): live-wire a mocked `@solana/kit` RPC to exercise the
   // Solana happy path for `getNativeBalance` / `sendNativeTransfer` at
   // the kit surface. The primitives are already covered in
