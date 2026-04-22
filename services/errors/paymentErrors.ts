@@ -65,6 +65,7 @@ export type PaymentErrorCode =
   | "deposit_required"
   | "rate_limited"
   | "unauthorized"
+  | "merchant_deactivated"
   | "server_error"
   | "unknown";
 
@@ -173,6 +174,11 @@ export function classifyPaymentError(err: unknown): PaymentErrorCode {
   // Generic API envelopes (e.g. ApiHttpError from `constants/configs/ky`).
   if (httpStatus !== null) {
     if (httpStatus === 401) return "unauthorized";
+    if (httpStatus === 403) {
+      if (/deactivat|MERCHANT_DEACTIVATED/i.test(e.message ?? "")) {
+        return "merchant_deactivated";
+      }
+    }
     if (httpStatus === 404) return "backend_not_ready";
     if (httpStatus === 409) return "intent_conflict";
     if (httpStatus === 410) return "quote_expired";
@@ -279,6 +285,11 @@ export const paymentErrorCopy: Record<PaymentErrorCode, PaymentErrorCopy> = {
   unauthorized: {
     title: "Sign in to continue",
     body: "Your session has expired. Please sign in again to pay.",
+    cta: { label: "OK", action: "back" },
+  },
+  merchant_deactivated: {
+    title: "This merchant is no longer accepting payments",
+    body: "The merchant you scanned has been deactivated. Please contact the merchant directly.",
     cta: { label: "OK", action: "back" },
   },
   server_error: {

@@ -17,7 +17,7 @@
  * intent is created against the resolved `merchantId`.
  *
  * Failure policy (§4.6 final paragraph): any verification failure —
- * bad signature, expired `exp`, malformed JWS, wrong `kid`, missing
+ * bad signature, malformed JWS, wrong `kid`, missing
  * required claims — returns `null` silently. The detector MUST NOT
  * distinguish "tampered" from "not our QR" to the caller; both
  * collapse to `null` so the scanner falls through to the generic
@@ -67,7 +67,7 @@ interface TakumipayClaims {
  * test's import graph.
  *
  * Returns `null` on any failure (prefix mismatch, bad signature,
- * expired `exp`, malformed JWS, missing `merchantId`, wrong `kid`).
+ * malformed JWS, missing `merchantId`, wrong `kid`).
  * Never throws — the caller trusts the registry, not a re-derivation.
  */
 export const verifyTakumipayJws = async (
