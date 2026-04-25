@@ -19,6 +19,7 @@
 import type { ChainConfig } from "@/constants/configs/chainConfig";
 import type { TWallet } from "@/constants/types/walletTypes";
 import type { Namespace } from "@/services/chains/types";
+import type { TransactionInstruction, Signer, AddressLookupTableAccount, PublicKey } from "@solana/web3.js";
 
 export type { Namespace };
 
@@ -266,6 +267,24 @@ export interface SendContractTransactionArgs {
   value?: bigint;
 }
 
+/**
+ * Arguments for `WalletKitAdapter.sendAnchorInstruction` — broadcasts a
+ * Solana transaction containing Anchor program instructions. Used by the
+ * onchain settlement rail to call TakumiPay program instructions
+ * (`processMerchantPaymentSol/Token`, `createTransactionSol/Token`,
+ * `depositPoints`). Solana-only; EVM kit leaves this `undefined`.
+ * Consumers presence-check per chain-extension discipline.
+ */
+export interface SendAnchorInstructionArgs {
+  wallet: TWallet;
+  chain: ChainConfig;
+  instructions: TransactionInstruction[];
+  additionalSigners?: Signer[];
+  addressLookupTables?: AddressLookupTableAccount[];
+  durableNonce?: { nonceAccount: PublicKey; nonceAuthority: Signer };
+  feePayer?: { publicKey: PublicKey; mode: "user" | "sponsored" };
+}
+
 export interface WalletKitAdapter {
   readonly namespace: Namespace;
 
@@ -364,6 +383,16 @@ export interface WalletKitAdapter {
    */
   sendContractTransaction?(
     args: SendContractTransactionArgs,
+  ): Promise<string>;
+
+  /**
+   * Broadcasts a Solana transaction containing Anchor program instructions.
+   * Used by the onchain settlement rail (`pathOnchainSettlementSvm.ts`) to
+   * call TakumiPay program instructions. Solana-only; EVM kit leaves this
+   * `undefined`. Consumers presence-check per chain-extension discipline.
+   */
+  sendAnchorInstruction?(
+    args: SendAnchorInstructionArgs,
   ): Promise<string>;
 
   // ── Optional capability flags ───────────────────────────────────────

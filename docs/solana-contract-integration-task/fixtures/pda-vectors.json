@@ -1,0 +1,46 @@
+{
+  "programId": "6CCTEtYrk8unNhjYQ7npiLUf1iKQQJU88JSYn8EJLNYy",
+  "note": "Test vectors for PDA derivation. Both mobile and API tests should derive identical addresses from these inputs.",
+  "vectors": [
+    {
+      "function": "deriveConfigPda",
+      "inputs": {},
+      "seeds": ["config"]
+    },
+    {
+      "function": "deriveTxRecordPda",
+      "inputs": { "txId": "1" },
+      "seeds": ["tx", "<configPda>", "<1_u64_le>"]
+    },
+    {
+      "function": "deriveTxRecordPda",
+      "inputs": { "txId": "0" },
+      "seeds": ["tx", "<configPda>", "<0_u64_le>"]
+    },
+    {
+      "function": "deriveRefRecordPda",
+      "inputs": { "refId": "test-ref-id" },
+      "seeds": ["ref", "<configPda>", "<sha256('test-ref-id')>"]
+    },
+    {
+      "function": "deriveMerchantPaymentPda",
+      "inputs": { "refId": "merchant-payment-ref" },
+      "seeds": ["merchant_payment", "<configPda>", "<sha256('merchant-payment-ref')>"]
+    },
+    {
+      "function": "derivePointDepositPda",
+      "inputs": { "depositId": "1" },
+      "seeds": ["point_deposit", "<configPda>", "<1_u64_le>"]
+    },
+    {
+      "function": "derivePointRefRecordPda",
+      "inputs": { "refId": "point-ref" },
+      "seeds": ["point_ref", "<configPda>", "<sha256('point-ref')>"]
+    },
+    {
+      "function": "deriveWithdrawalPda",
+      "inputs": { "nonce": "1" },
+      "seeds": ["withdrawal", "<configPda>", "<1_u64_le>"]
+    }
+  ]
+}

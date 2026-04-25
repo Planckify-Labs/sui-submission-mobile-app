@@ -93,15 +93,16 @@ export default function ServiceScreen() {
 
   if (productsByCategories) {
     productsByCategories.forEach((categoryData) => {
+      const products = categoryData.products ?? [];
       const filteredProducts = searchQuery
-        ? categoryData.products.filter(
+        ? products.filter(
             (product) =>
               product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
               product.description
-                .toLowerCase()
+                ?.toLowerCase()
                 .includes(searchQuery.toLowerCase()),
           )
-        : categoryData.products;
+        : products;
 
       if (filteredProducts.length > 0) {
         serviceList.push({

@@ -208,14 +208,17 @@ export function selectPayPath(args: SelectPayPathArgs): PayPath {
   // Checked first because it's an explicit server decision that
   // overrides the chain-based heuristics below.
   if (isOnchainSettlement(intent)) {
-    if (typeof walletKit.sendContractTransaction !== "function") {
+    if (
+      typeof walletKit.sendContractTransaction !== "function" &&
+      typeof walletKit.sendAnchorInstruction !== "function"
+    ) {
       throw new NoSuitablePayPathError({
         intentId: intent.id,
         walletNamespace: walletKit.namespace,
         chainNamespace: chainConfig.namespace,
         message:
           `selectPayPath: intent ${intent.id} requires onchain settlement ` +
-          `but wallet does not support sendContractTransaction.`,
+          `but wallet supports neither sendContractTransaction nor sendAnchorInstruction.`,
       });
     }
     return "onchain";

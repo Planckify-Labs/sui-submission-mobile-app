@@ -75,7 +75,7 @@ import type { PaymentIntentResponse } from "@/services/nanopay";
 import { useIntentStatus } from "@/services/nanopay";
 import { copyToClipboard } from "@/utils/helperUtils";
 
-/** USDC is a 6-decimal ERC-20 (spec §6.2 — `usdcAmountMicros` is micros). */
+/** USDC is a 6-decimal ERC-20 (spec §6.2 — `nanopayUsdcAmountMicros` is micros). */
 const USDC_DECIMALS = 6;
 
 /** ── helpers ────────────────────────────────────────────────────────── */
@@ -274,7 +274,7 @@ function StatusStrip({ intent }: { intent: PaymentIntentResponse }) {
 
 function ReceiptBody({ intent }: { intent: PaymentIntentResponse }) {
   const fiatLabel = formatIdrMinor(extractFiatMinor(intent));
-  const usdcLabel = formatUsdcMicros(intent.usdcAmountMicros);
+  const usdcLabel = formatUsdcMicros(intent.nanopayUsdcAmountMicros);
   const merchantName = extractMerchantName(intent);
   const timestamp = useMemo(() => formatReceiptTimestamp(intent), [intent]);
 
@@ -385,13 +385,13 @@ function DetailsSection({ intent }: { intent: PaymentIntentResponse }) {
           <ReceiptRow label="Status" value={intent.status} />
           <ReceiptRow
             label="Source chain"
-            value={String(intent.usdcSourceChainId)}
+            value={String(intent.nanopayUsdcSourceChainId)}
           />
           <ReceiptRow
             label="Treasury"
-            value={shortenHex(intent.usdcTreasuryAddress)}
+            value={shortenHex(intent.nanopayUsdcTreasuryAddress)}
           />
-          <ReceiptRow label="USDC (micros)" value={intent.usdcAmountMicros} />
+          <ReceiptRow label="USDC (micros)" value={intent.nanopayUsdcAmountMicros} />
         </View>
       ) : null}
     </View>

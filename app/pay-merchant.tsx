@@ -11,7 +11,7 @@
  * EIP-712 field the wallet will sign (domain, nonce, value). The wallet
  * only signs. This screen renders + dispatches — it NEVER computes FX,
  * mints nonces, or forwards an unsigned intent to Circle directly. The
- * user approves the IDR amount; `usdcAmountMicros` is a derived display.
+ * user approves the IDR amount; `nanopayUsdcAmountMicros` is a derived display.
  *
  * Chain-extension discipline (memory `feedback_chain_extension_discipline.md`):
  * the sign step dispatches via presence-of-method on `WalletKitAdapter.
@@ -93,7 +93,7 @@ import {
 /** Arc Testnet viem chainId — source chain for the Nanopay EIP-3009 sig. */
 const ARC_TESTNET_CHAIN_ID = 5042002;
 
-/** USDC is a 6-decimal ERC-20 (the `usdcAmountMicros` field is in micros). */
+/** USDC is a 6-decimal ERC-20 (the `nanopayUsdcAmountMicros` field is in micros). */
 const USDC_DECIMALS = 6;
 
 /** Merchant kinds we accept from the scanner fallback path. */
@@ -135,7 +135,7 @@ const formatIdrMinor = (minor: number): string => {
 /**
  * Formats 6-decimal USDC atomic units for the derived secondary display.
  * Trims trailing zeros past 2dp for readability — we never render more
- * than 4dp since `usdcAmountMicros` from the backend is already at micro
+ * than 4dp since `nanopayUsdcAmountMicros` from the backend is already at micro
  * precision and the user approved an IDR amount, not this number.
  */
 const formatUsdcMicros = (micros: string): string => {
@@ -497,7 +497,7 @@ function PathACard({
     // Chain flip — Path A is Arc-only (enforced inside `executePathA`
     // via `nativeCurrency.symbol === "USDC"`). Re-use the pre-flight
     // switch so biometrics prompt on the right network.
-    const sourceChainId = intent.usdcSourceChainId ?? ARC_TESTNET_CHAIN_ID;
+    const sourceChainId = intent.nanopayUsdcSourceChainId ?? ARC_TESTNET_CHAIN_ID;
     const sourceChainConfig = findEvmChainById(sourceChainId);
     if (!sourceChainConfig) {
       setError({
@@ -522,10 +522,10 @@ function PathACard({
       setPhase("signing");
       setError(null);
 
-      const usdcAmount = BigInt(intent.usdcAmountMicros);
+      const usdcAmount = BigInt(intent.nanopayUsdcAmountMicros);
       const result = await executePathA({
         payer: activeWallet.address as `0x${string}`,
-        merchantAddress: intent.usdcTreasuryAddress,
+        merchantAddress: intent.nanopayUsdcTreasuryAddress,
         usdcAmount,
         chain: sourceChainConfig,
         wallet: activeWallet,
@@ -614,7 +614,7 @@ function PathACard({
           {formatIdrMinor(extractFiatMinor(intent))}
         </Text>
         <Text className="text-light-matte-black/60 text-sm mt-2">
-          ~{formatUsdcMicros(intent.usdcAmountMicros)} from your balance
+          ~{formatUsdcMicros(intent.nanopayUsdcAmountMicros)} from your balance
         </Text>
       </View>
 
@@ -718,7 +718,7 @@ function OnchainCard({
     }
 
     // Resolve the source chain from the intent
-    const sourceChainId = intent.usdcSourceChainId ?? ARC_TESTNET_CHAIN_ID;
+    const sourceChainId = intent.nanopayUsdcSourceChainId ?? ARC_TESTNET_CHAIN_ID;
     const sourceChainConfig = findEvmChainById(sourceChainId);
     if (!sourceChainConfig) {
       setError({
@@ -820,10 +820,10 @@ function OnchainCard({
           : "Pay";
 
   // Display the token amount — prefer `tokenAmountMinor` (multi-token),
-  // fall back to `usdcAmountMicros`.
+  // fall back to `nanopayUsdcAmountMicros`.
   const tokenDisplay = intent.tokenAmountMinor
     ? formatUsdcMicros(intent.tokenAmountMinor)
-    : formatUsdcMicros(intent.usdcAmountMicros);
+    : formatUsdcMicros(intent.nanopayUsdcAmountMicros);
 
   return (
     <View className="bg-light rounded-3xl p-6 shadow-md-">
@@ -1134,7 +1134,7 @@ function QuoteCard({
           {formatIdrMinor(extractFiatMinor(intent))}
         </Text>
         <Text className="text-light-matte-black/60 text-sm mt-2">
-          ~{formatUsdcMicros(intent.usdcAmountMicros)} from your balance
+          ~{formatUsdcMicros(intent.nanopayUsdcAmountMicros)} from your balance
         </Text>
       </View>
 

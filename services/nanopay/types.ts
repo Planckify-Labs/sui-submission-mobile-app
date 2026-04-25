@@ -122,15 +122,33 @@ export interface QuoteCommitment {
   expiresAt: number;
 }
 
+/**
+ * Solana quote commitment for the onchain settlement rail. The backend
+ * signs this struct with Ed25519 and the wallet calls
+ * `processMerchantPaymentSol/Token` on the TakumiPay Anchor program.
+ * Solana counterpart to `QuoteCommitment` (EVM/ECDSA).
+ */
+export interface QuoteCommitmentSvm {
+  refId: string;
+  merchantId: string;
+  tokenMint: string;
+  amount: string;
+  platformFeeAmount: string;
+  fiatAmountMinor: string;
+  fiatCurrency: string;
+  exchangeRateId: string;
+  expiresAt: string;
+}
+
 export interface PaymentIntentResponse {
   id: string;
   status: PaymentIntentStatus;
   /** 6-decimal USDC atomic units, decimal string to keep bigint semantics over JSON. */
-  usdcAmountMicros: string;
+  nanopayUsdcAmountMicros: string;
   /** Source chain the payer debits from. */
-  usdcSourceChainId: number;
-  /** Gateway batched-wallet contract address on `usdcSourceChainId`. */
-  usdcTreasuryAddress: `0x${string}`;
+  nanopayUsdcSourceChainId: number;
+  /** Gateway batched-wallet contract address on `nanopayUsdcSourceChainId`. */
+  nanopayUsdcTreasuryAddress: `0x${string}`;
   /** Wire payload the wallet must sign. `null` once consumed. */
   nanopay: NanopayPayload | null;
   /** Unix ms — quote freeze (60s typically). */
@@ -143,7 +161,7 @@ export interface PaymentIntentResponse {
   path?: "nanopay" | "x402" | "direct_arc";
   /**
    * Token amount in minor units (e.g. 6-decimal for USDC). Renamed from
-   * `usdcAmountMicros` on backend for token-agnostic settlement.
+   * `nanopayUsdcAmountMicros` on backend for token-agnostic settlement.
    */
   tokenAmountMinor?: string;
   /** Source token identifier for multi-token settlement. */
@@ -154,6 +172,10 @@ export interface PaymentIntentResponse {
   quoteSignature?: `0x${string}`;
   /** TakumiWallet contract address for onchain settlement. */
   contractAddress?: `0x${string}`;
+  quoteCommitmentSvm?: QuoteCommitmentSvm;
+  quoteSignatureSvm?: string;
+  programId?: string;
+  backendSignerPubkey?: string;
 }
 
 /** Body of `POST /v1/pay/intents/:id/nanopay`. */

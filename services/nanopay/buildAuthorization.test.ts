@@ -87,9 +87,9 @@ function makeIntent(
   return {
     id: "pi_test_0001",
     status: "pending",
-    usdcAmountMicros: "1500000",
-    usdcSourceChainId: mainnet.id,
-    usdcTreasuryAddress: GATEWAY_WALLET,
+    nanopayUsdcAmountMicros: "1500000",
+    nanopayUsdcSourceChainId: mainnet.id,
+    nanopayUsdcTreasuryAddress: GATEWAY_WALLET,
     nanopay: makeNanopayPayload(nanopayOverrides),
     expiresAt: Date.now() + 60_000,
     ...overrides,

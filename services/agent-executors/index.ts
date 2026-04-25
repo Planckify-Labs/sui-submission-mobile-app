@@ -26,6 +26,7 @@ import { POINTS_EXECUTORS } from "./points";
 import { READ_EXECUTORS } from "./reads";
 import { SIMULATE_EXECUTORS } from "./simulate";
 import { SOLANA_EXECUTORS } from "./solana";
+import { SOLANA_TAKUMI_PAY_EXECUTORS } from "./solanaTakumiPay";
 import type { MobileToolExecutor } from "./types";
 import { WRITE_EXECUTORS } from "./writes";
 
@@ -47,6 +48,7 @@ export const EXECUTORS: Record<string, MobileToolExecutor> = {
   ...POINTS_EXECUTORS,
   ...ADDRESS_BOOK_EXECUTORS,
   ...SOLANA_EXECUTORS,
+  ...SOLANA_TAKUMI_PAY_EXECUTORS,
 };
 
 /**
@@ -99,6 +101,9 @@ export const EXPECTED_MOBILE_TOOLS: ReadonlyArray<string> = [
   "get_wallet_sol_balance",
   "get_sol_balance",
   "send_sol",
+  // solana takumipay
+  "execute_booking_sol",
+  "deposit_points_sol",
 ];
 
 /**

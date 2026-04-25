@@ -104,9 +104,9 @@ function makeIntent(overrides: {
   const base = {
     id: overrides.id ?? "intent_test_1",
     status: "pending",
-    usdcAmountMicros: "1500000",
-    usdcSourceChainId: 5042002,
-    usdcTreasuryAddress: "0x2222222222222222222222222222222222222222",
+    nanopayUsdcAmountMicros: "1500000",
+    nanopayUsdcSourceChainId: 5042002,
+    nanopayUsdcTreasuryAddress: "0x2222222222222222222222222222222222222222",
     nanopay: null,
     expiresAt: Date.now() + 60_000,
     channel:

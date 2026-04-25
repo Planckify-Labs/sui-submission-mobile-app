@@ -48,6 +48,7 @@ import type {
   CreateWalletFromPrivateKeyParams,
   EstimateMaxTransferableArgs,
   NativeTransferArgs,
+  SendAnchorInstructionArgs,
   SignX402SvmPaymentArgs,
   TruncateAddressOptions,
   WalletKitAdapter,
@@ -227,6 +228,81 @@ export function createSolanaWalletKit(): WalletKitAdapter {
       );
       assertSolanaSigner(signer, args.wallet.address);
       return signX402SvmPaymentWithSigner(signer, args.transaction);
+    },
+
+    async sendAnchorInstruction(args: SendAnchorInstructionArgs): Promise<string> {
+      assertSolana(args.chain);
+      const signer: KeyPairSigner | null = await getSolanaSignerForWallet(args.wallet);
+      if (!signer) {
+        throw new Error("No Solana signer for wallet");
+      }
+
+      const rpc = createSolanaRpc(args.chain.rpcUrl);
+
+      const { TransactionMessage, VersionedTransaction, PublicKey: PK } = await import("@solana/web3.js");
+
+      const payerKey = new PK(signer.address);
+
+      let blockhashInfo: { blockhash: string; lastValidBlockHeight: number };
+      if (args.durableNonce) {
+        blockhashInfo = {
+          blockhash: args.durableNonce.nonceAccount.toBase58(),
+          lastValidBlockHeight: Number.MAX_SAFE_INTEGER,
+        };
+      } else {
+        const { value } = await rpc.getLatestBlockhash({ commitment: "confirmed" }).send();
+        blockhashInfo = {
+          blockhash: value.blockhash,
+          lastValidBlockHeight: Number(value.lastValidBlockHeight),
+        };
+      }
+
+      const messageV0 = TransactionMessage.compile({
+        payerKey,
+        recentBlockhash: blockhashInfo.blockhash,
+        instructions: args.instructions,
+        addressLookupTableAccounts: args.addressLookupTables,
+      });
+
+      const tx = new VersionedTransaction(messageV0);
+
+      // Sign with the wallet signer
+      const { Keypair } = await import("@solana/web3.js");
+      const secretKey = await (signer as any).keyPair;
+      // The signer from @solana/kit is a KeyPairSigner — we need the raw secret for @solana/web3.js signing
+      // Use the wallet service path to get the raw keypair bytes
+      const walletPrivateKey = await import("@/services/walletService").then(
+        (m) => m.getWalletPrivateKey(args.wallet),
+      );
+      if (!walletPrivateKey) throw new Error("Could not retrieve wallet private key");
+
+      const { bs58 } = await import("@/utils/walletUtils").then(async (m) => {
+        const bs58Module = await import("bs58");
+        return { bs58: bs58Module.default ?? bs58Module };
+      });
+      const keypairBytes = bs58.decode(walletPrivateKey);
+      const keypair = Keypair.fromSecretKey(
+        keypairBytes.length === 32
+          ? new Uint8Array([...keypairBytes, ...payerKey.toBytes()])
+          : keypairBytes,
+      );
+      tx.sign([keypair, ...(args.additionalSigners ?? [])]);
+
+      // Broadcast
+      const { Connection } = await import("@solana/web3.js");
+      const connection = new Connection(args.chain.rpcUrl, "confirmed");
+      const signature = await connection.sendRawTransaction(tx.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: "confirmed",
+      });
+
+      // Wait for confirmation
+      await connection.confirmTransaction(
+        { signature, blockhash: blockhashInfo.blockhash, lastValidBlockHeight: blockhashInfo.lastValidBlockHeight },
+        "confirmed",
+      );
+
+      return signature;
     },
 
     // ── Display ─────────────────────────────────────────────────────
