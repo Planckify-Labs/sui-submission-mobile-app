@@ -781,14 +781,12 @@ SOLANA_QUOTE_SIGNER_PRIVATE_KEY=...
 TAKUMI_PAY_PROGRAM_ID=6CCTEtYrk8unNhjYQ7npiLUf1iKQQJU88JSYn8EJLNYy
 ```
 
-> **Naming alignment TODO:** Both EVM and Solana need a quote signer key for the same purpose — signing merchant quote commitments so the on-chain contract can verify the backend authorized the payment. Current naming is inconsistent:
+> **Naming alignment (done):** Both EVM and Solana now follow the `{CHAIN}_QUOTE_SIGNER_PRIVATE_KEY` convention:
 >
-> | Chain | Current env var | Actual purpose |
+> | Chain | Env var | Purpose |
 > |---|---|---|
-> | EVM | `ADMIN_WALLET_PRIVATE_KEY` | ECDSA quote signing (+ gated reads, to be removed) |
+> | EVM | `EVM_QUOTE_SIGNER_PRIVATE_KEY` | ECDSA quote signing |
 > | Solana | `SOLANA_QUOTE_SIGNER_PRIVATE_KEY` | Ed25519 quote signing |
->
-> Once the EVM gated reads are removed (section 8.2 TODO), rename `ADMIN_WALLET_PRIVATE_KEY` → `EVM_QUOTE_SIGNER_PRIVATE_KEY` so both follow the same `{CHAIN}_QUOTE_SIGNER_PRIVATE_KEY` convention.
 
 ---
 
