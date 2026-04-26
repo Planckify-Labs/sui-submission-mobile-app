@@ -228,6 +228,7 @@ export default function PayMerchant() {
     kind?: string;
     provider?: string;
     raw?: string;
+    merchantName?: string;
   }>();
   const intentId =
     typeof params.intentId === "string" ? params.intentId : undefined;
@@ -236,6 +237,8 @@ export default function PayMerchant() {
     typeof params.provider === "string" ? params.provider : undefined;
   const raw = typeof params.raw === "string" ? params.raw : undefined;
   const kind = resolveKind(kindParam, providerParam);
+  const merchantName =
+    typeof params.merchantName === "string" ? params.merchantName : undefined;
 
   const hasIntentId = Boolean(intentId && intentId.length > 0);
   const hasFallback = !hasIntentId && Boolean(kind) && Boolean(raw);
@@ -267,9 +270,16 @@ export default function PayMerchant() {
           showsVerticalScrollIndicator={false}
         >
           {hasIntentId ? (
-            <IntentFlow intentId={intentId as string} />
+            <IntentFlow
+              intentId={intentId as string}
+              merchantName={merchantName}
+            />
           ) : hasFallback ? (
-            <MintFallback kind={kind as MerchantKind} raw={raw as string} />
+            <MintFallback
+              kind={kind as MerchantKind}
+              raw={raw as string}
+              merchantName={merchantName}
+            />
           ) : (
             <MissingIntentCard />
           )}
@@ -281,7 +291,13 @@ export default function PayMerchant() {
 
 /** ── intent-id path: poll, sign, submit ────────────────────────────── */
 
-function IntentFlow({ intentId }: { intentId: string }) {
+function IntentFlow({
+  intentId,
+  merchantName: merchantNameParam,
+}: {
+  intentId: string;
+  merchantName?: string;
+}) {
   const {
     activeWallet,
     activeChain,
@@ -329,7 +345,7 @@ function IntentFlow({ intentId }: { intentId: string }) {
       // union yet — cast narrowly per the same pattern used for
       // `/pay-merchant` above.
       pathname: "/pay-merchant/receipt" as "/send",
-      params: { intentId },
+      params: { intentId, merchantName: merchantNameParam },
     });
   }, [intent, intentId]);
 
@@ -474,6 +490,7 @@ function IntentFlow({ intentId }: { intentId: string }) {
       <PathACard
         intent={intent}
         intentId={intentId}
+        merchantName={merchantNameParam}
         onBack={() => router.back()}
       />
     );
@@ -484,6 +501,7 @@ function IntentFlow({ intentId }: { intentId: string }) {
       <OnchainCard
         intent={intent}
         intentId={intentId}
+        merchantName={merchantNameParam}
         onBack={() => router.back()}
       />
     );
@@ -498,12 +516,20 @@ function IntentFlow({ intentId }: { intentId: string }) {
       <OnchainCard
         intent={intent}
         intentId={intentId}
+        merchantName={merchantNameParam}
         onBack={() => router.back()}
       />
     );
   }
 
-  return <QuoteCard intent={intent} phase={phase} onPay={onPay} />;
+  return (
+    <QuoteCard
+      intent={intent}
+      phase={phase}
+      merchantName={merchantNameParam}
+      onPay={onPay}
+    />
+  );
 }
 
 /** ── Path A — direct-on-Arc (spec §5.1, milestone M5) ──────────────── */
@@ -524,10 +550,12 @@ function IntentFlow({ intentId }: { intentId: string }) {
 function PathACard({
   intent,
   intentId,
+  merchantName: merchantNameParam,
   onBack,
 }: {
   intent: PaymentIntentResponse;
   intentId: string;
+  merchantName?: string;
   onBack: () => void;
 }) {
   const {
@@ -657,7 +685,7 @@ function PathACard({
         </View>
         <View className="flex-1">
           <Text className="text-light-matte-black font-semibold text-base">
-            {extractMerchantName(intent)}
+            {extractMerchantName(intent, merchantNameParam)}
           </Text>
           <Text className="text-light-matte-black/50 text-xs">
             Pay via direct transfer. Confirmation in ~2 seconds.
@@ -717,10 +745,12 @@ function PathACard({
 function OnchainCard({
   intent,
   intentId,
+  merchantName: merchantNameParam,
   onBack,
 }: {
   intent: PaymentIntentResponse;
   intentId: string;
+  merchantName?: string;
   onBack: () => void;
 }) {
   const {
@@ -949,7 +979,7 @@ function OnchainCard({
         </View>
         <View className="flex-1">
           <Text className="text-light-matte-black font-semibold text-base">
-            {extractMerchantName(intent)}
+            {extractMerchantName(intent, merchantNameParam)}
           </Text>
           <Text className="text-light-matte-black/50 text-xs">
             Pay via onchain settlement
@@ -1057,7 +1087,15 @@ async function defaultOnChainReceiptPoster({
 
 /** ── fallback path: mint an intent from the scanned raw payload ─────── */
 
-function MintFallback({ kind, raw }: { kind: MerchantKind; raw: string }) {
+function MintFallback({
+  kind,
+  raw,
+  merchantName: merchantNameParam,
+}: {
+  kind: MerchantKind;
+  raw: string;
+  merchantName?: string;
+}) {
   const createIntent = useCreateIntent();
   const { activeChain } = useWallet();
   const { data: blockchains } = useBlockchainsWithStorage({ isActive: true });
@@ -1120,33 +1158,41 @@ function MintFallback({ kind, raw }: { kind: MerchantKind; raw: string }) {
 
   const isLoadingChains = isLoadingTokens || !blockchains;
 
-  // Lightweight TLV walk for the static-vs-dynamic QRIS branch. Scanner
-  // already validated CRC upstream so we stay lenient here.
-  const staticAmount = useMemo(() => {
-    if (kind !== "qris") return undefined;
+  // Lightweight TLV walk for the static-vs-dynamic QRIS branch + merchant
+  // name (tag 59). Scanner already validated CRC upstream so we stay lenient.
+  const { staticAmount, qrisMerchantName } = useMemo(() => {
+    if (kind !== "qris")
+      return { staticAmount: undefined, qrisMerchantName: undefined };
     const trimmed = raw.trim();
-    if (!trimmed.startsWith("000201")) return undefined;
+    if (!trimmed.startsWith("000201"))
+      return { staticAmount: undefined, qrisMerchantName: undefined };
+    let amount: number | undefined;
+    let name: string | undefined;
     let i = 0;
     while (i + 4 <= trimmed.length) {
       const tag = trimmed.slice(i, i + 2);
       const lenStr = trimmed.slice(i + 2, i + 4);
-      if (!/^\d{2}$/.test(tag) || !/^\d{2}$/.test(lenStr)) return undefined;
+      if (!/^\d{2}$/.test(tag) || !/^\d{2}$/.test(lenStr)) break;
       const length = Number.parseInt(lenStr, 10);
       const start = i + 4;
       const end = start + length;
-      if (end > trimmed.length) return undefined;
+      if (end > trimmed.length) break;
       if (tag === "54") {
         const v = trimmed.slice(start, end);
         if (/^\d+(?:\.\d+)?$/.test(v)) {
           const n = Number.parseInt(v.split(".")[0], 10);
-          return Number.isFinite(n) ? n : undefined;
+          if (Number.isFinite(n)) amount = n;
         }
-        return undefined;
+      } else if (tag === "59") {
+        name = trimmed.slice(start, end);
       }
       i = end;
     }
-    return undefined;
+    return { staticAmount: amount, qrisMerchantName: name };
   }, [kind, raw]);
+
+  const resolvedMerchantName =
+    merchantNameParam || qrisMerchantName || undefined;
 
   const needsAmount = staticAmount === undefined;
 
@@ -1170,12 +1216,19 @@ function MintFallback({ kind, raw }: { kind: MerchantKind; raw: string }) {
       // `/pay-merchant` isn't yet in the generated typed-routes union.
       router.replace({
         pathname: "/pay-merchant" as "/send",
-        params: { intentId: created.id },
+        params: { intentId: created.id, merchantName: resolvedMerchantName },
       });
     } catch (err) {
       setError(classifyError(err));
     }
-  }, [amountInput, createIntent, raw, staticAmount, selectedToken]);
+  }, [
+    amountInput,
+    createIntent,
+    raw,
+    staticAmount,
+    selectedToken,
+    resolvedMerchantName,
+  ]);
 
   if (error) {
     const dismiss = () => setError(null);
@@ -1199,7 +1252,8 @@ function MintFallback({ kind, raw }: { kind: MerchantKind; raw: string }) {
         </View>
         <View className="flex-1">
           <Text className="text-light-matte-black font-semibold text-base">
-            {kind === "qris" ? "QRIS merchant" : "TakumiPay merchant"}
+            {resolvedMerchantName ??
+              (kind === "qris" ? "QRIS merchant" : "TakumiPay merchant")}
           </Text>
           <Text className="text-light-matte-black/50 text-xs">
             Confirm amount to create a payment
@@ -1237,19 +1291,26 @@ function MintFallback({ kind, raw }: { kind: MerchantKind; raw: string }) {
           className="bg-light-main-container rounded-xl px-4 py-3 flex-row items-center justify-between"
         >
           {selectedChain ? (
-            <View className="flex-row items-center flex-1">
-              {selectedChain.tokens?.[0]?.logoUrl ? (
-                <Image
-                  source={{ uri: selectedChain.tokens[0].logoUrl }}
-                  style={{ width: 28, height: 28, borderRadius: 14 }}
-                />
-              ) : (
-                <View className="w-7 h-7 bg-light-primary-red/10 rounded-full" />
-              )}
-              <Text className="text-light-matte-black font-medium text-base ml-3">
-                {selectedChain.name}
-              </Text>
-            </View>
+            (() => {
+              const nativeToken =
+                selectedChain.tokens?.find((t) => t.isNativeCurrency) ??
+                selectedChain.tokens?.[0];
+              return (
+                <View className="flex-row items-center flex-1">
+                  {nativeToken?.logoUrl ? (
+                    <Image
+                      source={{ uri: nativeToken.logoUrl }}
+                      style={{ width: 28, height: 28, borderRadius: 14 }}
+                    />
+                  ) : (
+                    <View className="w-7 h-7 bg-light-primary-red/10 rounded-full" />
+                  )}
+                  <Text className="text-light-matte-black font-medium text-base ml-3">
+                    {selectedChain.name}
+                  </Text>
+                </View>
+              );
+            })()
           ) : (
             <Text className="text-light-matte-black/50 text-base">
               {isLoadingChains ? "Loading networks…" : "Select network"}
@@ -1481,10 +1542,12 @@ function LoadingCard({ intentId }: { intentId: string }) {
 function QuoteCard({
   intent,
   phase,
+  merchantName: merchantNameParam,
   onPay,
 }: {
   intent: PaymentIntentResponse;
   phase: LocalPhase;
+  merchantName?: string;
   onPay: () => void;
 }) {
   const isBusy = phase === "signing" || phase === "submitting";
@@ -1503,7 +1566,7 @@ function QuoteCard({
         </View>
         <View className="flex-1">
           <Text className="text-light-matte-black font-semibold text-base">
-            {extractMerchantName(intent)}
+            {extractMerchantName(intent, merchantNameParam)}
           </Text>
           <Text className="text-light-matte-black/50 text-xs">
             Confirm to pay
@@ -1604,7 +1667,10 @@ function MissingIntentCard() {
  * we duck-check a few likely fields so the UI lights up whenever the
  * backend starts populating one, and fall back to "Merchant" otherwise.
  */
-function extractMerchantName(intent: PaymentIntentResponse): string {
+function extractMerchantName(
+  intent: PaymentIntentResponse,
+  fallback?: string,
+): string {
   const anyIntent = intent as unknown as {
     merchant?: { displayName?: string; name?: string };
     merchantName?: string;
@@ -1613,6 +1679,7 @@ function extractMerchantName(intent: PaymentIntentResponse): string {
     anyIntent.merchant?.displayName ??
     anyIntent.merchant?.name ??
     anyIntent.merchantName ??
+    fallback ??
     "Merchant"
   );
 }

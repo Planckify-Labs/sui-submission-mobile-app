@@ -87,6 +87,7 @@ export const switchToScannedTarget = (
         params: {
           provider: channel.provider,
           raw: channel.rawPayload,
+          merchantName: channel.qris?.merchantName,
         },
       };
     }

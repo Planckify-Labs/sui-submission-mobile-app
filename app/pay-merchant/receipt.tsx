@@ -132,7 +132,10 @@ const formatReceiptTimestamp = (intent: PaymentIntentResponse): string => {
  * card so the receipt lights up whenever the backend starts populating
  * a merchant field (task 27 follow-up). Falls back to "Merchant".
  */
-const extractMerchantName = (intent: PaymentIntentResponse): string => {
+const extractMerchantName = (
+  intent: PaymentIntentResponse,
+  fallback?: string,
+): string => {
   const anyIntent = intent as unknown as {
     merchant?: { displayName?: string; name?: string };
     merchantName?: string;
@@ -141,6 +144,7 @@ const extractMerchantName = (intent: PaymentIntentResponse): string => {
     anyIntent.merchant?.displayName ??
     anyIntent.merchant?.name ??
     anyIntent.merchantName ??
+    fallback ??
     "Merchant"
   );
 };
@@ -188,11 +192,16 @@ const showToast = (message: string) => {
 /** ── screen ────────────────────────────────────────────────────────── */
 
 export default function PayMerchantReceipt() {
-  const params = useLocalSearchParams<{ intentId?: string }>();
+  const params = useLocalSearchParams<{
+    intentId?: string;
+    merchantName?: string;
+  }>();
   const intentId =
     typeof params.intentId === "string" && params.intentId.length > 0
       ? params.intentId
       : undefined;
+  const merchantName =
+    typeof params.merchantName === "string" ? params.merchantName : undefined;
 
   const intentQ = useIntentStatus(intentId);
   const intent = intentQ.data;
@@ -241,7 +250,7 @@ export default function PayMerchantReceipt() {
           ) : !intent ? (
             <ReceiptSkeleton intentId={intentId} />
           ) : (
-            <ReceiptBody intent={intent} />
+            <ReceiptBody intent={intent} merchantName={merchantName} />
           )}
         </ScrollView>
 
@@ -301,10 +310,16 @@ function StatusStrip({ intent }: { intent: PaymentIntentResponse }) {
 
 /** ── receipt body ──────────────────────────────────────────────────── */
 
-function ReceiptBody({ intent }: { intent: PaymentIntentResponse }) {
+function ReceiptBody({
+  intent,
+  merchantName: merchantNameParam,
+}: {
+  intent: PaymentIntentResponse;
+  merchantName?: string;
+}) {
   const fiatLabel = formatIdrMinor(extractFiatMinor(intent));
   const usdcLabel = formatUsdcMicros(intent.nanopayUsdcAmountMicros);
-  const merchantName = extractMerchantName(intent);
+  const merchantName = extractMerchantName(intent, merchantNameParam);
   const timestamp = useMemo(() => formatReceiptTimestamp(intent), [intent]);
 
   return (

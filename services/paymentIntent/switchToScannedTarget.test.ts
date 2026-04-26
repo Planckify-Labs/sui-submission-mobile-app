@@ -147,6 +147,7 @@ describe("switchToScannedTarget()", () => {
       params: {
         provider: "takumipay",
         raw: jws,
+        merchantName: undefined,
       },
     });
   });
@@ -175,6 +176,7 @@ describe("switchToScannedTarget()", () => {
       params: {
         provider: "xendit_qris",
         raw: qris,
+        merchantName: undefined,
       },
     });
   });
