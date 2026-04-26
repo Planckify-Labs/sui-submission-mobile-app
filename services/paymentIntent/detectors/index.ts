@@ -11,6 +11,16 @@
  * shared file (memory `feedback_chain_extension_discipline.md`).
  */
 
+// Side-effect imports: force each detector module to evaluate eagerly
+// so `register()` runs. Re-exports alone compile to lazy getters under
+// Metro's `inlineRequires`, which never fire when the barrel is
+// imported for side effects only (as scan-to-pay.tsx does).
+import "./qris.ts";
+import "./takumipayJws.ts";
+import "./walletAddress.ts";
+import "./walletUri.ts";
+import "./x402.ts";
+
 export { qrisDetector } from "./qris.ts";
 export { takumipayJwsDetector } from "./takumipayJws.ts";
 export { walletAddressDetector } from "./walletAddress.ts";
