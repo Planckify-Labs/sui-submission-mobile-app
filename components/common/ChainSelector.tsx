@@ -23,6 +23,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import SingleLoadingSekeleton from "@/components/common/SingleLoadingSekeleton";
 import type { ChainConfig } from "@/constants/configs/chainConfig";
@@ -35,21 +36,12 @@ import { walletKitRegistry } from "@/services/walletKit/registry";
 
 const { height } = Dimensions.get("window");
 const MODAL_HEIGHT = height * 0.67;
-// Approximate chrome above the scroll region (drag handle + title row
-// + search field + the mb-3/mb-4 gaps). Used as a cap on the ScrollView
-// itself so we never have to force an explicit sheet height — the
-// sheet can stay `height: "auto"` and grow to its content, while the
-// ScrollView takes over scrolling once its own content exceeds this
-// budget. Matches the fraction of MODAL_HEIGHT eaten by the header
-// on every platform we target.
 const SCROLL_MAX_HEIGHT = MODAL_HEIGHT - 140;
 
 export interface ChainSelectorRef {
   open: () => void;
 }
 
-// Shape rendered per row — unified across EVM + Solana so the row
-// component stays namespace-agnostic.
 type ChainRowItem = {
   key: string;
   namespace: Namespace;
@@ -57,10 +49,8 @@ type ChainRowItem = {
   symbol: string;
   iconUrl: string | undefined;
   isTestnet: boolean;
-  // EVM-only selection handle; Solana rows dispatch via `cluster`.
   evmChainId?: number;
   solanaCluster?: "mainnet-beta" | "devnet";
-  // Underlying config for equality checks against `activeChain`.
   config: ChainConfig;
 };
 
@@ -68,15 +58,6 @@ function capitalize(ns: string): string {
   return ns.charAt(0).toUpperCase() + ns.slice(1);
 }
 
-// Hard-coded for `eip155`: the picker surfaces the whole EVM family
-// under a single "Ethereum" header (Ethereum mainnet + Polygon + BSC
-// all render under it). "EVM" is accurate but developer jargon; most
-// users recognise "Ethereum" — matching Phantom / Rainbow. The
-// individual chain names below the header disambiguate which network
-// is actually selected. For any other namespace we defer to the
-// registered kit's `displayName` (e.g. Solana → "Solana"), falling
-// back to a capitalised namespace literal if a namespace has chains
-// but no kit registered.
 function sectionTitleForNamespace(ns: Namespace): string {
   if (ns === "eip155") return "Ethereum";
   try {
@@ -87,7 +68,6 @@ function sectionTitleForNamespace(ns: Namespace): string {
   }
 }
 
-// In-group sort: non-testnets first (stable within each partition).
 function sortWithinGroup<T extends { isTestnet: boolean }>(rows: T[]): T[] {
   return [...rows].sort((a, b) => {
     if (a.isTestnet === b.isTestnet) return 0;
@@ -95,11 +75,6 @@ function sortWithinGroup<T extends { isTestnet: boolean }>(rows: T[]): T[] {
   });
 }
 
-// Skeleton placeholder whose shape matches a real `<Pressable>` chain
-// row — avatar circle + two stacked text lines. Used while the modal
-// slide-up is in flight (and when the blockchains query is still
-// loading) so the user sees the list taking shape rather than a
-// generic spinner + "Loading networks…" string.
 function ChainRowSkeleton() {
   return (
     <View className="flex-row items-center p-4 mb-2 rounded-xl bg-light">
@@ -148,14 +123,9 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
     activeChain,
     changeActiveChain,
     changeActiveChainToConfig,
-    warmNamespace,
   } = useWallet();
   const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  // Per-row in-flight key — only non-null while a chain switch's
-  // `await` is resolving. Drives the inline spinner on the tapped row
-  // so the user sees "I'm switching to this" without a page-level
-  // modal that would obscure deep-flow screens (send / deposit / etc).
   const [switchingRowKey, setSwitchingRowKey] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
@@ -170,14 +140,6 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
 
   const isLoading = isLoadingBlockchains || isLoadingTokens;
 
-  // Group rows by namespace, ordered by registry insertion order
-  // (EVM-first / Solana-second per `bootWalletKits`). Any namespace
-  // that has chains but no registered kit is appended at the end.
-  //
-  // Both EVM and Solana rows are data-driven from the backend
-  // `/blockchains` feed (Solana is flagged via `isEVM: false`). The
-  // same path `buildChainConfigFromBlockchain` is used so new chain
-  // families pick up without a mobile release.
   const grouped = useMemo<Map<Namespace, ChainRowItem[]>>(() => {
     const order: Namespace[] = walletKitRegistry
       .getAll()
@@ -220,7 +182,6 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
       }
     }
 
-    // Re-key with sorted-in-group rows while preserving group order.
     const final = new Map<Namespace, ChainRowItem[]>();
     for (const [ns, rows] of groups) {
       if (rows.length === 0) continue;
@@ -229,9 +190,6 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
     return final;
   }, [blockchains, nativeTokens]);
 
-  // Filter the grouped map by search query against label + symbol.
-  // Preserves group order; drops groups with no matches so the header
-  // doesn't hang over empty sections.
   const filteredGrouped = useMemo<Map<Namespace, ChainRowItem[]>>(() => {
     const q = searchQuery.trim().toLowerCase();
     if (q.length === 0) return grouped;
@@ -269,24 +227,11 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
     async (row: ChainRowItem) => {
       setSwitchingRowKey(row.key);
 
-      // Yield one animation frame so React commits the spinner render
-      // BEFORE any synchronous work (state mutations, cached BIP-32
-      // derivation, MMKV writes) kicks off. Without this yield, React
-      // batches the `setSwitchingRowKey` update with whatever the switch
-      // triggers and commits them all at once *after* the work
-      // completes — so the user sees zero visual feedback during the
-      // switch even though the state was "technically" set first. The
-      // classic RN "show spinner → yield → do heavy work" pattern.
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => resolve()),
       );
 
       try {
-        // EVM dispatch flows through the existing numeric-chainId path
-        // (backend blockchains feed). Solana rows aren't in the backend
-        // feed yet, so they dispatch the static `ChainConfig` directly
-        // via `changeActiveChainToConfig` — which shares the same
-        // agent-busy gate.
         if (row.namespace === "eip155" && typeof row.evmChainId === "number") {
           await changeActiveChain(row.evmChainId);
         } else {
@@ -314,19 +259,7 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
         useNativeDriver: true,
       }),
     ]).start();
-    // Warm-on-hover: the user opening the picker is strong signal they
-    // may switch namespace. Pre-derive EVM + Solana signers for every
-    // wallet of each namespace shown in the list, off the render path.
-    // By the time they tap a row, the BIP-32 / Ed25519 derivation is
-    // already cached and `handleChainSelect`'s `await` resolves almost
-    // immediately. Deferred to the next frame so the promise-microtask
-    // churn from N fire-and-forget derivations doesn't contend with
-    // the first frames of the slide-up animation.
-    requestAnimationFrame(() => {
-      warmNamespace("eip155");
-      warmNamespace("solana");
-    });
-  }, [fadeAnim, translateY, warmNamespace]);
+  }, [fadeAnim, translateY]);
 
   useImperativeHandle(ref, () => ({ open: openModal }), [openModal]);
 
@@ -384,8 +317,6 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
           className={`flex-row items-center p-4 mb-2 rounded-xl ${
             isActive ? "bg-light-primary-red/10" : "bg-light"
           } ${isAnySwitching && !isThisSwitching ? "opacity-40" : ""}`}
-          // Disable row taps while any switch is in flight — prevents
-          // multiple parallel chain switches queuing up on fast taps.
           onPress={() => {
             if (isAnySwitching) return;
             handleChainSelect(row);
@@ -460,7 +391,7 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
           animationType="none"
           onRequestClose={closeModal}
         >
-          <View style={{ flex: 1 }}>
+          <GestureHandlerRootView style={{ flex: 1 }}>
             <TouchableWithoutFeedback onPress={closeModal}>
               <Animated.View
                 style={{
@@ -477,14 +408,6 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
                 bottom: 0,
                 left: 0,
                 right: 0,
-                // `height: "auto"` so the sheet hugs its content —
-                // short chain lists produce short sheets, no empty
-                // band under the last row (matches the receive-sheet
-                // pattern). Scrolling is capped on the ScrollView
-                // itself (`maxHeight: SCROLL_MAX_HEIGHT`) rather than
-                // on the sheet, which keeps the flex chain simple: no
-                // intermediate wrappers need flex-shrink to propagate
-                // a sheet-level cap down.
                 height: "auto",
                 paddingBottom: bottomOffset,
                 borderTopLeftRadius: 24,
@@ -506,7 +429,10 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
                       Select Network
                     </Text>
 
-                    <Pressable className="" onPress={closeModal}>
+                    <Pressable
+                      onPress={closeModal}
+                      hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                    >
                       <X size={18} color="#c71c4b" />
                     </Pressable>
                   </View>
@@ -559,7 +485,7 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
                 </View>
               </View>
             </Animated.View>
-          </View>
+          </GestureHandlerRootView>
         </Modal>
       )}
     </>
