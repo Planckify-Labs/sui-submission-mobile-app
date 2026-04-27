@@ -365,6 +365,16 @@ export interface WalletKitAdapter {
    */
   estimateMaxTransferable(args: EstimateMaxTransferableArgs): Promise<bigint>;
 
+  // ── Auth ────────────────────────────────────────────────────────────
+  /**
+   * Signs a backend-issued nonce message for authentication (SIWE on
+   * EVM, SIWS on Solana). Returns the signature as a string whose
+   * encoding is namespace-appropriate (hex for EVM, base58 for Solana).
+   * Consumers call this without branching on namespace — each kit owns
+   * its signing primitive and output encoding.
+   */
+  signAuthMessage(wallet: TWallet, message: string): Promise<string>;
+
   // ── Display ─────────────────────────────────────────────────────────
   /** e.g. `"0.0123 ETH"` / `"0.0123 SOL"`. */
   formatNativeAmount(raw: bigint, chain: ChainConfig): string;

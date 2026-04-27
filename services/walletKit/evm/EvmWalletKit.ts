@@ -98,6 +98,15 @@ export function createEvmWalletKit(): WalletKitAdapter {
       return getAccountForWallet(wallet);
     },
 
+    // ── Auth ────────────────────────────────────────────────────────
+    async signAuthMessage(wallet: TWallet, message: string): Promise<string> {
+      const account = getAccountForWallet(wallet);
+      if (!account) {
+        throw new Error("EvmWalletKit.signAuthMessage: unable to reconstruct signer");
+      }
+      return account.signMessage({ message });
+    },
+
     // ── Reads ───────────────────────────────────────────────────────
     async getNativeBalance(
       address: string,

@@ -50,6 +50,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Search,
+  Shield,
   Store,
   X,
 } from "lucide-react-native";
@@ -77,9 +78,18 @@ import {
 } from "react-native-safe-area-context";
 import { formatUnits } from "viem";
 import PinConfirmationModal from "@/components/common/PinConfirmationModal";
+import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
 import { PaymentError } from "@/components/PaymentError";
-import { findEvmChainById } from "@/constants/configs/chainConfig";
-import { api } from "@/constants/configs/ky";
+import {
+  getAccessTokenForWallet,
+  useNonce,
+  useVerifySignature,
+} from "@/hooks/queries/useAuth";
+import {
+  type ChainConfig,
+  findEvmChainById,
+} from "@/constants/configs/chainConfig";
+import { api, optionalAuthApi } from "@/constants/configs/ky";
 import { usePaymentContract } from "@/hooks/queries/usePaymentContract";
 import {
   type PaymentToken,
@@ -87,6 +97,7 @@ import {
 } from "@/hooks/queries/usePaymentTokens";
 import { useBlockchainsWithStorage } from "@/hooks/useBlockchainsWithStorage";
 import { useWallet } from "@/hooks/useWallet";
+import { buildChainConfigFromBlockchain } from "@/hooks/useWallet.helpers";
 import {
   classifyPaymentError,
   type PaymentErrorCode,
@@ -272,7 +283,7 @@ export default function PayMerchant() {
             className="mr-3 p-2 -ml-2"
             hitSlop={8}
           >
-            <ArrowLeft color="#20222c" size={24} />
+            <ArrowLeft color="#c71c4b" size={24} />
           </Pressable>
           <Text className="text-light-matte-black text-lg font-bold">
             Pay merchant
@@ -768,16 +779,12 @@ function OnchainCard({
   merchantName?: string;
   onBack: () => void;
 }) {
-  const {
-    activeWallet,
-    activeChain,
-    getActiveWalletKit,
-    changeActiveChainToConfig,
-  } = useWallet();
+  const { wallets, activeWalletIndex, getKitForWallet } = useWallet();
 
   const [phase, setPhase] = useState<LocalPhase>("idle");
   const [error, setError] = useState<LocalError | null>(null);
   const [isPinVisible, setIsPinVisible] = useState(false);
+  const [walletPickerVisible, setWalletPickerVisible] = useState(false);
 
   const sourceChainId = intent.nanopayUsdcSourceChainId;
   const { data: paymentContract, isLoading: isLoadingContract } =
@@ -787,7 +794,158 @@ function OnchainCard({
         !intent.blockchainId && sourceChainId > 0 ? sourceChainId : undefined,
     });
 
-  // Countdown timer — `quoteCommitment.expiresAt` is unix seconds
+  // ── Resolve the intent's target chain from blockchainId ──────────
+  const { data: allBlockchains } = useBlockchainsWithStorage({ isActive: true });
+  const intentBlockchainRow = useMemo(() => {
+    if (!intent.blockchainId || !allBlockchains?.length) return null;
+    return allBlockchains.find((b) => b.id === intent.blockchainId) ?? null;
+  }, [intent.blockchainId, allBlockchains]);
+
+  const intentChainConfig = useMemo<ChainConfig | null>(() => {
+    if (!intentBlockchainRow) return null;
+    return buildChainConfigFromBlockchain(intentBlockchainRow);
+  }, [intentBlockchainRow]);
+
+  // ── Wallet selection: filter to wallets matching the intent chain ──
+  const intentNamespace = intentChainConfig?.namespace ?? null;
+
+  const eligibleWallets = useMemo(() => {
+    if (!intentNamespace) return [];
+    return wallets.filter((w) => w.namespace === intentNamespace);
+  }, [wallets, intentNamespace]);
+
+  const [selectedWalletAddr, setSelectedWalletAddr] = useState<string | null>(
+    null,
+  );
+
+  // Auto-select the first eligible wallet; keep selection stable.
+  useEffect(() => {
+    if (!eligibleWallets.length) {
+      setSelectedWalletAddr(null);
+      return;
+    }
+    const stillValid = eligibleWallets.some(
+      (w) => w.address === selectedWalletAddr,
+    );
+    if (!stillValid) setSelectedWalletAddr(eligibleWallets[0].address);
+  }, [eligibleWallets, selectedWalletAddr]);
+
+  const selectedWallet = useMemo(
+    () => eligibleWallets.find((w) => w.address === selectedWalletAddr) ?? null,
+    [eligibleWallets, selectedWalletAddr],
+  );
+
+  // ── Balance display for the selected wallet ───────────────────────
+  const [nativeBalance, setNativeBalance] = useState<bigint>(0n);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(true);
+  const [tokenBalance, setTokenBalance] = useState<string>("0");
+  const [isLoadingTokenBalance, setIsLoadingTokenBalance] = useState(false);
+
+  const selectedKit = useMemo(
+    () => (selectedWallet ? getKitForWallet(selectedWallet) : null),
+    [selectedWallet, getKitForWallet],
+  );
+
+  // Fetch native balance for selected wallet on the intent's chain.
+  useEffect(() => {
+    if (!selectedWallet || !selectedKit || !intentChainConfig) {
+      setNativeBalance(0n);
+      setIsLoadingBalance(false);
+      return;
+    }
+    if (selectedKit.namespace !== intentChainConfig.namespace) {
+      setNativeBalance(0n);
+      setIsLoadingBalance(false);
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingBalance(true);
+    selectedKit
+      .getNativeBalance(selectedWallet.address, intentChainConfig)
+      .then((b) => {
+        if (!cancelled) setNativeBalance(b);
+      })
+      .catch(() => {
+        if (!cancelled) setNativeBalance(0n);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingBalance(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedWallet, selectedKit, intentChainConfig]);
+
+  const nativeBalanceDisplay = useMemo(() => {
+    if (!selectedKit || !intentChainConfig) return "—";
+    if (selectedKit.namespace !== intentChainConfig.namespace) return "—";
+    return selectedKit.formatNativeAmount(nativeBalance, intentChainConfig);
+  }, [selectedKit, intentChainConfig, nativeBalance]);
+
+  // Fetch selected payment token balance (from the intent's sourceTokenId).
+  const paymentTokens = usePaymentTokens({
+    blockchainId: intent.blockchainId,
+  });
+  const paymentToken = useMemo(() => {
+    if (!paymentTokens.data?.length) return null;
+    if (intent.sourceTokenId) {
+      return (
+        paymentTokens.data.find((t) => t.id === intent.sourceTokenId) ?? null
+      );
+    }
+    return paymentTokens.data[0] ?? null;
+  }, [paymentTokens.data, intent.sourceTokenId]);
+
+  useEffect(() => {
+    if (
+      !selectedWallet ||
+      !selectedKit ||
+      !intentChainConfig ||
+      !paymentToken
+    ) {
+      setTokenBalance("0");
+      setIsLoadingTokenBalance(false);
+      return;
+    }
+    if (selectedKit.namespace !== intentChainConfig.namespace) {
+      setTokenBalance("0");
+      return;
+    }
+    if (!paymentToken.contractAddress) {
+      setTokenBalance("0");
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingTokenBalance(true);
+    selectedKit
+      .getTokenBalance(
+        selectedWallet.address,
+        intentChainConfig,
+        paymentToken.contractAddress,
+      )
+      .then((raw) => {
+        if (cancelled) return;
+        const decimals = paymentToken.decimals ?? 6;
+        const divisor = 10n ** BigInt(decimals);
+        const whole = raw / divisor;
+        const frac = raw % divisor;
+        const fracStr = frac.toString().padStart(decimals, "0");
+        setTokenBalance(
+          `${whole.toString()}.${fracStr}`.replace(/\.?0+$/, "") || "0",
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setTokenBalance("0");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingTokenBalance(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedWallet, selectedKit, intentChainConfig, paymentToken]);
+
+  // ── Countdown timer ───────────────────────────────────────────────
   const expiresAtMs = intent.quoteCommitment
     ? intent.quoteCommitment.expiresAt * 1000
     : intent.expiresAt;
@@ -814,22 +972,21 @@ function OnchainCard({
 
   const isExpired = remainingMs <= 0;
 
+  // ── Payment execution ─────────────────────────────────────────────
   const onPay = useCallback(async () => {
-    if (!activeWallet?.namespace) {
-      setError(makeLocalError("wallet_unsupported"));
+    if (!selectedWallet || !intentChainConfig) {
+      setError(makeLocalError("wallet_unsupported", "No wallet selected"));
       setPhase("error");
       return;
     }
-    const kit = getActiveWalletKit();
+
+    const kit = getKitForWallet(selectedWallet);
 
     try {
       setPhase("signing");
       setError(null);
 
-      if (
-        activeWallet.namespace === "solana" ||
-        activeChain.namespace === "solana"
-      ) {
+      if (intentChainConfig.namespace === "solana") {
         if (typeof kit.sendAnchorInstruction !== "function") {
           setError(
             makeLocalError(
@@ -855,9 +1012,9 @@ function OnchainCard({
 
         const result = await executeOnchainSettlementSvm({
           intent,
-          wallet: activeWallet,
+          wallet: selectedWallet,
           walletKit: kit,
-          chain: activeChain,
+          chain: intentChainConfig,
           programIdStr,
         });
 
@@ -880,31 +1037,6 @@ function OnchainCard({
           return;
         }
 
-        const sourceChainId =
-          intent.nanopayUsdcSourceChainId ?? ARC_TESTNET_CHAIN_ID;
-        const sourceChainConfig = findEvmChainById(sourceChainId);
-        if (!sourceChainConfig) {
-          setError(
-            makeLocalError(
-              "chain_mismatch",
-              `No chain config for id=${sourceChainId}`,
-            ),
-          );
-          setPhase("error");
-          return;
-        }
-
-        const activeEvmChainId =
-          activeChain.namespace === "eip155" ? activeChain.chain.id : null;
-        if (activeEvmChainId !== sourceChainId) {
-          const ok = await changeActiveChainToConfig(sourceChainConfig);
-          if (!ok) {
-            setError(makeLocalError("chain_mismatch"));
-            setPhase("error");
-            return;
-          }
-        }
-
         const contractAddress = paymentContract?.address as
           | `0x${string}`
           | undefined;
@@ -921,9 +1053,9 @@ function OnchainCard({
 
         const result = await executeOnchainSettlement({
           intent,
-          wallet: activeWallet,
+          wallet: selectedWallet,
           walletKit: kit,
-          chain: sourceChainConfig,
+          chain: intentChainConfig,
           contractAddress,
         });
 
@@ -942,14 +1074,27 @@ function OnchainCard({
       setPhase("error");
     }
   }, [
-    activeChain,
-    activeWallet,
-    changeActiveChainToConfig,
-    getActiveWalletKit,
+    selectedWallet,
+    getKitForWallet,
     intent,
+    intentChainConfig,
     intentId,
+    paymentContract,
   ]);
 
+  // ── Wallet picker handler ─────────────────────────────────────────
+  const handleSelectWallet = useCallback(
+    (index: number) => {
+      const wallet = wallets[index];
+      if (wallet && wallet.namespace === intentNamespace) {
+        setSelectedWalletAddr(wallet.address);
+      }
+      setWalletPickerVisible(false);
+    },
+    [wallets, intentNamespace],
+  );
+
+  // ── Error state ───────────────────────────────────────────────────
   if (phase === "error" && error) {
     const resetToIdle = () => {
       setError(null);
@@ -978,13 +1123,21 @@ function OnchainCard({
         ? "Confirming payment…"
         : isExpired
           ? "Quote expired"
-          : "Pay";
+          : !selectedWallet
+            ? "No wallet available"
+            : "Pay";
 
-  // Display the token amount — prefer `tokenAmountMinor` (multi-token),
-  // fall back to `nanopayUsdcAmountMicros`.
   const tokenDisplay = intent.tokenAmountMinor
     ? formatUsdcMicros(intent.tokenAmountMinor)
     : formatUsdcMicros(intent.nanopayUsdcAmountMicros);
+
+  const networkLabel =
+    intentBlockchainRow?.name ??
+    (intentChainConfig?.namespace === "solana"
+      ? `Solana ${intentChainConfig.cluster === "devnet" ? "Devnet" : "Mainnet"}`
+      : intentChainConfig?.namespace === "eip155"
+        ? intentChainConfig.chain.name
+        : "Unknown");
 
   return (
     <View className="bg-light rounded-3xl p-6 shadow-md-">
@@ -1012,6 +1165,70 @@ function OnchainCard({
         </Text>
       </View>
 
+      {/* Network badge — driven by the intent's blockchainId */}
+      <View className="bg-light-main-container rounded-xl px-4 py-3 mb-4">
+        <Text className="text-light-matte-black/50 text-xs mb-1">Network</Text>
+        <Text className="text-light-matte-black font-medium text-sm">
+          {networkLabel}
+        </Text>
+      </View>
+
+      {/* Wallet picker — shows only wallets matching the intent chain */}
+      <Pressable
+        onPress={() => setWalletPickerVisible(true)}
+        className="bg-light-main-container rounded-xl px-4 py-3 mb-4 flex-row items-center justify-between"
+      >
+        <View className="flex-1">
+          <Text className="text-light-matte-black/50 text-xs mb-1">
+            Pay from
+          </Text>
+          {selectedWallet ? (
+            <>
+              <Text
+                className="text-light-matte-black font-medium text-sm"
+                numberOfLines={1}
+              >
+                {selectedWallet.name || "Wallet"}
+              </Text>
+              <Text
+                className="text-light-matte-black/50 text-xs"
+                numberOfLines={1}
+                ellipsizeMode="middle"
+              >
+                {selectedWallet.address}
+              </Text>
+            </>
+          ) : (
+            <Text className="text-light-matte-black/50 text-sm">
+              {eligibleWallets.length === 0
+                ? "No wallet for this network"
+                : "Select wallet"}
+            </Text>
+          )}
+        </View>
+        <View className="items-end ml-3">
+          {selectedWallet ? (
+            isLoadingBalance ? (
+              <ActivityIndicator size="small" color="#c71c4b" />
+            ) : (
+              <>
+                <Text className="text-light-matte-black text-xs font-medium">
+                  {nativeBalanceDisplay}
+                </Text>
+                {paymentToken && (
+                  <Text className="text-light-matte-black/60 text-[11px]">
+                    {isLoadingTokenBalance
+                      ? "Loading…"
+                      : `${parseFloat(tokenBalance).toFixed(4)} ${paymentToken.symbol}`}
+                  </Text>
+                )}
+              </>
+            )
+          ) : null}
+          <ChevronDown size={14} color="#c71c4b" />
+        </View>
+      </Pressable>
+
       <View className="flex-row items-center justify-center mb-4">
         <Text
           className={`text-sm font-medium ${
@@ -1038,11 +1255,11 @@ function OnchainCard({
       <TouchableOpacity
         activeOpacity={0.7}
         className={`py-4 px-5 rounded-xl items-center ${
-          isBusy || isExpired
+          isBusy || isExpired || !selectedWallet
             ? "bg-light-matte-black/20"
             : "bg-light-primary-red"
         }`}
-        disabled={isBusy || isExpired}
+        disabled={isBusy || isExpired || !selectedWallet}
         onPress={() => setIsPinVisible(true)}
       >
         {isBusy ? (
@@ -1051,6 +1268,19 @@ function OnchainCard({
           <Text className="text-light font-semibold">{ctaLabel}</Text>
         )}
       </TouchableOpacity>
+
+      <WalletSelectorModal
+        visible={walletPickerVisible}
+        onClose={() => setWalletPickerVisible(false)}
+        wallets={eligibleWallets}
+        activeWalletIndex={
+          selectedWallet
+            ? wallets.findIndex((w) => w.address === selectedWallet.address)
+            : -1
+        }
+        onSelectWallet={handleSelectWallet}
+        title={`Pay from (${networkLabel})`}
+      />
 
       <PinConfirmationModal
         visible={isPinVisible}
@@ -1066,9 +1296,11 @@ function OnchainCard({
 }
 
 /**
- * Default poster for `/v1/pay/intents/:id/onchain` wired to the shared
- * `api` ky instance. `postOnchainSubmit` swallows a 404 from here so
- * the user's on-chain settle is never gated on backend deploy timing.
+ * Default poster for `/v1/pay/intents/:id/onchain`. Uses
+ * `optionalAuthApi` so the payment flow never depends on the global
+ * active wallet's auth state — the intent was already created under
+ * the correct wallet's token, and the submit is a latency hint the
+ * backend can reconcile from on-chain events.
  */
 async function defaultOnchainSubmitPoster({
   intentId,
@@ -1077,7 +1309,7 @@ async function defaultOnchainSubmitPoster({
   intentId: string;
   body: OnchainSubmitRequest;
 }): Promise<OnchainSubmitResponse> {
-  return api
+  return optionalAuthApi
     .post(onchainSubmitEndpoint(intentId), { json: body })
     .json<OnchainSubmitResponse>();
 }
@@ -1112,7 +1344,7 @@ function MintFallback({
   merchantName?: string;
 }) {
   const createIntent = useCreateIntent();
-  const { activeChain } = useWallet();
+  const { wallets, activeChain, getKitForWallet } = useWallet();
   const { data: blockchains } = useBlockchainsWithStorage({ isActive: true });
 
   const [amountInput, setAmountInput] = useState("");
@@ -1185,6 +1417,191 @@ function MintFallback({
 
   const isLoadingChains = isLoadingTokens || !blockchains;
 
+  // ── Wallet picker: filter to wallets matching selected chain ──────
+  const selectedChainConfig = useMemo<ChainConfig | null>(() => {
+    if (!selectedChain) return null;
+    return buildChainConfigFromBlockchain(selectedChain);
+  }, [selectedChain]);
+
+  const selectedNamespace = selectedChainConfig?.namespace ?? null;
+
+  const eligibleWallets = useMemo(() => {
+    if (!selectedNamespace) return [];
+    return wallets.filter((w) => w.namespace === selectedNamespace);
+  }, [wallets, selectedNamespace]);
+
+  const [selectedWalletAddr, setSelectedWalletAddr] = useState<string | null>(
+    null,
+  );
+  const [walletPickerOpen, setWalletPickerOpen] = useState(false);
+
+  useEffect(() => {
+    if (!eligibleWallets.length) {
+      setSelectedWalletAddr(null);
+      return;
+    }
+    const stillValid = eligibleWallets.some(
+      (w) => w.address === selectedWalletAddr,
+    );
+    if (!stillValid) setSelectedWalletAddr(eligibleWallets[0].address);
+  }, [eligibleWallets, selectedWalletAddr]);
+
+  const selectedWallet = useMemo(
+    () => eligibleWallets.find((w) => w.address === selectedWalletAddr) ?? null,
+    [eligibleWallets, selectedWalletAddr],
+  );
+
+  // ── Auth check for selected wallet ────────────────────────────────
+  const [isWalletAuthed, setIsWalletAuthed] = useState<boolean | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+
+  useEffect(() => {
+    if (!selectedWallet) {
+      setIsWalletAuthed(null);
+      return;
+    }
+    let cancelled = false;
+    setIsCheckingAuth(true);
+    getAccessTokenForWallet(selectedWallet.address.toLowerCase()).then(
+      (token) => {
+        if (!cancelled) {
+          setIsWalletAuthed(!!token);
+          setIsCheckingAuth(false);
+        }
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedWallet]);
+
+  // ── Inline sign-in (SIWE / SIWS via kit.signAuthMessage) ─────────
+  const solanaChainSlug =
+    selectedChainConfig?.namespace === "solana"
+      ? selectedChainConfig.cluster === "devnet"
+        ? "solana-devnet"
+        : "solana-mainnet"
+      : undefined;
+
+  const nonceOpts = solanaChainSlug
+    ? { chainSlug: solanaChainSlug }
+    : selectedChainConfig?.namespace === "eip155"
+      ? { chainId: selectedChainConfig.chain.id }
+      : {};
+
+  const { data: nonceData } = useNonce(
+    selectedWallet?.address,
+    nonceOpts as { chainId?: number; chainSlug?: string },
+  );
+  const { mutateAsync: verifySignature } = useVerifySignature();
+
+  const handleSignIn = useCallback(async () => {
+    if (!selectedWallet || !nonceData?.message) return;
+    setIsSigningIn(true);
+    try {
+      const kit = getKitForWallet(selectedWallet);
+      const signature = await kit.signAuthMessage(
+        selectedWallet,
+        nonceData.message,
+      );
+      await verifySignature({ message: nonceData.message, signature });
+      setIsWalletAuthed(true);
+    } catch (err) {
+      if (__DEV__) console.error("[MintFallback] sign-in failed:", err);
+      setError(makeLocalError("unknown", "Sign-in failed. Please try again."));
+    } finally {
+      setIsSigningIn(false);
+    }
+  }, [selectedWallet, nonceData, getKitForWallet, verifySignature]);
+
+  // ── Balance display for selected wallet ───────────────────────────
+  const selectedKit = useMemo(
+    () => (selectedWallet ? getKitForWallet(selectedWallet) : null),
+    [selectedWallet, getKitForWallet],
+  );
+
+  const [nativeBalance, setNativeBalance] = useState<bigint>(0n);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+
+  useEffect(() => {
+    if (!selectedWallet || !selectedKit || !selectedChainConfig) {
+      setNativeBalance(0n);
+      return;
+    }
+    if (selectedKit.namespace !== selectedChainConfig.namespace) return;
+    let cancelled = false;
+    setIsLoadingBalance(true);
+    selectedKit
+      .getNativeBalance(selectedWallet.address, selectedChainConfig)
+      .then((b) => {
+        if (!cancelled) setNativeBalance(b);
+      })
+      .catch(() => {
+        if (!cancelled) setNativeBalance(0n);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingBalance(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedWallet, selectedKit, selectedChainConfig]);
+
+  const nativeBalanceDisplay = useMemo(() => {
+    if (!selectedKit || !selectedChainConfig) return "—";
+    if (selectedKit.namespace !== selectedChainConfig.namespace) return "—";
+    return selectedKit.formatNativeAmount(nativeBalance, selectedChainConfig);
+  }, [selectedKit, selectedChainConfig, nativeBalance]);
+
+  // ── Token balance for the selected payment token ──────────────────
+  const [tokenBalance, setTokenBalance] = useState<string>("0");
+  const [isLoadingTokenBalance, setIsLoadingTokenBalance] = useState(false);
+
+  useEffect(() => {
+    if (!selectedWallet || !selectedKit || !selectedChainConfig || !selectedToken) {
+      setTokenBalance("0");
+      setIsLoadingTokenBalance(false);
+      return;
+    }
+    if (selectedKit.namespace !== selectedChainConfig.namespace) {
+      setTokenBalance("0");
+      return;
+    }
+    if (!selectedToken.contractAddress) {
+      setTokenBalance("0");
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingTokenBalance(true);
+    selectedKit
+      .getTokenBalance(
+        selectedWallet.address,
+        selectedChainConfig,
+        selectedToken.contractAddress,
+      )
+      .then((raw) => {
+        if (cancelled) return;
+        const decimals = selectedToken.decimals ?? 6;
+        const divisor = 10n ** BigInt(decimals);
+        const whole = raw / divisor;
+        const frac = raw % divisor;
+        const fracStr = frac.toString().padStart(decimals, "0");
+        setTokenBalance(
+          `${whole.toString()}.${fracStr}`.replace(/\.?0+$/, "") || "0",
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setTokenBalance("0");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingTokenBalance(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedWallet, selectedKit, selectedChainConfig, selectedToken]);
+
   const filteredChains = useMemo(() => {
     const q = chainSearch.trim().toLowerCase();
     if (!q) return availableChains;
@@ -1244,19 +1661,26 @@ function MintFallback({
 
   const needsAmount = staticAmount === undefined;
 
+  const parsedAmount = needsAmount
+    ? Number.parseInt(amountInput, 10)
+    : undefined;
+  const isAmountEmpty = needsAmount && amountInput.trim().length === 0;
+  const isAmountInvalid =
+    needsAmount &&
+    !isAmountEmpty &&
+    (!Number.isFinite(parsedAmount) || (parsedAmount ?? 0) <= 0);
+
   const onMint = useCallback(async () => {
     setError(null);
     const amountMinor = staticAmount ?? Number.parseInt(amountInput, 10);
-    if (!Number.isFinite(amountMinor) || amountMinor <= 0) {
-      setError(makeLocalError("unknown", "amount must be > 0"));
-      return;
-    }
+    if (!Number.isFinite(amountMinor) || amountMinor <= 0) return;
     try {
       const created = await createIntent.mutateAsync({
         scannedPayload: raw,
         currency: "IDR",
         fiatAmountMinor: amountMinor,
         sourceTokenId: selectedToken?.id,
+        walletAddress: selectedWallet?.address,
       });
       // Replace so the user's back button returns to the scanner, not
       // to this fallback screen. The new URL is the canonical form.
@@ -1319,8 +1743,15 @@ function MintFallback({
             onChangeText={(t) => setAmountInput(t.replace(/[^0-9]/g, ""))}
             keyboardType="number-pad"
             placeholder="0"
-            className="bg-light-main-container rounded-xl px-4 py-3 text-light-matte-black text-base"
+            className={`bg-light-main-container rounded-xl px-4 py-3 text-light-matte-black text-base ${
+              isAmountInvalid ? "border border-red-400" : ""
+            }`}
           />
+          {isAmountInvalid && (
+            <Text className="text-red-500 text-xs mt-1.5 ml-1">
+              Enter an amount greater than 0
+            </Text>
+          )}
         </View>
       ) : (
         <View className="bg-light-main-container rounded-xl p-4 mb-6">
@@ -1403,14 +1834,122 @@ function MintFallback({
         </TouchableOpacity>
       </View>
 
+      {/* ── Wallet picker ─────────────────────────────────────────── */}
+      <View className="mb-6">
+        <Text className="text-light-matte-black/60 text-sm mb-2">
+          Pay from
+        </Text>
+        <Pressable
+          onPress={() => setWalletPickerOpen(true)}
+          className="bg-light-main-container rounded-xl px-4 py-3 flex-row items-center justify-between"
+        >
+          {selectedWallet ? (
+            <View className="flex-1 mr-3">
+              <Text
+                className="text-light-matte-black font-medium text-base"
+                numberOfLines={1}
+              >
+                {selectedWallet.name || "Wallet"}
+              </Text>
+              <Text
+                className="text-light-matte-black/50 text-xs"
+                numberOfLines={1}
+                ellipsizeMode="middle"
+              >
+                {selectedWallet.address}
+              </Text>
+            </View>
+          ) : (
+            <Text className="text-light-matte-black/50 text-base flex-1">
+              {eligibleWallets.length === 0
+                ? "No wallet for this network"
+                : "Select wallet"}
+            </Text>
+          )}
+          <View className="items-end">
+            {selectedWallet &&
+              (isLoadingBalance ? (
+                <ActivityIndicator size="small" color="#c71c4b" />
+              ) : (
+                <>
+                  <Text className="text-light-matte-black text-xs font-medium">
+                    {nativeBalanceDisplay}
+                  </Text>
+                  {selectedToken && (
+                    <Text className="text-light-matte-black/60 text-[11px]">
+                      {isLoadingTokenBalance
+                        ? "Loading…"
+                        : `${parseFloat(tokenBalance).toFixed(4)} ${selectedToken.symbol}`}
+                    </Text>
+                  )}
+                </>
+              ))}
+            <ChevronDown color="#20222c" size={16} />
+          </View>
+        </Pressable>
+      </View>
+
+      {/* ── Inline sign-in when wallet is not authenticated ─────── */}
+      {selectedWallet && isWalletAuthed === false && !isCheckingAuth && (
+        <View className="bg-light-primary-red/5 border border-light-primary-red/15 rounded-xl p-4 mb-6">
+          <View className="flex-row items-center mb-2">
+            <View className="w-8 h-8 bg-light-primary-red/10 rounded-full items-center justify-center mr-3">
+              <Shield color="#c71c4b" size={16} />
+            </View>
+            <View className="flex-1">
+              <Text className="text-light-matte-black text-sm font-semibold">
+                Wallet verification needed
+              </Text>
+              <Text className="text-light-matte-black/50 text-xs">
+                Sign a message to prove ownership before paying
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            className={`py-3 rounded-xl items-center flex-row justify-center gap-2 ${
+              isSigningIn || !nonceData?.message
+                ? "bg-light-primary-red/30"
+                : "bg-light-primary-red"
+            }`}
+            disabled={isSigningIn || !nonceData?.message}
+            onPress={handleSignIn}
+          >
+            {isSigningIn ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Shield color="#ffffff" size={14} />
+                <Text className="text-white font-semibold text-sm">
+                  Sign in with{" "}
+                  {selectedNamespace === "solana" ? "Solana" : "Ethereum"} wallet
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
       <TouchableOpacity
         activeOpacity={0.7}
         className={`py-4 px-5 rounded-xl items-center ${
-          createIntent.isPending || !selectedToken
+          createIntent.isPending ||
+          !selectedToken ||
+          !selectedWallet ||
+          !isWalletAuthed ||
+          isAmountEmpty ||
+          isAmountInvalid
             ? "bg-light-matte-black/20"
             : "bg-light-primary-red"
         }`}
-        disabled={createIntent.isPending || !selectedToken}
+        disabled={
+          createIntent.isPending ||
+          !selectedToken ||
+          !selectedWallet ||
+          !isWalletAuthed ||
+          isAmountEmpty ||
+          isAmountInvalid
+        }
         onPress={onMint}
       >
         {createIntent.isPending ? (
@@ -1419,6 +1958,25 @@ function MintFallback({
           <Text className="text-light font-semibold">Continue</Text>
         )}
       </TouchableOpacity>
+
+      <WalletSelectorModal
+        visible={walletPickerOpen}
+        onClose={() => setWalletPickerOpen(false)}
+        wallets={eligibleWallets}
+        activeWalletIndex={
+          selectedWallet
+            ? eligibleWallets.findIndex(
+                (w) => w.address === selectedWallet.address,
+              )
+            : -1
+        }
+        onSelectWallet={(index) => {
+          const w = eligibleWallets[index];
+          if (w) setSelectedWalletAddr(w.address);
+          setWalletPickerOpen(false);
+        }}
+        title={`Select wallet${selectedChain ? ` (${selectedChain.name})` : ""}`}
+      />
 
       <PickerSheet
         visible={tokenPickerOpen}

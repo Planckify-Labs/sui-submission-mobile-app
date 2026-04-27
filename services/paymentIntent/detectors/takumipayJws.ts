@@ -24,71 +24,126 @@
  * "unrecognized QR" toast (§9.1). Leaking verification state would
  * let downstream code re-derive trust that belongs to the registry.
  *
- * Purity: imports `jose` + `@/constants/takumipayKey` only. No React,
- * no Expo, no network, no `fetch`. `detect` is async because JWS
- * signature verification is async — which is the whole reason
- * `classify()` is async at the registry layer (task 01).
+ * Purity: imports `@noble/curves/p256` + `@noble/hashes/sha2` +
+ * `@/constants/takumipayKey` only. No React, no Expo, no network,
+ * no `fetch`. Uses pure-JS ECDSA via `@noble/curves` instead of
+ * jose's WebCrypto path — jose routes through
+ * `crypto.subtle.importKey`/`verify` which hits
+ * `react-native-quick-crypto`'s native JSI bindings. A crash in the
+ * native layer is not catchable by JS try-catch, causing a force
+ * close when scanning JWS QRs. The `@noble/curves` path is
+ * deterministic, pure-JS, and fully try-catch safe.
  *
- * Test-decoupling pattern: `verifyTakumipayJws(raw, jwk)` is exported
- * for unit tests so the test file can inject a throwaway ES256 public
- * JWK without loading `@/constants/takumipayKey` (which hard-throws at
- * import time if `EXPO_PUBLIC_TAKUMIPAY_QR_PUBKEY_JWK` is unset, per
- * task 09). Production flows through `detect()`, which lazy-loads the
- * bundled JWK on first invocation via dynamic `import()` — that keeps
- * the test file from accidentally pulling the env-dependent module
- * into its module graph.
+ * Test-decoupling pattern: `verifyTakumipayJws(raw, pubKeyBytes)` is
+ * exported for unit tests so the test file can inject a throwaway
+ * ES256 public key without loading `@/constants/takumipayKey` (which
+ * hard-throws at import time if `EXPO_PUBLIC_TAKUMIPAY_QR_PUBKEY_JWK`
+ * is unset, per task 09). Production flows through `detect()`, which
+ * lazy-loads the bundled JWK on first invocation via dynamic
+ * `import()`.
  */
 
-import { importJWK, type JWK, jwtVerify } from "jose";
+import { p256 } from "@noble/curves/p256";
+import { sha256 } from "@noble/hashes/sha256";
 
 import { type Detector, register } from "../detectorRegistry.ts";
 import type { PaymentIntent, RawScan } from "../types.ts";
 
 const TAKUMIPAY_V1_PREFIX = "takumipay:v1:";
 
-/**
- * Minimal shape of the claims set we care about — see §4.4 example
- * payload. Extra fields (`merchantName`, `treasury`, `reference`,
- * `iat`) are preserved by `jwtVerify` but not promoted into the
- * `PayChannel` because the server re-hydrates them from `merchantId`
- * at intent-creation time. Keeping the surface narrow here means we
- * do not accidentally trust a tampered-but-signed field downstream.
- */
 interface TakumipayClaims {
   merchantId?: unknown;
   amountMinor?: unknown;
   currency?: unknown;
 }
 
+// base64url → Uint8Array (no padding required per RFC 7515 §2)
+const b64urlDecode = (s: string): Uint8Array => {
+  const padded = s + "=".repeat((4 - (s.length % 4)) % 4);
+  const binary = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+};
+
+// JWK EC x/y (base64url 32 bytes each) → uncompressed P-256 public key (65 bytes)
+export const jwkToUncompressedP256 = (jwk: {
+  x?: string;
+  y?: string;
+}): Uint8Array | null => {
+  if (typeof jwk.x !== "string" || typeof jwk.y !== "string") return null;
+  try {
+    const x = b64urlDecode(jwk.x);
+    const y = b64urlDecode(jwk.y);
+    if (x.length !== 32 || y.length !== 32) return null;
+    const pub = new Uint8Array(65);
+    pub[0] = 0x04; // uncompressed point
+    pub.set(x, 1);
+    pub.set(y, 33);
+    return pub;
+  } catch {
+    return null;
+  }
+};
+
+// ES256 JWS signature is two raw 32-byte integers (R || S) per RFC 7518 §3.4
+const jwsSigToP256Der = (rawSig: Uint8Array): Uint8Array | null => {
+  if (rawSig.length !== 64) return null;
+  return rawSig;
+};
+
+const textEncoder = new TextEncoder();
+
 /**
  * Verify a raw `takumipay:v1:<JWS>` string against the supplied public
- * JWK. Exported so unit tests can inject a throwaway test key without
- * pulling the env-bound `@/constants/takumipayKey` module into the
- * test's import graph.
+ * key bytes (uncompressed P-256, 65 bytes). Exported so unit tests can
+ * inject a throwaway test key.
  *
  * Returns `null` on any failure (prefix mismatch, bad signature,
- * malformed JWS, missing `merchantId`, wrong `kid`).
+ * malformed JWS, missing `merchantId`).
  * Never throws — the caller trusts the registry, not a re-derivation.
  */
-export const verifyTakumipayJws = async (
+export const verifyTakumipayJws = (
   raw: RawScan,
-  jwk: JWK,
-): Promise<PaymentIntent | null> => {
+  pubKeyBytes: Uint8Array,
+): PaymentIntent | null => {
   if (typeof raw !== "string") return null;
   if (!raw.startsWith(TAKUMIPAY_V1_PREFIX)) return null;
 
-  const jws = raw.slice(TAKUMIPAY_V1_PREFIX.length);
-  if (jws.length === 0) return null;
+  const compactJws = raw.slice(TAKUMIPAY_V1_PREFIX.length);
+  if (compactJws.length === 0) return null;
 
   try {
-    const key = await importJWK(jwk, "ES256");
-    // `jwtVerify` handles `exp` / `nbf` / `iat` sanity automatically
-    // (clockTolerance defaults to 0 — we deliberately do NOT widen it
-    // because merchant QRs are long-lived and an expired one is
-    // operationally equivalent to "not our QR" at the scanner).
-    const { payload } = await jwtVerify(jws, key, { algorithms: ["ES256"] });
+    const parts = compactJws.split(".");
+    if (parts.length !== 3) return null;
 
-    const claims = payload as TakumipayClaims;
+    const [headerB64, payloadB64, sigB64] = parts;
+
+    // Verify header declares ES256
+    const headerBytes = b64urlDecode(headerB64);
+    const header = JSON.parse(new TextDecoder().decode(headerBytes));
+    if (header.alg !== "ES256") return null;
+
+    // Decode signature (raw R||S per RFC 7518 §3.4)
+    const sigBytes = b64urlDecode(sigB64);
+    const sig = jwsSigToP256Der(sigBytes);
+    if (!sig) return null;
+
+    // ES256 signs SHA-256 of the ASCII `header.payload` signing input
+    const signingInput = textEncoder.encode(`${headerB64}.${payloadB64}`);
+    const msgHash = sha256(signingInput);
+
+    // lowS: false — JWS/JWT (RFC 7518) does not require low-S
+    // normalization. WebCrypto (which the backend uses to sign) produces
+    // both high-S and low-S signatures nondeterministically.
+    const valid = p256.verify(sig, msgHash, pubKeyBytes, { lowS: false });
+    if (!valid) return null;
+
+    // Decode claims
+    const payloadBytes = b64urlDecode(payloadB64);
+    const claims = JSON.parse(
+      new TextDecoder().decode(payloadBytes),
+    ) as TakumipayClaims;
 
     if (typeof claims.merchantId !== "string" || claims.merchantId === "") {
       return null;
@@ -101,11 +156,14 @@ export const verifyTakumipayJws = async (
         ? claims.amountMinor
         : undefined;
 
-    // §4.4 locks v1 to IDR; we narrow the type here because the
-    // `PayChannel` merchant union pins `currency` to the supported
-    // set. An unexpected currency string falls back to IDR rather
-    // than a widening cast — the server re-validates against the
-    // merchant profile at intent creation.
+    // exp / nbf sanity — jose checked these automatically; replicate
+    // with clockTolerance 0 (merchant QRs are long-lived, an expired
+    // one is operationally "not our QR").
+    const nowSec = Math.floor(Date.now() / 1000);
+    const claimsAny = claims as Record<string, unknown>;
+    if (typeof claimsAny.exp === "number" && claimsAny.exp < nowSec) return null;
+    if (typeof claimsAny.nbf === "number" && claimsAny.nbf > nowSec) return null;
+
     const currency: "IDR" = claims.currency === "IDR" ? "IDR" : "IDR";
 
     return {
@@ -117,35 +175,27 @@ export const verifyTakumipayJws = async (
         merchantId,
         amountMinor,
         currency,
-        // Echo the full raw payload (prefix included) so the backend
-        // can log the original sticker content even though it already
-        // has the resolved `merchantId`.
         rawPayload: raw,
       },
     };
   } catch {
-    // Silent failure — see module docstring for the security
-    // rationale. Never log the payload; never leak a reason.
     return null;
   }
 };
 
 /**
- * Lazy-load the bundled public JWK. Using dynamic `import()` keeps the
- * test file (which imports `verifyTakumipayJws` directly) out of the
+ * Lazy-load the bundled public JWK and convert to uncompressed P-256
+ * bytes. Using dynamic `import()` keeps the test file out of the
  * import graph of `@/constants/takumipayKey`, which hard-throws at
- * module load when `EXPO_PUBLIC_TAKUMIPAY_QR_PUBKEY_JWK` is unset
- * (task 09 delivers that module).
- *
- * In production the first scan pays the one-shot import cost; every
- * subsequent scan hits the cached module.
+ * module load when `EXPO_PUBLIC_TAKUMIPAY_QR_PUBKEY_JWK` is unset.
  */
-let cachedProdKey: JWK | null = null;
-const loadProdKey = async (): Promise<JWK> => {
-  if (cachedProdKey !== null) return cachedProdKey;
+let cachedPubKey: Uint8Array | null = null;
+const loadProdPubKey = async (): Promise<Uint8Array | null> => {
+  if (cachedPubKey !== null) return cachedPubKey;
   const mod = await import("@/constants/takumipayKey");
-  cachedProdKey = mod.publicKeyJwk;
-  return cachedProdKey;
+  const bytes = jwkToUncompressedP256(mod.publicKeyJwk);
+  if (bytes) cachedPubKey = bytes;
+  return bytes;
 };
 
 export const takumipayJwsDetector: Detector = {
@@ -162,16 +212,14 @@ export const takumipayJwsDetector: Detector = {
     if (typeof raw !== "string") return null;
     if (!raw.startsWith(TAKUMIPAY_V1_PREFIX)) return null;
 
-    let key: JWK;
+    let pubKey: Uint8Array | null;
     try {
-      key = await loadProdKey();
+      pubKey = await loadProdPubKey();
     } catch {
-      // If the bundled JWK module failed to load (env var unset at
-      // boot), we still refuse to signal "tampered" vs "not ours" —
-      // treat as "not our QR" and fall through to the next detector.
       return null;
     }
-    return verifyTakumipayJws(raw, key);
+    if (!pubKey) return null;
+    return verifyTakumipayJws(raw, pubKey);
   },
 };
 

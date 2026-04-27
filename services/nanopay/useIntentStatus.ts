@@ -25,7 +25,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { randomUUID } from "react-native-quick-crypto";
-import { api } from "@/constants/configs/ky";
+import { api, createApiForWallet } from "@/constants/configs/ky";
 import type { OnchainSubmitResponse } from "./pathOnchainSettlement";
 import {
   type SubmitNanopayAuthorizationArgs,
@@ -50,8 +50,10 @@ async function fetchIntent(intentId: string): Promise<PaymentIntentResponse> {
 
 async function createIntent(
   body: CreateIntentRequest,
+  walletAddress?: string,
 ): Promise<PaymentIntentResponse> {
-  return api
+  const kyInstance = walletAddress ? createApiForWallet(walletAddress) : api;
+  return kyInstance
     .post("pay/intents", {
       json: body,
       headers: { "Idempotency-Key": randomUUID() },
@@ -96,11 +98,14 @@ export function useIntentStatus(
 /** `POST /pay/intents` — returns the server-signed payment intent. */
 export function useCreateIntent() {
   const queryClient = useQueryClient();
-  return useMutation<PaymentIntentResponse, Error, CreateIntentRequest>({
-    mutationFn: (body) => createIntent(body),
+  return useMutation<
+    PaymentIntentResponse,
+    Error,
+    CreateIntentRequest & { walletAddress?: string }
+  >({
+    mutationFn: ({ walletAddress, ...body }) =>
+      createIntent(body, walletAddress),
     onSuccess: (intent) => {
-      // Seed the cache so the first `useIntentStatus` render hits a
-      // warm entry and skips the cold 200 ms network dip.
       queryClient.setQueryData(intentQueryKey(intent.id), intent);
     },
   });

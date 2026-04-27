@@ -396,6 +396,35 @@ export const optionalAuthApi = ky.create({
   },
 });
 
+/**
+ * Creates a ky instance authenticated with a specific wallet's stored
+ * token. Used by isolated flows (payment, etc.) that pick a wallet
+ * independently of the global `activeWallet` so they never mutate
+ * shared state. Throws if no token exists for the given address —
+ * callers must ensure the wallet is signed in before using this.
+ */
+export const createApiForWallet = (walletAddress: string) =>
+  ky.create({
+    ...createBaseConfig(),
+    hooks: {
+      beforeRequest: [
+        async (request) => {
+          setupBaseHeaders(request, "wallet-scoped API");
+          const token = await getAccessTokenForWallet(
+            walletAddress.toLowerCase(),
+          );
+          if (!token) {
+            throw new Error(
+              `No access token for wallet ${walletAddress.slice(0, 8)}…`,
+            );
+          }
+          request.headers.set("Authorization", `Bearer ${token}`);
+        },
+      ],
+      afterResponse: [handleApiResponse],
+    },
+  });
+
 export const publicApi = ky.create({
   ...createBaseConfig(),
   hooks: {

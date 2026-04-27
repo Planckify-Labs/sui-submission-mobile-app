@@ -39,6 +39,7 @@ import {
   isValidSolanaPrivateKey,
   truncateAddress as truncateAddressUtil,
 } from "../../../utils/walletUtils.ts";
+import { bytesToBase58 } from "../../chains/solana/codec.ts";
 import { buildAndSendSplTransfer } from "../../chains/solana/splTransferService.ts";
 import {
   buildAndSendSolTransfer,
@@ -155,6 +156,24 @@ export function createSolanaWalletKit(): WalletKitAdapter {
     // ── Keys & signers (TWV-2026-070 dwell site) ────────────────────
     async getSignerForWallet(wallet: TWallet): Promise<unknown | null> {
       return getSolanaSignerForWallet(wallet);
+    },
+
+    // ── Auth ────────────────────────────────────────────────────────
+    async signAuthMessage(wallet: TWallet, message: string): Promise<string> {
+      const signer: KeyPairSigner | null =
+        await getSolanaSignerForWallet(wallet);
+      if (!signer) {
+        throw new Error("SolanaWalletKit.signAuthMessage: no signer available");
+      }
+      const messageBytes = new TextEncoder().encode(message);
+      const [sigDict] = await signer.signMessages([
+        { content: messageBytes, signatures: {} },
+      ]);
+      const sigBytes = sigDict[signer.address];
+      if (!sigBytes || sigBytes.length !== 64) {
+        throw new Error("SolanaWalletKit.signAuthMessage: invalid signature bytes");
+      }
+      return bytesToBase58(sigBytes);
     },
 
     // ── Reads ───────────────────────────────────────────────────────
