@@ -22,7 +22,7 @@ import type { TToken } from "@/api/types/token";
 import type { ChainConfig } from "@/constants/configs/chainConfig";
 import { storage } from "@/lib/storage/mmkv";
 import { walletKitRegistry } from "@/services/walletKit/registry";
-import { formatUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 import {
   ExecutorError,
   ExecutorErrorCode,
@@ -416,9 +416,94 @@ export const getSolanaWalletTokens: MobileToolExecutor = (input, context) =>
     };
   });
 
+/**
+ * `send_spl_token` — SPL token transfer (classic Token Program and
+ * Token-2022) from the connected wallet. The kit's `sendTokenTransfer`
+ * auto-detects the token program via the mint's on-chain account owner,
+ * so no discriminator is needed here. Mirrors the `kit.sendTokenTransfer`
+ * path in `app/send.tsx` for token transfers on Solana.
+ */
+export const sendSplToken: MobileToolExecutor = (input, context) =>
+  safeExecute(async () => {
+    if (!context.wallet?.address) {
+      throw new ExecutorError(
+        ExecutorErrorCode.WalletCannotExecute,
+        "no connected wallet",
+      );
+    }
+    if (context.wallet.namespace !== SOLANA_NAMESPACE) {
+      throw new ExecutorError(
+        ExecutorErrorCode.UnsupportedChain,
+        "wallet_not_solana",
+      );
+    }
+
+    const to = requireString(input, "to");
+    requireSolanaAddress(to, "to");
+
+    const mintAddress = requireString(input, "mint_address");
+    requireSolanaAddress(mintAddress, "mint_address");
+
+    const tokenAmountHuman = requireString(input, "token_amount");
+
+    const rawDecimals = input.token_decimals;
+    const decimals =
+      typeof rawDecimals === "number"
+        ? rawDecimals
+        : parseInt(String(rawDecimals), 10);
+    if (!Number.isInteger(decimals) || decimals < 0) {
+      throw new ExecutorError(
+        ExecutorErrorCode.InvalidInput,
+        "invalid_token_decimals",
+      );
+    }
+
+    let amountRaw: bigint;
+    try {
+      amountRaw = parseUnits(tokenAmountHuman, decimals);
+    } catch {
+      throw new ExecutorError(
+        ExecutorErrorCode.InvalidInput,
+        "invalid_token_amount",
+      );
+    }
+    if (amountRaw <= 0n) {
+      throw new ExecutorError(
+        ExecutorErrorCode.InvalidInput,
+        "token_amount_must_be_positive",
+      );
+    }
+
+    const kit = getSolanaKit();
+    const chain = getActiveSolanaChain();
+    const signature = await kit.sendTokenTransfer({
+      wallet: context.wallet,
+      to,
+      amount: amountRaw,
+      chain,
+      contractAddress: mintAddress,
+      decimals,
+    });
+
+    return {
+      status: "success",
+      tx_confirmed: true,
+      data: {
+        signature,
+        to,
+        mint_address: mintAddress,
+        cluster: chain.cluster,
+        amount_raw: amountRaw.toString(),
+        token_amount: tokenAmountHuman,
+        decimals,
+      },
+    };
+  });
+
 export const SOLANA_EXECUTORS: Record<string, MobileToolExecutor> = {
   get_wallet_sol_balance: getWalletSolBalance,
   get_sol_balance: getSolBalance,
   send_sol: sendSol,
   get_wallet_spl_tokens: getSolanaWalletTokens,
+  send_spl_token: sendSplToken,
 };

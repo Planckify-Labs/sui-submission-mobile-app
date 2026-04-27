@@ -14,7 +14,7 @@
  *
  * Tool names enumerated from
  *   takumi-agent-api/src/tools/registry.ts @ 2026-04-12
- * (28 tools total — if you add more on the server, grep for
+ * (29 tools total — if you add more on the server, grep for
  * `executor: 'mobile'` there and update both sides together).
  */
 
@@ -102,6 +102,7 @@ export const EXPECTED_MOBILE_TOOLS: ReadonlyArray<string> = [
   "get_sol_balance",
   "send_sol",
   "get_wallet_spl_tokens",
+  "send_spl_token",
   // solana takumipay
   "execute_booking_sol",
   "deposit_points_sol",
