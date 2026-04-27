@@ -1657,12 +1657,22 @@ function MintFallback({
     const amountMinor = staticAmount ?? Number.parseInt(amountInput, 10);
     if (!Number.isFinite(amountMinor) || amountMinor <= 0) return;
     try {
+      if (__DEV__) {
+        console.log(
+          "[MintFallback] sourceTokenId=", selectedToken?.id,
+          "chain=", selectedChain?.name,
+          "wallet=", selectedWallet?.address,
+        );
+      }
+      const preferredChain =
+        selectedChainConfig?.namespace === "solana" ? "solana" : "evm";
       const created = await createIntent.mutateAsync({
         scannedPayload: raw,
         currency: "IDR",
         fiatAmountMinor: amountMinor,
         sourceTokenId: selectedToken?.id,
         walletAddress: selectedWallet?.address,
+        preferredChain,
       });
       // Replace so the user's back button returns to the scanner, not
       // to this fallback screen. The new URL is the canonical form.
@@ -1686,6 +1696,7 @@ function MintFallback({
     staticAmount,
     selectedToken,
     selectedWallet,
+    selectedChainConfig,
     resolvedMerchantName,
   ]);
 

@@ -58,6 +58,12 @@ export interface CreateIntentRequest {
   currency: Currency;
   /** Source token the payer wants to pay with (onchain settlement rail). */
   sourceTokenId?: string;
+  /**
+   * Payer's preferred settlement namespace. `"evm"` (default) → Arc + Nanopayments;
+   * `"solana"` → Path B-SVM. Omitting is equivalent to `"evm"`.
+   * Derived from the active wallet namespace at intent-creation time.
+   */
+  preferredChain?: "evm" | "solana";
 }
 
 /**
