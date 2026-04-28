@@ -328,7 +328,7 @@ async function runNonInteractive(
   }
 
   try {
-    await postRespond(session.session_id, payload.tool_call_id, result);
+    await postRespondWithPolicy(session, payload, result);
   } catch (err) {
     session.ui.showError?.(
       `[agentSession] failed to POST tool result: ${String(err)}`,
@@ -340,6 +340,77 @@ async function runNonInteractive(
   }
 
   session.pending_approvals.delete(payload.tool_call_id);
+}
+
+// --- postRespond delivery policy --------------------------------------------
+
+/**
+ * Maximum extra delivery attempts after the first. Mirrors the default
+ * in `services/agent-executors/retry.ts` so the read-tool delivery loop
+ * has the same shape (3 total attempts) the executor itself uses.
+ */
+const POST_RESPOND_MAX_RETRIES = 2;
+const POST_RESPOND_BASE_DELAY_MS = 1000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * Deliver a `ToolResult` back to the server with capability-aware retry.
+ *
+ * Mirrors the §10 retry rules used by `executeToolWithRetry`:
+ *   - Read tools retry transient delivery failures with linear backoff
+ *     (`baseDelayMs * (attempt + 1)`), then fall through to a
+ *     `tool_rejected{reason: "network_error"}` so the server pairs the
+ *     assistant tool_call with a typed result instead of timing out.
+ *   - Write / simulate tools never auto-retry — anything that moved (or
+ *     could have moved) value gets a single delivery attempt. If that
+ *     fails the slot is left in `pending_approvals` and a reconnect /
+ *     manual recovery is required. This matches the anti-double-spend
+ *     invariant in `retry.ts` rule 2 (any `tx_hash` is final).
+ *
+ * Throws on permanent failure for non-read capabilities so the caller's
+ * existing error path (showError + leave slot) keeps working.
+ */
+async function postRespondWithPolicy(
+  session: AgentSession,
+  payload: ToolPendingPayload,
+  result: ToolResult,
+): Promise<void> {
+  const capability = payload.meta.capability;
+
+  if (capability !== "read") {
+    // Write / simulate: single attempt, no retry. Per the design,
+    // anything that touched chain state must not double-deliver.
+    await postRespond(session.session_id, payload.tool_call_id, result);
+    return;
+  }
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= POST_RESPOND_MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await sleep(POST_RESPOND_BASE_DELAY_MS * attempt);
+    }
+    try {
+      await postRespond(session.session_id, payload.tool_call_id, result);
+      return;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  // Read-tool delivery exhausted all retries. Pair the server-side
+  // tool_call with a typed rejection so the agent loop doesn't sit on
+  // an orphan until the 5-minute timeout. Falling back to rejectTool
+  // (instead of fabricating a server-side marker) keeps the
+  // `mobile→execute, mobile→respond` invariant intact.
+  console.warn(
+    `[agentSession] postRespond exhausted retries for ${payload.tool_call_id} (${payload.name}): ${String(lastError)}`,
+  );
+  await rejectTool(payload, session, "network_error");
 }
 
 /**

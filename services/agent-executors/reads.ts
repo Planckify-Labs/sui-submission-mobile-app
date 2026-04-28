@@ -103,6 +103,12 @@ export const getBalance: MobileToolExecutor = (input, context) =>
  */
 export const getWalletBalance: MobileToolExecutor = (input, context) =>
   safeExecute(async () => {
+    if (context.wallet.namespace !== "eip155") {
+      throw new ExecutorError(
+        ExecutorErrorCode.UnsupportedChain,
+        "wallet_not_evm",
+      );
+    }
     const chainId = resolveChainId(input, context);
     const address = context.wallet.address as `0x${string}`;
     if (!address) {
@@ -266,32 +272,53 @@ export const getWalletAddress: MobileToolExecutor = (_input, context) =>
   });
 
 /**
- * `get_supported_chains` — enumerate the mobile's EVM chain registry so
- * the agent can fan out cross-chain reads (protocol §3). Uses the live
- * `blockchains` list from the executor context; watches for `isEVM`
- * and `isActive` to match the registry guard in `chainRouter`.
+ * `get_supported_chains` — enumerate the mobile's chain registry so the
+ * agent can fan out cross-chain reads (protocol §3) and pick the right
+ * namespace-specific tools for the connected wallet.
+ *
+ * Surfaces both EVM and non-EVM (Solana) rows from the live
+ * `blockchains` list. Each entry is tagged with `namespace` so the
+ * agent can distinguish — EVM rows carry `chain_id` (numeric, EIP-155),
+ * non-EVM rows carry `caip2_id` instead. Solana has no numeric chainId,
+ * so we never fabricate one (see `feedback_solana_no_chain_id`).
+ *
+ * `wallet_namespace` echoes the connected wallet's namespace so the
+ * agent can immediately filter to compatible tools without a second
+ * round-trip.
  */
 export const getSupportedChains: MobileToolExecutor = (_input, context) =>
   safeExecute(async () => {
-    const rows: TBlockchain[] = context.blockchains.filter(
-      (b) => b.isEVM && b.isActive,
-    );
+    const rows: TBlockchain[] = context.blockchains.filter((b) => b.isActive);
 
     const chains = rows.map((row) => {
       const native = row.tokens?.find((t) => t.isNativeCurrency);
-      return {
-        chain_id: row.chainId,
+      const namespace = row.isEVM ? "eip155" : "solana";
+      const base = {
         name: row.name,
-        native_symbol: native?.symbol ?? "ETH",
-        native_decimals: native?.decimals ?? 18,
+        namespace,
+        is_testnet: row.isTestnet,
         rpc_url: row.rpcUrl,
         block_explorer: row.blockExplorer || null,
+      };
+      if (row.isEVM && typeof row.chainId === "number") {
+        return {
+          ...base,
+          chain_id: row.chainId,
+          native_symbol: native?.symbol ?? "ETH",
+          native_decimals: native?.decimals ?? 18,
+        };
+      }
+      return {
+        ...base,
+        caip2_id: row.caip2Id ?? null,
+        native_symbol: native?.symbol ?? "SOL",
+        native_decimals: native?.decimals ?? 9,
       };
     });
 
     return {
       status: "success",
-      data: { chains },
+      data: { chains, wallet_namespace: context.wallet.namespace },
     };
   });
 
@@ -607,6 +634,12 @@ async function scanChainTokens(
 
 export const getWalletTokens: MobileToolExecutor = (input, context) =>
   safeExecute(async () => {
+    if (context.wallet.namespace !== "eip155") {
+      throw new ExecutorError(
+        ExecutorErrorCode.UnsupportedChain,
+        "wallet_not_evm",
+      );
+    }
     // ---- Decide which chains to scan --------------------------------
     // Priority:
     //   1. explicit `chain_ids: number[]`     → multi-chain parallel

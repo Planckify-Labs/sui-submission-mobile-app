@@ -1,5 +1,6 @@
 import PendingTxCard from "./cards/PendingTxCard";
 import RedemptionCatalogCard from "./cards/RedemptionCatalogCard";
+import SolanaPendingTxCard from "./cards/SolanaPendingTxCard";
 import SolanaTokensCard from "./cards/SolanaTokensCard";
 import SpendingApprovalCard from "./cards/SpendingApprovalCard";
 import SwapQuoteCard from "./cards/SwapQuoteCard";
@@ -18,4 +19,6 @@ export const toolComponents: Record<string, ToolComponent<any, any>> = {
   get_wallet_spl_tokens: SolanaTokensCard,
   get_redemption_catalog: RedemptionCatalogCard,
   search_redemption_catalog: RedemptionCatalogCard,
+  send_sol: SolanaPendingTxCard,
+  send_spl_token: SolanaPendingTxCard,
 };
