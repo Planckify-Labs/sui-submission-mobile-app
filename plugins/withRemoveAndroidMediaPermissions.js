@@ -18,6 +18,7 @@ const { withAndroidManifest } = require("expo/config-plugins");
 const TOOLS_NS_URI = "http://schemas.android.com/tools";
 
 const PERMISSIONS_TO_REMOVE = [
+  "android.permission.READ_MEDIA_IMAGES",
   "android.permission.READ_MEDIA_VIDEO",
   "android.permission.READ_MEDIA_AUDIO",
 ];
