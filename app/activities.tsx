@@ -89,7 +89,7 @@ export default function ActivitiesScreen() {
     hadPreviousSession,
   } = useIsAuthenticated();
   const [activeActivity, setActiveActivity] =
-    useState<ActivityTab>("redemptions");
+    useState<ActivityTab>("payments");
   const horizontalScrollRef = useRef<FlatList>(null);
 
   useEffect(() => {
