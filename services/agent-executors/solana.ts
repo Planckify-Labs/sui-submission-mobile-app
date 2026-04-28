@@ -17,12 +17,12 @@
  * spell this out (see `agent-api/src/tools/registry.ts`).
  */
 
+import { formatUnits, parseUnits } from "viem";
 import { tokenApi } from "@/api/endpoints/tokens";
 import type { TToken } from "@/api/types/token";
 import type { ChainConfig } from "@/constants/configs/chainConfig";
 import { storage } from "@/lib/storage/mmkv";
 import { walletKitRegistry } from "@/services/walletKit/registry";
-import { formatUnits, parseUnits } from "viem";
 import {
   ExecutorError,
   ExecutorErrorCode,

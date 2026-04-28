@@ -372,7 +372,9 @@ export default function AgentMode() {
   // use their own signer path (getSolanaSignerForWallet).
   const evmAccount = useMemo(
     () =>
-      activeWallet ? (walletService.getAccountForWallet(activeWallet) ?? null) : null,
+      activeWallet
+        ? (walletService.getAccountForWallet(activeWallet) ?? null)
+        : null,
     [activeWallet],
   );
 

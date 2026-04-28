@@ -102,7 +102,9 @@ export function createEvmWalletKit(): WalletKitAdapter {
     async signAuthMessage(wallet: TWallet, message: string): Promise<string> {
       const account = getAccountForWallet(wallet);
       if (!account) {
-        throw new Error("EvmWalletKit.signAuthMessage: unable to reconstruct signer");
+        throw new Error(
+          "EvmWalletKit.signAuthMessage: unable to reconstruct signer",
+        );
       }
       return account.signMessage({ message });
     },

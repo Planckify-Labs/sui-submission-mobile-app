@@ -171,7 +171,9 @@ export function createSolanaWalletKit(): WalletKitAdapter {
       ]);
       const sigBytes = sigDict[signer.address];
       if (!sigBytes || sigBytes.length !== 64) {
-        throw new Error("SolanaWalletKit.signAuthMessage: invalid signature bytes");
+        throw new Error(
+          "SolanaWalletKit.signAuthMessage: invalid signature bytes",
+        );
       }
       return bytesToBase58(sigBytes);
     },

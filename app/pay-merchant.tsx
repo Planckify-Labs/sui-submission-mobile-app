@@ -78,18 +78,18 @@ import {
 } from "react-native-safe-area-context";
 import { formatUnits } from "viem";
 import PinConfirmationModal from "@/components/common/PinConfirmationModal";
-import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
 import { PaymentError } from "@/components/PaymentError";
-import {
-  getAccessTokenForWallet,
-  useNonce,
-  useVerifySignature,
-} from "@/hooks/queries/useAuth";
+import WalletSelectorModal from "@/components/wallet/WalletSelectorModal";
 import {
   type ChainConfig,
   findEvmChainById,
 } from "@/constants/configs/chainConfig";
 import { api, optionalAuthApi } from "@/constants/configs/ky";
+import {
+  getAccessTokenForWallet,
+  useNonce,
+  useVerifySignature,
+} from "@/hooks/queries/useAuth";
 import { usePaymentContract } from "@/hooks/queries/usePaymentContract";
 import {
   type PaymentToken,
@@ -804,7 +804,9 @@ function OnchainCard({
     });
 
   // ── Resolve the intent's target chain from blockchainId ──────────
-  const { data: allBlockchains } = useBlockchainsWithStorage({ isActive: true });
+  const { data: allBlockchains } = useBlockchainsWithStorage({
+    isActive: true,
+  });
   const intentBlockchainRow = useMemo(() => {
     if (!intent.blockchainId || !allBlockchains?.length) return null;
     return allBlockchains.find((b) => b.id === intent.blockchainId) ?? null;
@@ -1541,7 +1543,12 @@ function MintFallback({
   const [isLoadingTokenBalance, setIsLoadingTokenBalance] = useState(false);
 
   useEffect(() => {
-    if (!selectedWallet || !selectedKit || !selectedChainConfig || !selectedToken) {
+    if (
+      !selectedWallet ||
+      !selectedKit ||
+      !selectedChainConfig ||
+      !selectedToken
+    ) {
       setTokenBalance("0");
       setIsLoadingTokenBalance(false);
       return;
@@ -1659,9 +1666,12 @@ function MintFallback({
     try {
       if (__DEV__) {
         console.log(
-          "[MintFallback] sourceTokenId=", selectedToken?.id,
-          "chain=", selectedChain?.name,
-          "wallet=", selectedWallet?.address,
+          "[MintFallback] sourceTokenId=",
+          selectedToken?.id,
+          "chain=",
+          selectedChain?.name,
+          "wallet=",
+          selectedWallet?.address,
         );
       }
       const preferredChain =
@@ -1834,9 +1844,7 @@ function MintFallback({
 
       {/* ── Wallet picker ─────────────────────────────────────────── */}
       <View className="mb-6">
-        <Text className="text-light-matte-black/60 text-sm mb-2">
-          Pay from
-        </Text>
+        <Text className="text-light-matte-black/60 text-sm mb-2">Pay from</Text>
         <Pressable
           onPress={() => setWalletPickerOpen(true)}
           className="bg-light-main-container rounded-xl px-4 py-3 flex-row items-center justify-between"
@@ -1920,7 +1928,8 @@ function MintFallback({
                 <Shield color="#ffffff" size={14} />
                 <Text className="text-white font-semibold text-sm">
                   Sign in with{" "}
-                  {selectedNamespace === "solana" ? "Solana" : "Ethereum"} wallet
+                  {selectedNamespace === "solana" ? "Solana" : "Ethereum"}{" "}
+                  wallet
                 </Text>
               </>
             )}

@@ -119,11 +119,8 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
   const { bottom } = useSafeAreaInsets();
   const bottomOffset = Platform.OS === "ios" ? 16 : bottom > 0 ? bottom : 0;
 
-  const {
-    activeChain,
-    changeActiveChain,
-    changeActiveChainToConfig,
-  } = useWallet();
+  const { activeChain, changeActiveChain, changeActiveChainToConfig } =
+    useWallet();
   const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [switchingRowKey, setSwitchingRowKey] = useState<string | null>(null);

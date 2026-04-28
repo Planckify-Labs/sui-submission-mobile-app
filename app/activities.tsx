@@ -25,6 +25,8 @@ import {
 import type { TRedemptionHistoryItem } from "@/api/types/redeem";
 import type { TTransaction } from "@/api/types/transaction";
 import ActivityHeader from "@/components/activities/ActivityHeader";
+import PaymentCard from "@/components/activities/PaymentCard";
+import PaymentCardSkeleton from "@/components/activities/PaymentCardSkeleton";
 import PurchaseCard from "@/components/activities/PurchaseCard";
 import PurchaseCardSkeleton from "@/components/activities/PurchaseCardSkeleton";
 import TransferCard from "@/components/activities/TransferCard";
@@ -36,6 +38,16 @@ import { useTransactionHistory } from "@/hooks/queries/useTransactions";
 
 type RedemptionListItem = TRedemptionHistoryItem | { id: string };
 type TransferListItem = TTransaction | { id: string };
+type PaymentListItem = TTransaction | { id: string };
+type ActivityTab = "transfers" | "payments" | "redemptions";
+
+const TAB_INDEX: Record<ActivityTab, number> = {
+  transfers: 0,
+  payments: 1,
+  redemptions: 2,
+};
+
+const TAB_BY_INDEX: ActivityTab[] = ["transfers", "payments", "redemptions"];
 
 const SKELETON_DATA = Array.from({ length: 5 }).map((_, index) => ({
   id: `skeleton-${index}`,
@@ -52,20 +64,22 @@ const SkeletonSeparator = React.memo(() => <View className="h-4" />);
 
 const { width } = Dimensions.get("window");
 
-const EmptyState = React.memo(
-  ({ type }: { type: "redemptions" | "transfers" }) => (
-    <View className="flex-1 items-center justify-center px-4">
-      <Text className="text-light-matte-black/50 text-lg text-center font-medium mb-2">
-        No {type} history
-      </Text>
-      <Text className="text-light-matte-black/30 text-center">
-        {type === "redemptions"
-          ? "You haven't redeemed anything yet"
-          : "You haven't made any transfers yet"}
-      </Text>
-    </View>
-  ),
-);
+const EMPTY_COPY: Record<ActivityTab, string> = {
+  redemptions: "You haven't redeemed anything yet",
+  transfers: "You haven't made any transfers yet",
+  payments: "You haven't made any payments yet",
+};
+
+const EmptyState = React.memo(({ type }: { type: ActivityTab }) => (
+  <View className="flex-1 items-center justify-center px-4">
+    <Text className="text-light-matte-black/50 text-lg text-center font-medium mb-2">
+      No {type} history
+    </Text>
+    <Text className="text-light-matte-black/30 text-center">
+      {EMPTY_COPY[type]}
+    </Text>
+  </View>
+));
 
 export default function ActivitiesScreen() {
   const router = useRouter();
@@ -74,9 +88,8 @@ export default function ActivitiesScreen() {
     isLoading: isAuthLoading,
     hadPreviousSession,
   } = useIsAuthenticated();
-  const [activeActivity, setActiveActivity] = useState<
-    "redemptions" | "transfers"
-  >("redemptions");
+  const [activeActivity, setActiveActivity] =
+    useState<ActivityTab>("redemptions");
   const horizontalScrollRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -96,6 +109,12 @@ export default function ActivitiesScreen() {
   } = useTransactionHistory({ type: "TRANSFER" });
 
   const {
+    data: paymentsData,
+    isLoading: isPaymentsLoading,
+    refetch: refetchPayments,
+  } = useTransactionHistory({ type: "PAYMENT" });
+
+  const {
     data: redemptionsData,
     isLoading: isRedemptionsLoading,
     refetch: refetchRedemptions,
@@ -110,14 +129,17 @@ export default function ActivitiesScreen() {
   );
 
   const tabIndicatorPosition = useRef(
-    new Animated.Value(activeActivity === "redemptions" ? 1 : 0),
+    new Animated.Value(TAB_INDEX[activeActivity]),
   ).current;
 
   const horizontalScrollX = useRef(
-    new Animated.Value(activeActivity === "redemptions" ? width : 0),
+    new Animated.Value(TAB_INDEX[activeActivity] * width),
   ).current;
 
-  const currentTabIndex = useRef(activeActivity === "redemptions" ? 1 : 0);
+  const currentTabIndex = useRef(TAB_INDEX[activeActivity]);
+
+  const [tabRowWidth, setTabRowWidth] = useState(0);
+  const tabSegmentWidth = tabRowWidth / TAB_BY_INDEX.length;
 
   const renderPurchaseItem = useCallback(
     ({ item }: { item: RedemptionListItem }) => {
@@ -137,34 +159,41 @@ export default function ActivitiesScreen() {
     [isTransfersLoading],
   );
 
+  const renderPaymentItem = useCallback(
+    ({ item }: { item: PaymentListItem }) => {
+      if (isPaymentsLoading) return <PaymentCardSkeleton />;
+      if (!("type" in item)) return null;
+      return <PaymentCard transaction={item} />;
+    },
+    [isPaymentsLoading],
+  );
+
   const keyExtractor = useCallback(
-    (item: RedemptionListItem | TransferListItem) => {
+    (item: RedemptionListItem | TransferListItem | PaymentListItem) => {
       return item.id;
     },
     [],
   );
 
   const searchPlaceholder = useMemo(
-    () =>
-      `search ${activeActivity === "redemptions" ? "redemptions" : "transfers"}...`,
+    () => `search ${activeActivity}...`,
     [activeActivity],
   );
 
   const handleTabChange = useCallback(
-    (newTab: "redemptions" | "transfers") => {
+    (newTab: ActivityTab) => {
       if (newTab !== activeActivity) {
         setActiveActivity(newTab);
 
         Animated.spring(tabIndicatorPosition, {
-          toValue: newTab === "redemptions" ? 1 : 0,
+          toValue: TAB_INDEX[newTab],
           tension: 70,
           friction: 10,
           useNativeDriver: true,
         }).start();
 
-        const indexToScroll = newTab === "redemptions" ? 1 : 0;
         horizontalScrollRef.current?.scrollToIndex({
-          index: indexToScroll,
+          index: TAB_INDEX[newTab],
           animated: true,
         });
       }
@@ -188,6 +217,11 @@ export default function ActivitiesScreen() {
   const transferShouldShowEmpty = useMemo(
     () => !isTransfersLoading && (!transfersData || transfersData.length === 0),
     [isTransfersLoading, transfersData],
+  );
+
+  const paymentShouldShowEmpty = useMemo(
+    () => !isPaymentsLoading && (!paymentsData || paymentsData.length === 0),
+    [isPaymentsLoading, paymentsData],
   );
 
   const handleLoadMoreRedemptions = useCallback(() => {
@@ -291,15 +325,65 @@ export default function ActivitiesScreen() {
     scrollY,
   ]);
 
+  const PaymentList = useMemo(() => {
+    const data: PaymentListItem[] = isPaymentsLoading
+      ? SKELETON_DATA
+      : (paymentsData ?? []);
+    const SeparatorComponent = isPaymentsLoading
+      ? SkeletonSeparator
+      : ItemSeparator;
+
+    return (
+      <FlashList<PaymentListItem>
+        data={data}
+        keyExtractor={keyExtractor}
+        renderItem={renderPaymentItem}
+        ItemSeparatorComponent={SeparatorComponent}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={
+          paymentShouldShowEmpty ? { flex: 1 } : CONTENT_CONTAINER_STYLE
+        }
+        ListEmptyComponent={
+          paymentShouldShowEmpty ? <EmptyState type="payments" /> : null
+        }
+        removeClippedSubviews={true}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false },
+        )}
+        refreshControl={
+          <RefreshControl
+            refreshing={isPaymentsLoading}
+            onRefresh={refetchPayments}
+            tintColor="#c71c4b"
+            colors={["#c71c4b"]}
+          />
+        }
+      />
+    );
+  }, [
+    isPaymentsLoading,
+    paymentsData,
+    keyExtractor,
+    renderPaymentItem,
+    paymentShouldShowEmpty,
+    refetchPayments,
+    scrollY,
+  ]);
+
   const renderTabContent = useCallback(
     ({ index }: { index: number }) => {
       return (
         <View style={{ width }}>
-          {index === 0 ? TransferList : PurchaseList}
+          {index === 0
+            ? TransferList
+            : index === 1
+              ? PaymentList
+              : PurchaseList}
         </View>
       );
     },
-    [TransferList, PurchaseList],
+    [TransferList, PaymentList, PurchaseList],
   );
 
   const handleHorizontalScroll = useCallback(
@@ -309,7 +393,10 @@ export default function ActivitiesScreen() {
 
       if (currentTabIndex.current !== newIndex) {
         currentTabIndex.current = newIndex;
-        setActiveActivity(newIndex === 0 ? "transfers" : "redemptions");
+        const nextTab = TAB_BY_INDEX[newIndex];
+        if (nextTab) {
+          setActiveActivity(nextTab);
+        }
 
         Animated.spring(tabIndicatorPosition, {
           toValue: newIndex,
@@ -340,24 +427,47 @@ export default function ActivitiesScreen() {
         experimentalBlurMethod="dimezisBlurView"
         className="overflow-hidden rounded-full mx-4 border-4 border-light-main-container/80"
       >
-        <View className="bg-mainborder-light-main-container/10 w-full flex-row items-center justify-evenly relative">
+        <View
+          className="bg-mainborder-light-main-container/10 w-full flex-row items-center justify-evenly relative"
+          onLayout={(e) => setTabRowWidth(e.nativeEvent.layout.width)}
+        >
           <TouchableOpacity
             onPress={() => handleTabChange("transfers")}
             activeOpacity={0.7}
-            className="px-8 py-2 items-center justify-center grow"
+            className="px-2 py-2 items-center justify-center flex-1"
           >
             <Text
-              className={`${activeActivity !== "redemptions" ? "text-light-primary-red/75" : "text-light-matte-black/50"} text-center font-bold`}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+              className={`${activeActivity === "transfers" ? "text-light-primary-red/75" : "text-light-matte-black/50"} text-center font-bold`}
             >
               Transfers
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => handleTabChange("redemptions")}
+            onPress={() => handleTabChange("payments")}
             activeOpacity={0.7}
-            className="px-8 py-2 items-center justify-center grow"
+            className="px-2 py-2 items-center justify-center flex-1"
           >
             <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+              className={`${activeActivity === "payments" ? "text-light-primary-red/75" : "text-light-matte-black/50"} text-center font-bold`}
+            >
+              Payments
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => handleTabChange("redemptions")}
+            activeOpacity={0.7}
+            className="px-2 py-2 items-center justify-center flex-1"
+          >
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
               className={`${activeActivity === "redemptions" ? "text-light-primary-red/75" : "text-light-matte-black/50"} text-center font-bold`}
             >
               Redemptions
@@ -365,14 +475,18 @@ export default function ActivitiesScreen() {
           </TouchableOpacity>
 
           <Animated.View
-            className="absolute bottom-0 h-1 bg-light-primary-red/75 left-0 right-0 rounded-t-md"
+            className="absolute bottom-0 h-1 bg-light-primary-red/75 left-0 rounded-t-md"
             style={{
-              width: "50%",
+              width: tabSegmentWidth,
               transform: [
                 {
                   translateX: horizontalScrollX.interpolate({
-                    inputRange: [0, width],
-                    outputRange: [0, width / 2],
+                    inputRange: [0, width, 2 * width],
+                    outputRange: [
+                      0,
+                      tabSegmentWidth,
+                      2 * tabSegmentWidth,
+                    ],
                     extrapolate: "clamp",
                   }),
                 },
@@ -406,13 +520,17 @@ export default function ActivitiesScreen() {
             />
             <FlatList
               ref={horizontalScrollRef}
-              data={[{ id: "transfers" }, { id: "redemptions" }]}
+              data={[
+                { id: "transfers" },
+                { id: "payments" },
+                { id: "redemptions" },
+              ]}
               renderItem={renderTabContent}
               keyExtractor={(item) => item.id}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
-              initialScrollIndex={activeActivity === "redemptions" ? 1 : 0}
+              initialScrollIndex={TAB_INDEX[activeActivity]}
               getItemLayout={(_, index) => ({
                 length: width,
                 offset: width * index,

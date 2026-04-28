@@ -163,8 +163,10 @@ export const verifyTakumipayJws = (
     // one is operationally "not our QR").
     const nowSec = Math.floor(Date.now() / 1000);
     const claimsAny = claims as Record<string, unknown>;
-    if (typeof claimsAny.exp === "number" && claimsAny.exp < nowSec) return null;
-    if (typeof claimsAny.nbf === "number" && claimsAny.nbf > nowSec) return null;
+    if (typeof claimsAny.exp === "number" && claimsAny.exp < nowSec)
+      return null;
+    if (typeof claimsAny.nbf === "number" && claimsAny.nbf > nowSec)
+      return null;
 
     const currency: "IDR" = claims.currency === "IDR" ? "IDR" : "IDR";
 

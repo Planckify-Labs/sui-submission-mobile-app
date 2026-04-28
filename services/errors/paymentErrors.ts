@@ -70,7 +70,12 @@ export type PaymentErrorCode =
   | "unknown";
 
 /** Primary CTA semantic action — the component maps this to a handler prop. */
-export type PaymentErrorCtaAction = "retry" | "back" | "rescan" | "topup" | "invite_merchant";
+export type PaymentErrorCtaAction =
+  | "retry"
+  | "back"
+  | "rescan"
+  | "topup"
+  | "invite_merchant";
 
 export interface PaymentErrorCopy {
   title: string;
