@@ -13,6 +13,7 @@ import {
   Dimensions,
   FlatList,
   RefreshControl,
+  ScrollView,
   StatusBar,
   Text,
   TouchableOpacity,
@@ -25,6 +26,11 @@ import {
 import type { TRedemptionHistoryItem } from "@/api/types/redeem";
 import type { TTransaction } from "@/api/types/transaction";
 import ActivityHeader from "@/components/activities/ActivityHeader";
+import {
+  PaymentsEmptyArt,
+  RedemptionsEmptyArt,
+  TransfersEmptyArt,
+} from "@/components/activities/EmptyStateArt";
 import PaymentCard from "@/components/activities/PaymentCard";
 import PaymentCardSkeleton from "@/components/activities/PaymentCardSkeleton";
 import PurchaseCard from "@/components/activities/PurchaseCard";
@@ -64,22 +70,65 @@ const SkeletonSeparator = React.memo(() => <View className="h-4" />);
 
 const { width } = Dimensions.get("window");
 
-const EMPTY_COPY: Record<ActivityTab, string> = {
-  redemptions: "You haven't redeemed anything yet",
-  transfers: "You haven't made any transfers yet",
-  payments: "You haven't made any payments yet",
+const EMPTY_TITLE: Record<ActivityTab, string> = {
+  redemptions: "No redemptions yet",
+  transfers: "No transfers yet",
+  payments: "No payments yet",
 };
 
-const EmptyState = React.memo(({ type }: { type: ActivityTab }) => (
-  <View className="flex-1 items-center justify-center px-4">
-    <Text className="text-light-matte-black/50 text-lg text-center font-medium mb-2">
-      No {type} history
-    </Text>
-    <Text className="text-light-matte-black/30 text-center">
-      {EMPTY_COPY[type]}
-    </Text>
-  </View>
-));
+const EMPTY_COPY: Record<ActivityTab, string> = {
+  redemptions: "Redeemed products will appear here",
+  transfers: "Sent crypto will show up here",
+  payments: "Scan a merchant QR to make your first payment",
+};
+
+const EMPTY_ART: Record<ActivityTab, React.ComponentType<{ size?: number }>> = {
+  redemptions: RedemptionsEmptyArt,
+  transfers: TransfersEmptyArt,
+  payments: PaymentsEmptyArt,
+};
+
+const EmptyState = React.memo(({ type }: { type: ActivityTab }) => {
+  const Art = EMPTY_ART[type];
+  return (
+    <View className="flex-1 items-center justify-center px-6">
+      <Art size={170} />
+      <Text className="text-light-matte-black/70 text-lg text-center font-semibold mt-2 mb-1">
+        {EMPTY_TITLE[type]}
+      </Text>
+      <Text className="text-light-matte-black/40 text-center">
+        {EMPTY_COPY[type]}
+      </Text>
+    </View>
+  );
+});
+
+const EmptyStateView = React.memo(
+  ({
+    type,
+    refreshing,
+    onRefresh,
+  }: {
+    type: ActivityTab;
+    refreshing: boolean;
+    onRefresh: () => void;
+  }) => (
+    <ScrollView
+      contentContainerStyle={{ flex: 1 }}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor="#c71c4b"
+          colors={["#c71c4b"]}
+        />
+      }
+    >
+      <EmptyState type={type} />
+    </ScrollView>
+  ),
+);
 
 export default function ActivitiesScreen() {
   const router = useRouter();
@@ -231,6 +280,16 @@ export default function ActivitiesScreen() {
   }, [hasMoreRedemptions, isFetchingMoreRedemptions, fetchMoreRedemptions]);
 
   const PurchaseList = useMemo(() => {
+    if (redemptionShouldShowEmpty) {
+      return (
+        <EmptyStateView
+          type="redemptions"
+          refreshing={isRedemptionsLoading}
+          onRefresh={refetchRedemptions}
+        />
+      );
+    }
+
     const data: RedemptionListItem[] = isRedemptionsLoading
       ? SKELETON_DATA
       : flatRedemptions;
@@ -245,12 +304,7 @@ export default function ActivitiesScreen() {
         renderItem={renderPurchaseItem}
         ItemSeparatorComponent={SeparatorComponent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={
-          redemptionShouldShowEmpty ? { flex: 1 } : CONTENT_CONTAINER_STYLE
-        }
-        ListEmptyComponent={
-          redemptionShouldShowEmpty ? <EmptyState type="redemptions" /> : null
-        }
+        contentContainerStyle={CONTENT_CONTAINER_STYLE}
         removeClippedSubviews={true}
         onEndReached={handleLoadMoreRedemptions}
         onEndReachedThreshold={0.3}
@@ -280,6 +334,16 @@ export default function ActivitiesScreen() {
   ]);
 
   const TransferList = useMemo(() => {
+    if (transferShouldShowEmpty) {
+      return (
+        <EmptyStateView
+          type="transfers"
+          refreshing={isTransfersLoading}
+          onRefresh={refetchTransfers}
+        />
+      );
+    }
+
     const data: TransferListItem[] = isTransfersLoading
       ? SKELETON_DATA
       : (transfersData ?? []);
@@ -294,12 +358,7 @@ export default function ActivitiesScreen() {
         renderItem={renderTransferItem}
         ItemSeparatorComponent={SeparatorComponent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={
-          transferShouldShowEmpty ? { flex: 1 } : CONTENT_CONTAINER_STYLE
-        }
-        ListEmptyComponent={
-          transferShouldShowEmpty ? <EmptyState type="transfers" /> : null
-        }
+        contentContainerStyle={CONTENT_CONTAINER_STYLE}
         removeClippedSubviews={true}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -326,6 +385,16 @@ export default function ActivitiesScreen() {
   ]);
 
   const PaymentList = useMemo(() => {
+    if (paymentShouldShowEmpty) {
+      return (
+        <EmptyStateView
+          type="payments"
+          refreshing={isPaymentsLoading}
+          onRefresh={refetchPayments}
+        />
+      );
+    }
+
     const data: PaymentListItem[] = isPaymentsLoading
       ? SKELETON_DATA
       : (paymentsData ?? []);
@@ -340,12 +409,7 @@ export default function ActivitiesScreen() {
         renderItem={renderPaymentItem}
         ItemSeparatorComponent={SeparatorComponent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={
-          paymentShouldShowEmpty ? { flex: 1 } : CONTENT_CONTAINER_STYLE
-        }
-        ListEmptyComponent={
-          paymentShouldShowEmpty ? <EmptyState type="payments" /> : null
-        }
+        contentContainerStyle={CONTENT_CONTAINER_STYLE}
         removeClippedSubviews={true}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
