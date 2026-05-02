@@ -72,6 +72,14 @@ export function createEvmWalletKit(): WalletKitAdapter {
         ? chain.chain.nativeCurrency.symbol
         : null;
     },
+    buildTxExplorerUrl(txHash, chain) {
+      if (chain.namespace !== EVM_NAMESPACE) return null;
+      if (!txHash) return null;
+      const explorer = chain.chain.blockExplorers?.default?.url;
+      if (!explorer || typeof explorer !== "string") return null;
+      const base = explorer.endsWith("/") ? explorer.slice(0, -1) : explorer;
+      return `${base}/tx/${txHash}`;
+    },
 
     // ── Wallet creation & validation ────────────────────────────────
     validateAddress: (address: string): boolean => isAddress(address),

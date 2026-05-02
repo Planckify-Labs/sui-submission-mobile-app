@@ -112,6 +112,14 @@ export function createSolanaWalletKit(): WalletKitAdapter {
     nativeSymbol(chain) {
       return chain.namespace === SOLANA_NAMESPACE ? "SOL" : null;
     },
+    buildTxExplorerUrl(txHash, chain) {
+      if (chain.namespace !== SOLANA_NAMESPACE) return null;
+      if (!txHash) return null;
+      const base = `https://explorer.solana.com/tx/${txHash}`;
+      // Default cluster on explorer.solana.com is mainnet-beta, so we
+      // only append the query param for non-default clusters.
+      return chain.cluster === "devnet" ? `${base}?cluster=devnet` : base;
+    },
 
     // ── Wallet creation & validation ────────────────────────────────
     validateAddress: (address: string): boolean =>

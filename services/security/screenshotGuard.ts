@@ -63,11 +63,7 @@ async function releasePrevent(): Promise<void> {
 }
 
 function engageAlert(): void {
-  if (
-    alertCount === 1 &&
-    Platform.OS === "ios" &&
-    screenshotSub === null
-  ) {
+  if (alertCount === 1 && Platform.OS === "ios" && screenshotSub === null) {
     screenshotSub = ScreenCapture.addScreenshotListener(() => {
       Alert.alert(
         "Never screenshot this",

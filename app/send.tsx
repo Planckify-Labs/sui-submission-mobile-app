@@ -524,13 +524,30 @@ export default function SendScreen() {
         console.warn("Failed to create transfer history:", historyErr);
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
       console.log(
         "Transaction Sent:",
         `Transaction has been submitted. Hash: ${hash}`,
       );
-      router.back();
+
+      // Hand off to the dedicated success screen. `replace` so Done /
+      // back from the success view pops to whatever was before /send,
+      // not back to a stale form.
+      const symbol =
+        selectedToken && selectedToken.isNativeCurrency === false
+          ? (selectedToken.symbol ?? "")
+          : nativeSymbol;
+      router.replace({
+        pathname: "/send-success",
+        params: {
+          amount,
+          symbol,
+          chainLabel: kit.formatChainLabel?.(activeChain) ?? "",
+          recipientAddress: recipient,
+          txHash: hash,
+          explorerUrl: kit.buildTxExplorerUrl?.(hash, activeChain) ?? "",
+          chainBackendName: activeBackendChain?.name ?? "",
+        },
+      });
     } catch (error: any) {
       console.error("Send transaction error:", error);
     } finally {

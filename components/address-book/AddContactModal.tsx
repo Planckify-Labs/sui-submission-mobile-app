@@ -58,11 +58,17 @@ function resolveApiError(
   };
 }
 
+type AddContactPrefill = {
+  address?: string;
+  chainName?: string;
+};
+
 type AddContactModalProps = {
   visible: boolean;
   onClose: () => void;
   onSave: (dto: TCreateAddressBookDto) => void;
   editing?: TAddressBookEntry | null;
+  prefill?: AddContactPrefill;
   isSaving?: boolean;
   saveError?: Error | null;
 };
@@ -72,6 +78,7 @@ export default function AddContactModal({
   onClose,
   onSave,
   editing,
+  prefill,
   isSaving = false,
   saveError,
 }: AddContactModalProps) {
@@ -167,10 +174,10 @@ export default function AddContactModal({
   useEffect(() => {
     if (visible && !hasAnimatedIn.current) {
       setContactLabel(editing?.label ?? "");
-      setWalletAddress(editing?.address ?? "");
+      setWalletAddress(editing?.address ?? prefill?.address ?? "");
       setEnsName(editing?.ensName ?? "");
       setContactNotes(editing?.notes ?? "");
-      setChainName(editing?.chainName ?? "");
+      setChainName(editing?.chainName ?? prefill?.chainName ?? "");
       setContactLabelError("");
       setWalletAddressError("");
       animateOpen();
@@ -179,7 +186,14 @@ export default function AddContactModal({
       sheetTranslateY.setValue(SHEET_INITIAL_TRANSLATE_Y);
       hasAnimatedIn.current = false;
     }
-  }, [visible, editing, animateOpen, backdropOpacity, sheetTranslateY]);
+  }, [
+    visible,
+    editing,
+    prefill,
+    animateOpen,
+    backdropOpacity,
+    sheetTranslateY,
+  ]);
 
   // Subscribe to keyboard show/hide events and animate the bottom spacer.
   // iOS fires "Will" events before the animation starts for perfect sync.

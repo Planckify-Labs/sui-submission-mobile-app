@@ -2,7 +2,13 @@ import { BlurView } from "expo-blur";
 import { router } from "expo-router";
 import { AudioLines, QrCode } from "lucide-react-native";
 import React from "react";
-import { Platform, Pressable, Text, TouchableOpacity, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,

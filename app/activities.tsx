@@ -137,8 +137,7 @@ export default function ActivitiesScreen() {
     isLoading: isAuthLoading,
     hadPreviousSession,
   } = useIsAuthenticated();
-  const [activeActivity, setActiveActivity] =
-    useState<ActivityTab>("payments");
+  const [activeActivity, setActiveActivity] = useState<ActivityTab>("payments");
   const horizontalScrollRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -546,11 +545,7 @@ export default function ActivitiesScreen() {
                 {
                   translateX: horizontalScrollX.interpolate({
                     inputRange: [0, width, 2 * width],
-                    outputRange: [
-                      0,
-                      tabSegmentWidth,
-                      2 * tabSegmentWidth,
-                    ],
+                    outputRange: [0, tabSegmentWidth, 2 * tabSegmentWidth],
                     extrapolate: "clamp",
                   }),
                 },

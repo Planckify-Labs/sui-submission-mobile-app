@@ -495,4 +495,14 @@ export interface WalletKitAdapter {
    * doesn't belong to this kit.
    */
   nativeSymbol?(chain: ChainConfig): string | null;
+
+  /**
+   * Builds a block-explorer URL for `txHash` on `chain`. EVM kits read
+   * the chain's configured `blockExplorers.default.url` and append
+   * `/tx/{hash}`; Solana kits return the cluster-aware `explorer.solana.com`
+   * URL. Returns `null` when the chain doesn't belong to this kit or no
+   * explorer is configured. UI consumers (transfer success popup, agent
+   * receipts) call this without branching on namespace.
+   */
+  buildTxExplorerUrl?(txHash: string, chain: ChainConfig): string | null;
 }

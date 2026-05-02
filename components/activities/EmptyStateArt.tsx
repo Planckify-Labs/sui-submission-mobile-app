@@ -57,7 +57,14 @@ export function TransfersEmptyArt({ size = 160 }: Props) {
         <Line x1={34} y1={120} x2={58} y2={114} strokeOpacity={0.25} />
       </G>
       {/* coin drop-shadow */}
-      <Ellipse cx={116} cy={142} rx={30} ry={5} fill={BLACK} fillOpacity={0.08} />
+      <Ellipse
+        cx={116}
+        cy={142}
+        rx={30}
+        ry={5}
+        fill={BLACK}
+        fillOpacity={0.08}
+      />
       {/* coin body */}
       <Circle cx={114} cy={102} r={36} fill={RED} />
       <Circle
