@@ -22,10 +22,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const src = readFileSync(
-  new URL("./SuiAdapter.ts", import.meta.url),
-  "utf-8",
-);
+const src = readFileSync(new URL("./SuiAdapter.ts", import.meta.url), "utf-8");
 
 describe("SuiAdapter — dispatch table (§4.1)", () => {
   for (const method of [
@@ -76,7 +73,7 @@ describe("SuiAdapter — legacy alias rewrites (§4.1)", () => {
 });
 
 describe("SuiAdapter — cross-namespace trust (§11 / TWV-2026-YYY)", () => {
-  it("`pickSuiWalletForOrigin` filters grants by `chainId.startsWith(\"sui:\")`", () => {
+  it('`pickSuiWalletForOrigin` filters grants by `chainId.startsWith("sui:")`', () => {
     // The cross-namespace-trust failure mode is a reviewer folding the
     // predicate so EVM grants surface for Sui queries. Assert the
     // sui:-only filter stays in place.
@@ -101,11 +98,8 @@ describe("SuiAdapter — executeApproval security gates", () => {
     assert.match(src, /codedError\(\s*4001/);
   });
 
-  it("throws -32603 \"no Sui signer registered\" before signer install", () => {
-    assert.match(
-      src,
-      /codedError\(\s*-32603\s*,\s*"no Sui signer registered"/,
-    );
+  it('throws -32603 "no Sui signer registered" before signer install', () => {
+    assert.match(src, /codedError\(\s*-32603\s*,\s*"no Sui signer registered"/);
   });
 
   it("registerSuiSigner is the single registration seam", () => {
@@ -115,9 +109,6 @@ describe("SuiAdapter — executeApproval security gates", () => {
 
 describe("SuiAdapter — TWV-2026-YYY citation in source comment", () => {
   it("file references the design note", () => {
-    assert.match(
-      src,
-      /TWV-2026-YYY|66_sui_dapp_bridge_design_note\.md/,
-    );
+    assert.match(src, /TWV-2026-YYY|66_sui_dapp_bridge_design_note\.md/);
   });
 });

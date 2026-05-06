@@ -30,7 +30,10 @@ describe("bootBridge — Sui flag + register-adjacent invariants", () => {
     // boolean so the boot path remains a one-line flip in either
     // direction. Indirection (env var, settings store) defeats the
     // single-line-diff property the spec relies on.
-    assert.match(src, /const\s+FEATURE_SUI_DAPP_BRIDGE\s*=\s*(?:true|false)\s*;/);
+    assert.match(
+      src,
+      /const\s+FEATURE_SUI_DAPP_BRIDGE\s*=\s*(?:true|false)\s*;/,
+    );
   });
 
   it("Sui adapter registration sits behind the flag", () => {
@@ -50,7 +53,7 @@ describe("bootBridge — Sui flag + register-adjacent invariants", () => {
     );
   });
 
-  it("installSuiSigner sits behind walletKitRegistry.has(\"sui\") guard", () => {
+  it('installSuiSigner sits behind walletKitRegistry.has("sui") guard', () => {
     // §10 boot-order precondition. If the Sui kit is missing, the bridge
     // must NOT throw — it warns + auto-retries (`booted = false`). This
     // mirrors the Solana guard at `:100-121`.

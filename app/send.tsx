@@ -120,7 +120,7 @@ export default function SendScreen() {
       // that haven't shipped `chainSlug` yet.
       const wantsDevnet = activeChain.cluster === "devnet";
       const solanaRows = blockchains.filter(
-        (b: typeof blockchains[number] & { chainSlug?: string | null }) => {
+        (b: (typeof blockchains)[number] & { chainSlug?: string | null }) => {
           if (b.isEVM !== false) return false;
           if (typeof b.chainSlug === "string")
             return b.chainSlug.startsWith("solana-");
@@ -142,7 +142,7 @@ export default function SendScreen() {
       // testnet/mainnet row matching `activeChain.network`.
       const wantsTestnet = activeChain.network !== "mainnet";
       const suiRows = blockchains.filter(
-        (b: typeof blockchains[number] & { chainSlug?: string | null }) => {
+        (b: (typeof blockchains)[number] & { chainSlug?: string | null }) => {
           if (b.isEVM !== false) return false;
           if (typeof b.chainSlug === "string")
             return b.chainSlug.startsWith("sui-");
@@ -152,9 +152,8 @@ export default function SendScreen() {
         },
       );
       const match =
-        suiRows.find((b) =>
-          wantsTestnet ? b.isTestnet : !b.isTestnet,
-        ) ?? suiRows[0];
+        suiRows.find((b) => (wantsTestnet ? b.isTestnet : !b.isTestnet)) ??
+        suiRows[0];
       return match ?? null;
     }
     return null;

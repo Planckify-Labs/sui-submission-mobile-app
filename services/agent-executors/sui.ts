@@ -249,9 +249,7 @@ export const getSuiWalletTokens: MobileToolExecutor = (input, context) =>
     const isTestnet = chain.network !== "mainnet";
     const suiBlockchain = context.blockchains.find((b) => {
       const ns = (b as { namespace?: string }).namespace;
-      return (
-        ns === SUI_NAMESPACE && b.isActive && b.isTestnet === isTestnet
-      );
+      return ns === SUI_NAMESPACE && b.isActive && b.isTestnet === isTestnet;
     });
     if (!suiBlockchain) {
       throw new ExecutorError(

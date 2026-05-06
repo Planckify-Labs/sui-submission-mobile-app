@@ -78,8 +78,8 @@ import {
   sendSuiCoin,
 } from "./sui";
 import {
-  ExecutorErrorCode,
   type ExecutorContext,
+  ExecutorErrorCode,
   mapUnknownError,
 } from "./types";
 
@@ -99,7 +99,9 @@ const ACTIVE_CHAIN_RAW = JSON.stringify({
   isTestnet: false,
 });
 
-function makeContext(overrides: Partial<ExecutorContext> = {}): ExecutorContext {
+function makeContext(
+  overrides: Partial<ExecutorContext> = {},
+): ExecutorContext {
   const wallet = {
     id: "w1",
     address: SUI_ADDR,

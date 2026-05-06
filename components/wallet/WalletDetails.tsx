@@ -191,14 +191,6 @@ export default function WalletDetails({
             onCopy={copyToClipboard}
           />
         </Suspense>
-
-        {isSolanaWallet && (
-          <View className="mt-4 bg-light-main-container/50 p-4 rounded-2xl">
-            <Text className="text-light-matte-black/60 text-xs text-center">
-              Transaction history and tokens coming soon
-            </Text>
-          </View>
-        )}
       </View>
 
       {wallet.type !== "Social" && (

@@ -215,10 +215,7 @@ describe("SuiWalletKit.formatNativeAmount / parseNativeAmount", () => {
   });
 
   it("parseNativeAmount('1.5') returns 1_500_000_000n MIST", () => {
-    assert.equal(
-      kit.parseNativeAmount("1.5", suiMainnetChain),
-      1_500_000_000n,
-    );
+    assert.equal(kit.parseNativeAmount("1.5", suiMainnetChain), 1_500_000_000n);
   });
 
   it("round-trip: parse then format returns the input", () => {

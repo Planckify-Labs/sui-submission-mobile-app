@@ -24,10 +24,10 @@
  * call shape used in `services/chains/sui/transferService.ts`.
  */
 
+import { SuiJsonRpcClient } from "@mysten/sui/jsonRpc";
+import type { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { validateMnemonic } from "@scure/bip39";
 import { wordlist as englishWordlist } from "@scure/bip39/wordlists/english";
-import type { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
-import { SuiJsonRpcClient } from "@mysten/sui/jsonRpc";
 
 import type { ChainConfig } from "../../../constants/configs/chainConfig.ts";
 import type { TWallet } from "../../../constants/types/walletTypes.ts";
@@ -111,7 +111,8 @@ export function createSuiWalletKit(): WalletKitAdapter {
     requireBiometricForConnect: true,
 
     formatConnectChipLabel(payload: unknown): string {
-      const network = (payload as { network?: string } | null)?.network ?? "mainnet";
+      const network =
+        (payload as { network?: string } | null)?.network ?? "mainnet";
       return `Sui · ${capitalize(network)}`;
     },
     getChainId(chain) {
@@ -409,9 +410,7 @@ export function createSuiWalletKit(): WalletKitAdapter {
     async estimateMaxTransferable({
       balance,
     }: EstimateMaxTransferableArgs): Promise<bigint> {
-      return balance > MAX_GAS_BUDGET_MIST
-        ? balance - MAX_GAS_BUDGET_MIST
-        : 0n;
+      return balance > MAX_GAS_BUDGET_MIST ? balance - MAX_GAS_BUDGET_MIST : 0n;
     },
 
     // ── Display ─────────────────────────────────────────────────────

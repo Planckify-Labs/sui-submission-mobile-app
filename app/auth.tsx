@@ -10,12 +10,12 @@ import LoadinngSpinnerPopup from "@/components/common/LoadinngSpinnerPopup";
 import PinConfirmationModal from "@/components/common/PinConfirmationModal";
 import SignMessageModal from "@/components/common/SignMessageModal";
 import { usePerformance } from "@/components/providers/PerformanceProvider";
+import { publicApi } from "@/constants/configs/ky";
 import { transactionsQueryKeys } from "@/constants/queryKeys/transactionsQueryKeys";
 import { useNonce, useVerifySignature } from "@/hooks/queries/useAuth";
 import { useLoadingSteps } from "@/hooks/useLoadingSteps";
 import useRQGlobalState from "@/hooks/useRQGlobalState";
 import { useWallet } from "@/hooks/useWallet";
-import { publicApi } from "@/constants/configs/ky";
 import { bytesToBase58 } from "@/services/chains/solana/codec";
 import {
   formatChainLabel,

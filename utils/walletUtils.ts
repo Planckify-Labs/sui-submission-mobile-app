@@ -301,7 +301,9 @@ export type TSuiRecipientClassification =
     }
   | { ok: false; kind: "invalid" };
 
-export function classifySuiRecipient(input: string): TSuiRecipientClassification {
+export function classifySuiRecipient(
+  input: string,
+): TSuiRecipientClassification {
   if (isValidSuiAddress(input)) return { ok: true };
   if (isLegacySui20ByteAddress(input)) {
     return {
