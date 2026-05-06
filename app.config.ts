@@ -132,6 +132,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     [
+      "expo-audio",
+      {
+        microphonePermission:
+          "TakumiPay uses the microphone to transcribe your voice into chat messages.",
+      },
+    ],
+    [
       "expo-splash-screen",
       {
         backgroundColor: "#f5f6f9",

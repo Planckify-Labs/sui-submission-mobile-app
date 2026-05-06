@@ -1390,6 +1390,7 @@ export default function AgentMode() {
           pagingEnabled
           scrollEventThrottle={16}
           showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           className="flex-1 bg-light-main-container"
         >
           <View style={{ width: screenWidth }}>
@@ -1473,6 +1474,7 @@ export default function AgentMode() {
                   keyExtractor={(item) => item.id}
                   contentContainerStyle={chatContentContainerStyle as ViewStyle}
                   showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
                   onScroll={Animated.event(
                     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
                     { useNativeDriver: false },

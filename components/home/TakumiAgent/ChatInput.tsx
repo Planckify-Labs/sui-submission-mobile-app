@@ -4,6 +4,7 @@ import {
   Mic,
   Minimize2,
   Square,
+  X,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -14,9 +15,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { TouchableOpacity as GHTouchableOpacity } from "react-native-gesture-handler";
+import {
+  GestureHandlerRootView,
+  TouchableOpacity as GHTouchableOpacity,
+} from "react-native-gesture-handler";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useVoiceTranscription } from "@/hooks/useVoiceTranscription";
+import { AudioWaveBars } from "./AudioWaveBars";
 
 export interface ChatInputProps {
   value: string;
@@ -43,7 +49,34 @@ export default function ChatInput({
 }: ChatInputProps) {
   const [contentHeight, setContentHeight] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
-  const { bottom: bottomInset } = useSafeAreaInsets();
+  const { bottom: bottomInset, top: topInset } = useSafeAreaInsets();
+  const voice = useVoiceTranscription();
+
+  const handleMicPress = useCallback(async () => {
+    if (voice.status === "transcribing") return;
+    if (voice.status === "recording") {
+      const transcript = await voice.stopAndTranscribe();
+      if (transcript) {
+        const next =
+          value.trim().length > 0 ? `${value} ${transcript}` : transcript;
+        onChangeText(next);
+      }
+      return;
+    }
+    await voice.start();
+  }, [voice, value, onChangeText]);
+
+  const renderMicIcon = () => {
+    if (voice.status === "transcribing") {
+      return <ActivityIndicator size="small" color="#c71c4b" />;
+    }
+    if (voice.status === "recording") {
+      return <Square size={18} color="#c71c4b" fill="#c71c4b" />;
+    }
+    return <Mic size={20} color="#c71c4b" />;
+  };
+
+  const micDisabled = isLoading || voice.status === "transcribing";
 
   useEffect(() => {
     if (!value) {
@@ -110,43 +143,74 @@ export default function ChatInput({
                   borderColor: "#1a1a1a",
                 }}
               >
-                <TextInput
-                  className="flex-1 py-2.5 px-2 text-base text-light-matte-black"
-                  placeholder={placeholder}
-                  placeholderTextColor="#999"
-                  value={value}
-                  onChangeText={onChangeText}
-                  onContentSizeChange={(e) =>
-                    setContentHeight(e.nativeEvent.contentSize.height)
-                  }
-                  numberOfLines={5}
-                  multiline
-                  maxLength={1200}
-                  editable={!isLoading}
-                  returnKeyType="send"
-                  onSubmitEditing={() => {
-                    void handleSend();
-                  }}
-                />
+                {voice.status === "recording" ? (
+                  <View
+                    className="flex-1 flex-row items-center py-2.5"
+                  >
+                    <GHTouchableOpacity
+                      className="pl-1 pr-2 justify-center items-center"
+                      onPress={() => {
+                        void voice.cancel();
+                      }}
+                      accessibilityLabel="Cancel voice input"
+                    >
+                      <X size={18} color="#1a1a1a" />
+                    </GHTouchableOpacity>
+                    <AudioWaveBars recorder={voice.recorder} />
+                  </View>
+                ) : (
+                  <TextInput
+                    className="flex-1 py-2.5 px-2 text-base text-light-matte-black"
+                    placeholder={placeholder}
+                    placeholderTextColor="#999"
+                    value={value}
+                    onChangeText={onChangeText}
+                    onContentSizeChange={(e) =>
+                      setContentHeight(e.nativeEvent.contentSize.height)
+                    }
+                    numberOfLines={5}
+                    multiline
+                    maxLength={1200}
+                    editable={!isLoading}
+                    returnKeyType="send"
+                    onSubmitEditing={() => {
+                      void handleSend();
+                    }}
+                  />
+                )}
 
-                <TouchableOpacity
+                <GHTouchableOpacity
                   className="p-2 justify-center items-center"
-                  disabled={isLoading}
+                  disabled={micDisabled}
                   onPress={() => {
-                    // TODO: Implement voice input
+                    void handleMicPress();
                   }}
+                  accessibilityLabel={
+                    voice.status === "recording"
+                      ? "Stop recording"
+                      : "Start voice input"
+                  }
                 >
-                  <Mic size={20} color="#c71c4b" />
-                </TouchableOpacity>
+                  {renderMicIcon()}
+                </GHTouchableOpacity>
               </View>
 
               {hasEnoughLines && (
-                <TouchableOpacity
-                  className="absolute top-2 right-2 p-2 justify-center items-center"
+                <GHTouchableOpacity
+                  containerStyle={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                  }}
+                  style={{
+                    padding: 8,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
                   onPress={() => setIsExpanded(true)}
                 >
                   <Maximize2 size={15} color="#c71c4b" />
-                </TouchableOpacity>
+                </GHTouchableOpacity>
               )}
             </View>
 
@@ -190,19 +254,49 @@ export default function ChatInput({
         transparent={false}
         onRequestClose={() => setIsExpanded(false)}
       >
-        <View className="flex-1 bg-light">
+        {/*
+         * iOS renders RN Modals in their own UIWindow, so the
+         * GestureHandlerRootView at the app root does not reach inside.
+         * Without a local one, the GH-based mic/send/cancel buttons in
+         * here silently lose their native gesture capture and revert to
+         * the RN responder system — which loses the "tap while keyboard
+         * up" race against the focused multiline TextInput.
+         */}
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <KeyboardAvoidingView
+            behavior="padding"
+            className="flex-1 bg-light"
+            style={{ paddingTop: topInset }}
+          >
           <View className="flex-1 pl-4 flex-row">
-            <TextInput
-              className="flex-1 text-base text-light-matte-black"
-              placeholder={placeholder}
-              placeholderTextColor="#999"
-              value={value}
-              onChangeText={onChangeText}
-              multiline
-              maxLength={500}
-              editable={!isLoading}
-              textAlignVertical="top"
-            />
+            {voice.status === "recording" ? (
+              <View
+                className="flex-1 flex-row items-center"
+              >
+                <GHTouchableOpacity
+                  className="pr-2 justify-center items-center"
+                  onPress={() => {
+                    void voice.cancel();
+                  }}
+                  accessibilityLabel="Cancel voice input"
+                >
+                  <X size={20} color="#1a1a1a" />
+                </GHTouchableOpacity>
+                <AudioWaveBars recorder={voice.recorder} />
+              </View>
+            ) : (
+              <TextInput
+                className="flex-1 text-base text-light-matte-black"
+                placeholder={placeholder}
+                placeholderTextColor="#999"
+                value={value}
+                onChangeText={onChangeText}
+                multiline
+                maxLength={500}
+                editable={!isLoading}
+                textAlignVertical="top"
+              />
+            )}
 
             <TouchableOpacity
               onPress={() => setIsExpanded(false)}
@@ -213,17 +307,22 @@ export default function ChatInput({
           </View>
 
           <View className="flex-row items-center justify-between px-4 py-4">
-            <TouchableOpacity
+            <GHTouchableOpacity
               className="p-2 justify-center items-center"
-              disabled={isLoading}
+              disabled={micDisabled}
               onPress={() => {
-                // TODO: Implement voice input
+                void handleMicPress();
               }}
+              accessibilityLabel={
+                voice.status === "recording"
+                  ? "Stop recording"
+                  : "Start voice input"
+              }
             >
-              <Mic size={20} color="#c71c4b" />
-            </TouchableOpacity>
+              {renderMicIcon()}
+            </GHTouchableOpacity>
 
-            <TouchableOpacity
+            <GHTouchableOpacity
               className={`w-11 h-11 rounded-full justify-center items-center ${
                 isSendDisabled
                   ? "bg-gray-300 opacity-60"
@@ -244,9 +343,10 @@ export default function ChatInput({
                   color="#ffffff"
                 />
               )}
-            </TouchableOpacity>
+            </GHTouchableOpacity>
           </View>
-        </View>
+          </KeyboardAvoidingView>
+        </GestureHandlerRootView>
       </Modal>
     </>
   );
