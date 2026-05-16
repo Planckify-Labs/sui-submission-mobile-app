@@ -19,7 +19,7 @@
 import { type Abi, erc20Abi, parseUnits } from "viem";
 import { tokenApi } from "@/api/endpoints/tokens";
 import { transactionApi } from "@/api/endpoints/transactions";
-import { requireWalletClient, resolveChainClients } from "./chainRouter";
+import { requireWalletClient, resolveChainClients } from "../chainRouter";
 import {
   ExecutorError,
   ExecutorErrorCode,
@@ -29,7 +29,7 @@ import {
   requireString,
   resolveChainId,
   safeExecute,
-} from "./types";
+} from "../types";
 
 /**
  * Resolve a token amount to a bigint, mirroring the `send.tsx` pattern:

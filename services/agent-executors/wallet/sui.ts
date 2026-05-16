@@ -27,12 +27,13 @@ import type { ChainConfig } from "@/constants/configs/chainConfig";
 import { resolveNamespace } from "@/hooks/useWallet.helpers";
 import { storage } from "@/lib/storage/mmkv";
 import { walletKitRegistry } from "@/services/walletKit/registry";
+import { recordTransferHistory } from "./recordTransferHistory";
 import {
   type BalanceGroup,
   type BalanceTokenRow,
   toAgentSlice,
   type WalletBalancesPayload,
-} from "./balancePayload";
+} from "../balancePayload";
 import {
   ExecutorError,
   ExecutorErrorCode,
@@ -40,7 +41,7 @@ import {
   optionalString,
   requireString,
   safeExecute,
-} from "./types";
+} from "../types";
 
 const SUI_NAMESPACE = "sui" as const;
 
@@ -271,9 +272,21 @@ export const sendSui: MobileToolExecutor = (input, context) =>
       chain,
     });
 
+    const transaction_id = await recordTransferHistory({
+      blockchains: context.blockchains,
+      namespace: "sui",
+      chainSlug: `sui-${chain.network}`,
+      type: "TRANSFER",
+      amount: mist.toString(),
+      txHash: digest,
+      fromAddress: context.wallet.address,
+      toAddress: to,
+    });
+
     return {
       status: "success",
       tx_confirmed: true,
+      transaction_id,
       data: {
         digest,
         to,
@@ -595,11 +608,24 @@ export const sendSuiCoin: MobileToolExecutor = (input, context) =>
       decimals,
     });
 
+    const transaction_id = await recordTransferHistory({
+      blockchains: context.blockchains,
+      namespace: "sui",
+      chainSlug: `sui-${chain.network}`,
+      contractAddress: coinType,
+      type: "TRANSFER",
+      amount: amountRaw.toString(),
+      txHash: digest,
+      fromAddress: context.wallet.address,
+      toAddress: to,
+    });
+
     // Same `data.digest` discipline as `send_sui` — base58 digest must
     // not occupy the hex-typed `tx_hash` slot.
     return {
       status: "success",
       tx_confirmed: true,
+      transaction_id,
       data: {
         digest,
         to,

@@ -81,7 +81,7 @@ import {
   getWalletSuiBalance,
   sendSui,
   sendSuiCoin,
-} from "./sui";
+} from "./wallet/sui";
 import {
   type ExecutorContext,
   ExecutorErrorCode,
@@ -369,14 +369,19 @@ describe("mapUnknownError — Sui typed errors", () => {
     );
   });
 
-  it("maps SuiRegulatedCoinDeniedError → descriptive message (invalid_input fallback)", () => {
+  it("maps SuiRegulatedCoinDeniedError → invalid_input (raw message never reaches the agent)", () => {
+    // The typed error carries a descriptive `message` that embeds the
+    // coin type. We used to surface that string verbatim on the
+    // `error` field so the agent could narrate "why". That broke the
+    // "never put raw text into LLM context" rule — coin detail can
+    // ride on `data.coin_type` instead. Assert the curated code.
     const result = mapUnknownError(
       suiError(
         "SuiRegulatedCoinDeniedError",
         "Regulated coin transfer denied for 0x..::usdc::USDC",
       ),
     );
-    expect(result).toContain("Regulated coin transfer denied");
+    expect(result).toBe(ExecutorErrorCode.InvalidInput);
   });
 
   it("maps SuiClosedLoopPolicyDeniedError → invalid_input", () => {

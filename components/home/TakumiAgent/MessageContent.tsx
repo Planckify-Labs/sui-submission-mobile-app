@@ -1,10 +1,11 @@
 import React from "react";
-import { View } from "react-native";
+import { Text, View } from "react-native";
 import type { AgentMessage } from "@/services/agent-messages/types";
 import MarkdownMessage from "./MarkdownMessage";
 import PlainTextMessage from "./PlainTextMessage";
 import { BALANCE_TOOL_NAMES, toolComponents } from "./StructuredUI";
 import { normalizeWalletBalancesOutput } from "./StructuredUI/cards/BalancesCard";
+import { useOriginAgentDisplay } from "./useOriginAgentDisplay";
 
 interface MessageContentProps {
   message: AgentMessage;
@@ -89,13 +90,74 @@ function computeSuppressedToolParts(message: AgentMessage): Set<string> {
   return suppressed;
 }
 
+/**
+ * Catalog-family tools: when the agent's first call fails and it
+ * retries with a sibling, the failed card sticks around and renders
+ * the "Couldn't load catalog" banner above the in-flight one. Suppress
+ * the failed card as soon as a later catalog-family sibling appears in
+ * the same message — pending, succeeded, or otherwise — so the user
+ * sees the new card's loading skeleton instead of the stale error.
+ *
+ * Mirrors the balance-tool dedupe above; the key difference is that
+ * "in-flight" counts as "supersedes the earlier failure" — we don't
+ * wait for the retry to land.
+ */
+const CATALOG_TOOL_NAMES = new Set([
+  "get_redemption_catalog",
+  "search_redemption_catalog",
+  "get_redemption_categories",
+]);
+
+function isFailedToolPart(output: unknown, state: string): boolean {
+  if (state === "output-error") return true;
+  if (output && typeof output === "object" && "status" in output) {
+    return (output as { status?: unknown }).status === "failed";
+  }
+  return false;
+}
+
+function computeSuppressedCatalogParts(message: AgentMessage): Set<string> {
+  const catalogParts: Array<{
+    toolCallId: string;
+    index: number;
+    failed: boolean;
+  }> = [];
+  message.parts.forEach((part, index) => {
+    if (part.type !== "tool") return;
+    if (!CATALOG_TOOL_NAMES.has(part.toolName)) return;
+    catalogParts.push({
+      toolCallId: part.toolCallId,
+      index,
+      failed: isFailedToolPart(part.output, part.state),
+    });
+  });
+
+  const suppressed = new Set<string>();
+  for (const a of catalogParts) {
+    if (!a.failed) continue;
+    // A failed catalog part is replaced by ANY later catalog-family
+    // sibling — the later one's own state (skeleton / success / error)
+    // owns the visual slot from that point on.
+    const supersededBy = catalogParts.find((b) => b.index > a.index);
+    if (supersededBy) suppressed.add(a.toolCallId);
+  }
+  return suppressed;
+}
+
 const MessageContent: React.FC<MessageContentProps> = React.memo(
   ({ message, mode, addToolResult }) => {
     const isUser = message.role === "user";
     const suppressedBalanceParts = computeSuppressedToolParts(message);
+    const suppressedCatalogParts = computeSuppressedCatalogParts(message);
+    const originDisplayName = useOriginAgentDisplay(message.originAgentId);
 
     return (
       <View className="w-full">
+        {!isUser && originDisplayName ? (
+          <Text className="mb-1 text-xs text-muted">
+            via {originDisplayName}
+          </Text>
+        ) : null}
         {message.parts.map((part, i) => {
           if (part.type === "text") {
             if (isUser) {
@@ -108,6 +170,7 @@ const MessageContent: React.FC<MessageContentProps> = React.memo(
             const Component = toolComponents[part.toolName];
             if (!Component) return null;
             if (suppressedBalanceParts.has(part.toolCallId)) return null;
+            if (suppressedCatalogParts.has(part.toolCallId)) return null;
 
             const liveCallback =
               mode === "live" && addToolResult

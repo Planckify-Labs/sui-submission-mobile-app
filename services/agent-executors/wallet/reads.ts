@@ -23,15 +23,15 @@ import type { TBlockchain } from "@/api/types/blockchain";
 import type { TToken } from "@/api/types/token";
 import { resolveNamespace } from "@/hooks/useWallet.helpers";
 import { storage } from "@/lib/storage/mmkv";
-import { pendingTxStore } from "../pendingTxStore";
+import { pendingTxStore } from "../../pendingTxStore";
 import {
   type BalanceGroup,
   type BalanceTokenRow,
   type GroupError,
   toAgentSlice,
   type WalletBalancesPayload,
-} from "./balancePayload";
-import { resolveChainClients } from "./chainRouter";
+} from "../balancePayload";
+import { resolveChainClients } from "../chainRouter";
 import {
   ExecutorError,
   ExecutorErrorCode,
@@ -41,7 +41,7 @@ import {
   requireTxHash,
   resolveChainId,
   safeExecute,
-} from "./types";
+} from "../types";
 
 /**
  * Resolve the native currency metadata (symbol, name, decimals) for a

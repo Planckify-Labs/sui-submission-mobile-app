@@ -207,6 +207,15 @@ const RedemptionCatalogCard: React.FC<
   }
 
   if (state === "output-error" || output.status === "failed") {
+    // CLAUDE.md user-facing-error rule — never surface `output.error`
+    // (a machine code like `unknown_error`) verbatim. Log raw to dev,
+    // show hand-written copy to the user.
+    if (__DEV__ && output.error) {
+      console.warn(
+        "[RedemptionCatalogCard] catalog load failed:",
+        output.error,
+      );
+    }
     return (
       <View className="my-1.5 rounded-2xl border border-light-primary-red/30 bg-light-primary-red/5 px-3.5 py-3">
         <View className="flex-row items-center gap-2">
@@ -215,11 +224,9 @@ const RedemptionCatalogCard: React.FC<
             Couldn't load catalog
           </Text>
         </View>
-        {output.error ? (
-          <Text className="text-sm text-light-matte-black/80 mt-1.5">
-            {output.error}
-          </Text>
-        ) : null}
+        <Text className="text-sm text-light-matte-black/80 mt-1.5">
+          We couldn't load the catalog right now. Please try again in a moment.
+        </Text>
       </View>
     );
   }

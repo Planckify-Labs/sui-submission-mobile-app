@@ -25,7 +25,7 @@ import {
   optionalString,
   requireString,
   safeExecute,
-} from "./types";
+} from "../types";
 
 // ---------------------------------------------------------------------------
 // Helpers

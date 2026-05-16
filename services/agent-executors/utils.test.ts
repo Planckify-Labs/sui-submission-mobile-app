@@ -258,19 +258,27 @@ describe("classifyPointsError — network and unknown", () => {
     assert.equal(classifyPointsError({}), "unknown_error");
   });
 
-  it("returns unknown_error for an unrecognised status with no body code", () => {
+  it("maps an unrecognised 4xx with no body code to bad_request", () => {
+    // 418 has no specific mapping but is still a request-side failure,
+    // so the agent gets the more useful `bad_request` signal (retry
+    // with a different shape) rather than the catch-all `unknown_error`.
     assert.equal(
       classifyPointsError(withResponse(418, undefined, "I'm a teapot")),
-      "unknown_error",
+      "bad_request",
     );
   });
 
-  it("does not return network_error when an HTTP response IS present", () => {
-    // 500 with a generic message but no recognised code → unknown_error,
-    // not network_error (we got a response, just no useful classification).
+  it("maps any 5xx with no specific mapping to service_unavailable", () => {
+    // Used to fall through to `unknown_error`; now every 5xx surfaces
+    // as `service_unavailable` so the agent paraphrases "the backend is
+    // having trouble" instead of an opaque code.
     assert.equal(
-      classifyPointsError(withResponse(500, undefined, "network blip")),
-      "unknown_error",
+      classifyPointsError(withResponse(500, undefined, "internal blip")),
+      "service_unavailable",
+    );
+    assert.equal(
+      classifyPointsError(withResponse(502, undefined, "bad gateway")),
+      "service_unavailable",
     );
   });
 });

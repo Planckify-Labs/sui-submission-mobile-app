@@ -23,6 +23,7 @@ import type {
   ChatRequest,
   DonePayload,
   ErrorPayload,
+  NarrativeHandoffPayload,
   StatusPayload,
   TextDeltaPayload,
   ToolExecutedPayload,
@@ -97,6 +98,22 @@ export interface AgentSessionUIBindings {
     onReject: () => void | Promise<void>,
   ) => void;
   showToolExecuted?: (payload: ToolExecutedPayload) => void;
+  /**
+   * Narrative pass-through start (spec §6.4). Called when the server
+   * emits a `narrative_handoff` frame. The chat screen sets
+   * `originAgentId` on the assistant message being assembled so
+   * `MessageContent.tsx` renders a "via {displayName}" badge. Default
+   * no-op for hosts that don't render specialist narration.
+   */
+  setOriginAgent?: (originAgentId: string) => void;
+  /**
+   * Narrative pass-through end. Called when the server emits
+   * `narrative_handoff_end`. v1: the chat screen treats this as a
+   * marker that subsequent deltas belong to Core again (mobile may
+   * choose to leave the badge in place on the same message — Core's
+   * paraphrase typically lands in the next message).
+   */
+  endOriginAgent?: (originAgentId: string) => void;
   showError?: (message: string, retryable: boolean) => void;
   done?: (meta?: {
     conversation_id: string;
@@ -294,6 +311,14 @@ async function routeEvent(
       handleToolExecuted(event.data, session);
       return;
 
+    case "narrative_handoff":
+      handleNarrativeHandoff(event.data, session);
+      return;
+
+    case "narrative_handoff_end":
+      handleNarrativeHandoffEnd(event.data, session);
+      return;
+
     case "done":
       handleDone(event.data, session);
       return;
@@ -369,6 +394,32 @@ function handleToolExecuted(
     session.ui.showToolExecuted?.(data);
   } catch (err) {
     console.warn(`[agentSession] showToolExecuted threw: ${String(err)}`);
+  }
+}
+
+function handleNarrativeHandoff(
+  data: NarrativeHandoffPayload,
+  session: AgentSession,
+): void {
+  // Spec §6.4 — subsequent text deltas belong to the named specialist
+  // until `narrative_handoff_end` arrives. The chat screen sets the
+  // origin on the in-flight message; absence of the binding is a
+  // forward-compat no-op (CLAUDE.md user-facing-error rule).
+  try {
+    session.ui.setOriginAgent?.(data.origin_agent_id);
+  } catch (err) {
+    console.warn(`[agentSession] setOriginAgent threw: ${String(err)}`);
+  }
+}
+
+function handleNarrativeHandoffEnd(
+  data: NarrativeHandoffPayload,
+  session: AgentSession,
+): void {
+  try {
+    session.ui.endOriginAgent?.(data.origin_agent_id);
+  } catch (err) {
+    console.warn(`[agentSession] endOriginAgent threw: ${String(err)}`);
   }
 }
 

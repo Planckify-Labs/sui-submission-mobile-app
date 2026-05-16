@@ -106,6 +106,27 @@ export interface ToolPendingPayload {
     human_summary: string;
     amount_usd?: number;
   };
+  /**
+   * Optional id of the agent that emitted this tool call (e.g. "wallet",
+   * "defi"). Mobile renders a "via X specialist" badge when set and not
+   * equal to "core"/"wallet" (Task 17). Old clients that ignore this
+   * field keep working — backwards-compat verified by the Task 20 e2e.
+   *
+   * Mirrors the server-side `ToolPendingPayload.origin_agent_id` added
+   * in `agent-api/src/session/types.ts`.
+   */
+  origin_agent_id?: string;
+}
+
+/**
+ * Narrative pass-through markers (spec §6.4). The server emits
+ * `narrative_handoff` immediately before the specialist's first text
+ * delta and `narrative_handoff_end` after the last. Mobile sets
+ * `originAgentId` on the assistant message being assembled so
+ * `MessageContent.tsx` renders a "via X specialist" badge.
+ */
+export interface NarrativeHandoffPayload {
+  origin_agent_id: string;
 }
 
 /**
@@ -150,6 +171,8 @@ export type AgentEvent =
   | { event: "status"; data: StatusPayload }
   | { event: "tool_pending"; data: ToolPendingPayload }
   | { event: "tool_executed"; data: ToolExecutedPayload }
+  | { event: "narrative_handoff"; data: NarrativeHandoffPayload }
+  | { event: "narrative_handoff_end"; data: NarrativeHandoffPayload }
   | { event: "done"; data: DonePayload }
   | { event: "error"; data: ErrorPayload };
 

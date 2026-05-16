@@ -29,7 +29,8 @@ import {
   type BalanceTokenRow,
   toAgentSlice,
   type WalletBalancesPayload,
-} from "./balancePayload";
+} from "../balancePayload";
+import { recordTransferHistory } from "./recordTransferHistory";
 import {
   ExecutorError,
   ExecutorErrorCode,
@@ -37,7 +38,7 @@ import {
   optionalString,
   requireString,
   safeExecute,
-} from "./types";
+} from "../types";
 
 const SOLANA_NAMESPACE = "solana" as const;
 
@@ -250,6 +251,20 @@ export const sendSol: MobileToolExecutor = (input, context) =>
       chain,
     });
 
+    // Record history (best-effort) — mirrors send.tsx Solana path so
+    // agent-driven transfers show up in the Activity tab alongside
+    // UI-driven ones.
+    const transaction_id = await recordTransferHistory({
+      blockchains: context.blockchains,
+      namespace: "solana",
+      chainSlug: `solana-${chain.cluster}`,
+      type: "TRANSFER",
+      amount: lamports.toString(),
+      txHash: signature,
+      fromAddress: context.wallet.address,
+      toAddress: to,
+    });
+
     // NOTE: `tx_hash` is typed `0x${string}` and the server's
     // `toolResultPayloadSchema` validates it against a hex regex, so we
     // deliberately do NOT put the Solana base58 signature there. It
@@ -258,6 +273,7 @@ export const sendSol: MobileToolExecutor = (input, context) =>
     return {
       status: "success",
       tx_confirmed: true,
+      transaction_id,
       data: {
         signature,
         to,
@@ -552,9 +568,22 @@ export const sendSplToken: MobileToolExecutor = (input, context) =>
       decimals,
     });
 
+    const transaction_id = await recordTransferHistory({
+      blockchains: context.blockchains,
+      namespace: "solana",
+      chainSlug: `solana-${chain.cluster}`,
+      contractAddress: mintAddress,
+      type: "TRANSFER",
+      amount: amountRaw.toString(),
+      txHash: signature,
+      fromAddress: context.wallet.address,
+      toAddress: to,
+    });
+
     return {
       status: "success",
       tx_confirmed: true,
+      transaction_id,
       data: {
         signature,
         to,

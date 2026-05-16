@@ -3,51 +3,43 @@
  *
  * This is the mobile-side counterpart to the server's `TOOL_REGISTRY`
  * (see `takumi-agent-api/src/tools/registry.ts`). The SSE dispatcher
- * from task 09 imports `EXECUTORS` and looks up the right function by
- * the `name` field on each `tool_pending` payload.
+ * imports `EXECUTORS` and looks up the right function by the `name`
+ * field on each `tool_pending` payload.
  *
  * Every entry here MUST correspond to a tool with `executor: "mobile"`
- * in the server registry. If the server adds a new mobile tool, add a
- * matching entry here — the unit test below (see
- * `__tests__/registryParity.ts` once a test runner exists) will be
- * the gate that catches drift.
+ * in the server registry. Drift is caught at boot by
+ * `assertRegistryParity` (below) and in CI by `pnpm check:agents`
+ * (Task 18).
  *
- * Tool names enumerated from
- *   takumi-agent-api/src/tools/registry.ts @ 2026-04-12
- * (29 tools total — if you add more on the server, grep for
- * `executor: 'mobile'` there and update both sides together).
- *
- * Sui addition (Task 11): the five `*_sui*` tools below dispatch
- * through `SuiWalletKit` via `walletKitRegistry`, mirroring the Solana
- * surface tool-for-tool. See `./sui.ts` for the executor implementations
- * and `docs/sui-chain-support-spec.md` §7 for the protocol contract.
+ * Wallet executors live under `./wallet/`; DeFi stub executors under
+ * `./defi/`. The flat `EXECUTORS` map is preserved via composition
+ * (spec §7.2). Each per-agent bucket is wrapped with
+ * `composeAgentExecutors` so a tool dropped into the wrong folder
+ * fails loudly at module load.
  */
 
 export * from "./chainRouter";
 export * from "./types";
 
-import { ADDRESS_BOOK_EXECUTORS } from "./addressBook";
-import { POINTS_EXECUTORS } from "./points";
-import { READ_EXECUTORS } from "./reads";
-import { SIMULATE_EXECUTORS } from "./simulate";
-import { SOLANA_EXECUTORS } from "./solana";
-import { SOLANA_TAKUMI_PAY_EXECUTORS } from "./solanaTakumiPay";
-import { SUI_EXECUTORS } from "./sui";
+import { AGENT_MANIFEST, resolveAgentForTool } from "./agentManifest";
+import {
+  AGENT_FOR_EXECUTOR,
+  composeAgentExecutors,
+} from "./composeAgentExecutors";
+import { DEFI_STUB_EXECUTORS } from "./defi";
 import type { MobileToolExecutor } from "./types";
-import { WRITE_EXECUTORS } from "./writes";
+import {
+  ADDRESS_BOOK_EXECUTORS,
+  POINTS_EXECUTORS,
+  READ_EXECUTORS,
+  SIMULATE_EXECUTORS,
+  SOLANA_EXECUTORS,
+  SOLANA_TAKUMI_PAY_EXECUTORS,
+  SUI_EXECUTORS,
+  WRITE_EXECUTORS,
+} from "./wallet";
 
-/**
- * The registry itself. Keys are the canonical tool names the server
- * emits via `tool_pending.name`. Task 09's SSE dispatcher does:
- *
- *     const executor = EXECUTORS[payload.name];
- *     if (!executor) return rejectTool(payload, "unknown_tool");
- *     const result = await executor(payload.input, context);
- *
- * Do NOT introduce fuzzy matching — unknown tools should fail loudly
- * so we notice new server additions immediately.
- */
-export const EXECUTORS: Record<string, MobileToolExecutor> = {
+const WALLET_EXECUTORS = composeAgentExecutors("wallet", {
   ...READ_EXECUTORS,
   ...SIMULATE_EXECUTORS,
   ...WRITE_EXECUTORS,
@@ -56,6 +48,25 @@ export const EXECUTORS: Record<string, MobileToolExecutor> = {
   ...SOLANA_EXECUTORS,
   ...SOLANA_TAKUMI_PAY_EXECUTORS,
   ...SUI_EXECUTORS,
+});
+
+const DEFI_EXECUTORS = composeAgentExecutors("defi", {
+  ...DEFI_STUB_EXECUTORS,
+});
+
+/**
+ * The registry itself. Keys are the canonical tool names the server
+ * emits via `tool_pending.name`.
+ *
+ *     const executor = EXECUTORS[payload.name];
+ *     if (!executor) return rejectTool(payload, "unknown_tool");
+ *     const result = await executor(payload.input, context);
+ *
+ * Do NOT introduce fuzzy matching — unknown tools must fail loudly.
+ */
+export const EXECUTORS: Record<string, MobileToolExecutor> = {
+  ...WALLET_EXECUTORS,
+  ...DEFI_EXECUTORS,
 };
 
 /**
@@ -63,9 +74,7 @@ export const EXECUTORS: Record<string, MobileToolExecutor> = {
  * sibling package that we don't import from directly at build time.
  * Kept in sync by visual review against
  *   takumi-agent-api/src/tools/registry.ts
- *
- * If you edit this list, also update the server registry and the
- * block comment at the top of this file.
+ * and by the cross-repo `pnpm check:agents` lint (Task 18).
  */
 export const EXPECTED_MOBILE_TOOLS: ReadonlyArray<string> = [
   // blockchain reads
@@ -98,7 +107,7 @@ export const EXPECTED_MOBILE_TOOLS: ReadonlyArray<string> = [
   // points writes
   "deposit_points",
   "execute_redemption",
-  // points simulate — SIWE login flow (task 17)
+  // points simulate — SIWE login flow
   "request_authentication",
   // address book reads
   "get_address_book",
@@ -119,12 +128,28 @@ export const EXPECTED_MOBILE_TOOLS: ReadonlyArray<string> = [
   "send_sui",
   "get_wallet_sui_coins",
   "send_sui_coin",
+  // defi stubs (Task 08 / spec §12) — names match defi-strategies-spec §11
+  "defi_list_opportunities",
+  "defi_list_positions",
+  "defi_deposit",
+  "defi_withdraw",
+  "defi_rebalance",
 ];
 
 /**
- * Runtime assertion helper used by the app bootstrap in task 09 — call
- * once at startup so registry drift crashes loudly rather than
- * silently dropping tool calls.
+ * Runtime assertion helper called once at app bootstrap.
+ *
+ * Two layers of parity:
+ *   1. Every name in `EXPECTED_MOBILE_TOOLS` has an entry in
+ *      `EXECUTORS` (catches missing executor implementations).
+ *   2. The bucket each executor was registered under (`composeAgentExecutors`
+ *      writes to `AGENT_FOR_EXECUTOR`) matches the agent the manifest
+ *      claims owns its prefix (catches a tool dropped into the wrong
+ *      subfolder).
+ *
+ * Failures throw — registry drift must crash loudly. The orchestrator
+ * surfaces friendly copy to users on a boot fault (CLAUDE.md
+ * user-facing-error rule).
  */
 export function assertRegistryParity(): void {
   for (const name of EXPECTED_MOBILE_TOOLS) {
@@ -132,6 +157,19 @@ export function assertRegistryParity(): void {
       throw new Error(
         `[agent-executors] missing executor for tool "${name}" — ` +
           "check services/agent-executors/index.ts",
+      );
+    }
+  }
+  for (const [toolName, agentId] of AGENT_FOR_EXECUTOR.entries()) {
+    const expected = resolveAgentForTool(toolName, AGENT_MANIFEST);
+    if (!expected) {
+      throw new Error(
+        `[agent-executors] prefix mismatch: tool "${toolName}" registered under "${agentId}" but no agent in the manifest claims its prefix`,
+      );
+    }
+    if (expected !== agentId) {
+      throw new Error(
+        `[agent-executors] prefix mismatch: tool "${toolName}" registered under "${agentId}" but manifest assigns it to "${expected}"`,
       );
     }
   }

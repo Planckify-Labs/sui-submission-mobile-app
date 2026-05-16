@@ -19,8 +19,8 @@
 
 import { router } from "expo-router";
 import { type Abi, formatUnits } from "viem";
-import { resolveChainClients } from "./chainRouter";
-import { checkPointsAuth } from "./pointsAuth";
+import { resolveChainClients } from "../chainRouter";
+import { checkPointsAuth } from "../pointsAuth";
 import {
   ExecutorError,
   ExecutorErrorCode,
@@ -30,7 +30,7 @@ import {
   requireString,
   resolveChainId,
   safeExecute,
-} from "./types";
+} from "../types";
 
 /**
  * Look up the native currency metadata (symbol, decimals, name) for a

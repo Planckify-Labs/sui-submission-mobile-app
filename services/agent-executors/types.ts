@@ -129,6 +129,11 @@ export const ExecutorErrorCode = {
   NetworkError: "network_error",
   NotImplemented: "not_implemented",
   InvalidInput: "invalid_input",
+  // Catch-all curated code. Never surface raw runtime / response text
+  // on `ToolResult.error` — that string ends up in LLM context on the
+  // next turn (CLAUDE.md user-facing-error rule). `mapUnknownError`
+  // falls back to this when nothing else matches.
+  Unknown: "unknown_error",
 } as const;
 
 export type ExecutorErrorCodeValue =
@@ -168,9 +173,13 @@ export async function safeExecute<T extends ToolResult>(
 
 /**
  * Best-effort classification of a thrown error into one of the
- * agent-protocol reason codes. Falls back to `String(err)` — matches the
- * spec requirement "return `{ status: 'failed', error: String(err) }` on
- * throw".
+ * agent-protocol reason codes.
+ *
+ * CLAUDE.md user-facing-error rule — and the agent-context equivalent:
+ * never propagate raw runtime / response text into `ToolResult.error`,
+ * because the server feeds that field back into the LLM on the next
+ * turn. Every branch here returns a curated code. The fallback used
+ * to be `String(err)`; it is now `ExecutorErrorCode.Unknown`.
  */
 export function mapUnknownError(err: unknown): string {
   // Viem throws concrete subclasses — match by name so we avoid a hard
@@ -211,10 +220,20 @@ export function mapUnknownError(err: unknown): string {
     return ExecutorErrorCode.InsufficientFunds;
   }
   if (name === "SuiRegulatedCoinDeniedError") {
-    // Surface the descriptive message so the agent can explain *why*
-    // the deny list rejected the transfer (the user-visible coin type
-    // is embedded by the typed error's constructor).
-    return message || ExecutorErrorCode.InvalidInput;
+    // Used to surface the typed error's `message` (which embeds the
+    // coin type) so the agent could explain *why* the deny list
+    // rejected. That route violated the "never put raw text on the
+    // `error` field" rule — the LLM would see the message verbatim on
+    // the next turn. Return a curated code instead; the typed coin
+    // detail lives on `data.coin_type` for executors that want to
+    // expose it cleanly.
+    if (isDev() && message) {
+      console.warn(
+        "[mapUnknownError] SuiRegulatedCoinDeniedError suppressed:",
+        message,
+      );
+    }
+    return ExecutorErrorCode.InvalidInput;
   }
   if (name === "SuiClosedLoopPolicyDeniedError") {
     return ExecutorErrorCode.InvalidInput;
@@ -223,7 +242,30 @@ export function mapUnknownError(err: unknown): string {
     return ExecutorErrorCode.NotImplemented;
   }
 
-  return String(err);
+  // Catch-all — never return `String(err)`; raw runtime text would end
+  // up in LLM context on the next turn. Curated code; dev sees the
+  // detail via the console.warn below.
+  if (isDev()) {
+    console.warn(
+      `[mapUnknownError] no specific mapping for ${name || "unknown"}; surfacing as unknown_error. Detail:`,
+      message || err,
+    );
+  }
+  return ExecutorErrorCode.Unknown;
+}
+
+/**
+ * `__DEV__` is RN's global, but this module also imports from test
+ * harnesses (Vitest, node:test) that don't define it. Guard so a
+ * passing-through call site doesn't throw `ReferenceError` in those
+ * contexts. In production / dev RN bundles the global is wired up by
+ * the bundler so this resolves to a fast boolean read.
+ */
+function isDev(): boolean {
+  return (
+    typeof (globalThis as { __DEV__?: boolean }).__DEV__ === "boolean" &&
+    (globalThis as { __DEV__?: boolean }).__DEV__ === true
+  );
 }
 
 /**

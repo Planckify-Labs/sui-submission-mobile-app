@@ -52,8 +52,8 @@ import { redeemApi } from "@/api/endpoints/redeem";
 import { smartContractApi } from "@/api/endpoints/smart-contracts";
 import type { TProductInputField } from "@/api/types/product";
 import AbiTakumiPointDeposit from "@/contracts/abis/AbiTakumiPointDeposit";
-import { requireWalletClient, resolveChainClients } from "./chainRouter";
-import { checkPointsAuth } from "./pointsAuth";
+import { requireWalletClient, resolveChainClients } from "../chainRouter";
+import { checkPointsAuth } from "../pointsAuth";
 import { loadCachedTokens } from "./reads";
 import {
   ExecutorError,
@@ -64,8 +64,8 @@ import {
   resolveChainId,
   safeExecute,
   type ToolInput,
-} from "./types";
-import { classifyPointsError, sanitizeApiResponse } from "./utils";
+} from "../types";
+import { classifyPointsError, sanitizeApiResponse } from "../utils";
 
 /**
  * Pre-flight auth guard for points executors that require a JWT.
@@ -133,7 +133,16 @@ async function runApi<T>(
     }
     return { status: "success", data: sanitizeApiResponse(shaped) };
   } catch (err) {
-    return { status: "failed", error: classifyPointsError(err) };
+    const error = classifyPointsError(err);
+    // Raw error stays in dev logs only (CLAUDE.md user-facing-error
+    // rule); the executor surfaces a curated code to the agent.
+    if (__DEV__) {
+      console.warn(
+        `[agent-executors/points] runApi failed (${error}):`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+    return { status: "failed", error };
   }
 }
 
@@ -150,6 +159,24 @@ function optionalInt(input: ToolInput, key: string): number | undefined {
   return value;
 }
 
+/**
+ * Catalog / search pagination guardrail.
+ *
+ * The LLM can hallucinate a huge `take` (e.g. "show me what I can
+ * redeem with 200,000 points" → `take: 200000`) which trips the
+ * backend's request validator and surfaces as a generic 4xx that
+ * `classifyPointsError` can only label `unknown_error`. Clamp here so
+ * the LLM never reaches the backend with a value the catalog can't
+ * serve. 50 mirrors the backend's max page size.
+ */
+const MAX_CATALOG_TAKE = 50;
+
+function clampTake(value: number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (value <= 0) return undefined;
+  return Math.min(value, MAX_CATALOG_TAKE);
+}
+
 // ---------------------------------------------------------------------------
 // Read executors — public (no JWT)
 // ---------------------------------------------------------------------------
@@ -160,7 +187,7 @@ function optionalInt(input: ToolInput, key: string): number | undefined {
  */
 export const getRedemptionCatalog: MobileToolExecutor = (input, _context) =>
   safeExecute(async () => {
-    const take = optionalInt(input, "take");
+    const take = clampTake(optionalInt(input, "take"));
     // `data` is the compact agent-facing slice: category names + product
     // ids so the agent can say "pick a product id and I'll pull details"
     // without re-narrating the full list. Rich UI data (images,
@@ -203,7 +230,7 @@ export const searchRedemptionCatalog: MobileToolExecutor = (input, _context) =>
     const params = {
       name: optionalString(input, "name"),
       categoryId: optionalString(input, "category_id"),
-      take: optionalInt(input, "take"),
+      take: clampTake(optionalInt(input, "take")),
       cursor: optionalString(input, "cursor"),
     };
     return runApi(
@@ -736,10 +763,19 @@ export const depositPoints: MobileToolExecutor = (input, context) =>
     try {
       await publicClient.waitForTransactionReceipt({ hash: txHash });
     } catch (err) {
+      // CLAUDE.md user-facing-error rule: never put raw err text on the
+      // `error` field — it ends up in LLM context on the next turn.
+      // Curated code only; raw detail to dev log.
+      if (__DEV__) {
+        console.warn(
+          "[deposit_points] waitForTransactionReceipt failed:",
+          err instanceof Error ? err.message : err,
+        );
+      }
       return {
         status: "failed",
         tx_hash: txHash,
-        error: `network_error: ${String(err)}`,
+        error: "network_error",
       };
     }
 

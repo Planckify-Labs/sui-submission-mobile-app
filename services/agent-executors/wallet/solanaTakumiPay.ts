@@ -9,6 +9,7 @@ import { computeRefIdHash } from "@/services/chains/solana/takumiPay/refIdHash";
 import { buildCreateTransactionInstruction } from "@/services/nanopay/solana/buildCreateTransaction";
 import { buildDepositPointsInstruction } from "@/services/nanopay/solana/buildDepositPoints";
 import { walletKitRegistry } from "@/services/walletKit/registry";
+import { recordTransferHistory } from "./recordTransferHistory";
 import {
   ExecutorError,
   ExecutorErrorCode,
@@ -16,7 +17,7 @@ import {
   optionalString,
   requireString,
   safeExecute,
-} from "./types";
+} from "../types";
 
 const SOLANA_NAMESPACE = "solana" as const;
 
@@ -152,9 +153,24 @@ export const executeBookingSol: MobileToolExecutor = (input, context) =>
       instructions,
     });
 
+    // TakumiPay booking is a payment — record on history so the
+    // Activity tab shows it next to UI-driven bookings.
+    const transaction_id = await recordTransferHistory({
+      blockchains: context.blockchains,
+      namespace: "solana",
+      chainSlug: `solana-${chain.cluster}`,
+      contractAddress: tokenMintStr ?? undefined,
+      type: "PAYMENT",
+      amount: amount.toString(),
+      txHash: signature,
+      fromAddress: context.wallet.address,
+      toAddress: programId.toBase58(),
+    });
+
     return {
       status: "success",
       tx_confirmed: true,
+      transaction_id,
       data: {
         signature,
         cluster: chain.cluster,

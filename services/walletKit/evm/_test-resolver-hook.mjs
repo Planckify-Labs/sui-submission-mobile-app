@@ -148,6 +148,21 @@ const SOURCE_REWRITES = {
 export async function load(url, context, nextLoad) {
   if (url.startsWith("file://")) {
     const absPath = fileURLToPath(url);
+
+    // JSON imports — Metro/RN supports these natively without an import
+    // attribute, but Node's ESM loader requires `with { type: "json" }`.
+    // Surface JSON files as ESM modules that re-export the parsed object
+    // as the default export, matching Metro's behaviour.
+    if (absPath.endsWith(".json")) {
+      const raw = readFileSync(absPath, "utf8");
+      const source = `export default ${raw};`;
+      return {
+        format: "module",
+        shortCircuit: true,
+        source,
+      };
+    }
+
     for (const [suffix, rewrite] of Object.entries(SOURCE_REWRITES)) {
       if (absPath.endsWith(suffix.replaceAll("/", sep))) {
         const raw = readFileSync(absPath, "utf8");

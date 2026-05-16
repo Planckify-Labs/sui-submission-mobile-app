@@ -144,7 +144,8 @@ export type PointsApiErrorCode =
   | "redemption_failed" // vendor returned failure after points deducted (REFUNDED)
   | "deposit_failed" // on-chain tx OK but API rejected deposit
   | "rate_limited" // 429 — too many requests
-  | "service_unavailable" // 503 — backend API down
+  | "service_unavailable" // 5xx — backend API errored
+  | "bad_request" // 4xx — request shape rejected (validation, range, …)
   | "network_error" // fetch / timeout, no HTTP response
   | "unknown_error"; // anything else
 
@@ -200,7 +201,10 @@ export function classifyPointsError(err: unknown): PointsApiErrorCode {
   const messageRaw = pick(err, "message");
   const message = typeof messageRaw === "string" ? messageRaw : "";
 
-  // 1. Standard HTTP status mappings.
+  // 1. Standard HTTP status mappings — specific codes win over the
+  //    generic 5xx fallback below (which lives AFTER body-code parsing
+  //    so a 500 with `code: "REDEMPTION_FAILED"` still routes domain-
+  //    correctly instead of being collapsed to `service_unavailable`).
   if (status === 401) return "authentication_required";
   if (status === 403) return "authorization_denied";
   if (status === 429) return "rate_limited";
@@ -234,6 +238,21 @@ export function classifyPointsError(err: unknown): PointsApiErrorCode {
     /network|timeout|fetch failed|fetch|econnreset|enotfound/i.test(message)
   ) {
     return "network_error";
+  }
+
+  // 4. Any other 4xx — the request itself was rejected. The agent can
+  //    paraphrase this and decide whether to retry with a simpler shape
+  //    (e.g. drop a paginating field) instead of giving up.
+  if (typeof status === "number" && status >= 400 && status <= 499) {
+    return "bad_request";
+  }
+
+  // 5. Any other 5xx without a recognised body code — backend errored,
+  //    nothing the user can do; retry later. Lives AFTER the body-code
+  //    block so domain errors that arrive as 5xx still classify
+  //    correctly.
+  if (typeof status === "number" && status >= 500 && status <= 599) {
+    return "service_unavailable";
   }
 
   return "unknown_error";
