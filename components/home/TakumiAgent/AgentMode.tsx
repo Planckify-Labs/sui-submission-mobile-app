@@ -1266,11 +1266,12 @@ export default function AgentMode() {
             message={item}
             mode={mode}
             addToolResult={handleAddToolResult}
+            onUserPrompt={sendTextMessage}
           />
         </View>
       );
     },
-    [streamingMessageId, handleAddToolResult],
+    [streamingMessageId, handleAddToolResult, sendTextMessage],
   );
 
   const isLoading = isStreaming;

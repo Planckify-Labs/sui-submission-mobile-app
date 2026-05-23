@@ -29,6 +29,11 @@ export type TUsdcToken = {
   isNativeCurrency: boolean;
 };
 
+export type TSmartContract = {
+  name: string;
+  address: string;
+};
+
 export type TBlockchain = {
   id: string;
   name: string;
@@ -55,6 +60,7 @@ export type TBlockchain = {
   x402?: TX402Domain | null;
   usdc?: TUsdcToken | null;
   tokens?: TToken[];
+  smartContracts?: TSmartContract[];
   updatedAt: string;
 };
 

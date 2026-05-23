@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "804434874289",
+    "project_id": "takumipay-b6ef3",
+    "storage_bucket": "takumipay-b6ef3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:804434874289:android:d248caec7c08b9c6f77790",
+        "android_client_info": {
+          "package_name": "com.planckify.takumiwallet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQcDRdwY2d1vtkad6k2_D5IzdusuvHA14"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:804434874289:android:0690b1bae760021ef77790",
+        "android_client_info": {
+          "package_name": "com.planckify.takumiwallet.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQcDRdwY2d1vtkad6k2_D5IzdusuvHA14"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:804434874289:android:e22ffc3cd27eb016f77790",
+        "android_client_info": {
+          "package_name": "com.planckify.takumiwallet.preview"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQcDRdwY2d1vtkad6k2_D5IzdusuvHA14"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

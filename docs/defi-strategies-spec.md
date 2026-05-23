@@ -241,7 +241,7 @@ or migrate from.
 | Position reads | ❌ | **New: `services/defi/positions/`** — direct contract reads via adapter `readPosition()` (authoritative); **Zerion free tier** (1k req/day) for portfolio summary card. DeBank paid usage deferred to Phase 2. |
 | Risk scoring | ❌ | **New: server-side in `api/`** (`StrategyScoringService`) |
 | Yield discovery | ❌ | **New: server-side polling of DeFiLlama → cache in `api/`** |
-| Strategy CRUD (user config) | ❌ | **New: `UserStrategy` model + `/v1/strategies` controller in `api/`** |
+| Strategy CRUD (user config) | ❌ | **New: `UserStrategy` model + `/strategies` controller in `api/`** |
 | Rebalance trigger | ❌ | **New: BullMQ job in `api/`** + agent tool to actually act |
 | Position tracking (P&L) | ❌ | **New: `StrategyPosition` model in `api/`** + on-screen reads |
 | Strategy UI screens | ❌ | **New: `app/strategies/`** |
@@ -304,7 +304,7 @@ Five logical actors and what they own:
        │                          │                               │
        │ ➊ HTTPS + Bearer JWT     │ ➋ SSE bi-directional          │ ➌ HTTPS RPC (read +
        │   (per-wallet, SIWE)     │   POST /chat (open stream)    │    sign-and-broadcast)
-       │   /v1/strategies/*       │   POST /chat/:id/respond      │   eth_call, eth_sendRawTx,
+       │   /strategies/*       │   POST /chat/:id/respond      │   eth_call, eth_sendRawTx,
        │   /v1/blockchains, etc.  │   GET /chat/:id/stream         │   Solana getAccountInfo,
        │   Authorization: Bearer  │   Bearer SECRET_AI_KEY        │   sendTransaction, etc.
        │                          │                               │
@@ -319,9 +319,9 @@ Five logical actors and what they own:
 │   merchants · transactions · userOp · auth · …   │  │  TOOL_REGISTRY:           │  │  these directly —
 │                                                  │  │   all defi_*             │  │  the backends never
 │  NEW strategies module (this spec):              │  │   `executor: "mobile"`   │  │  hold a user key.
-│   /v1/strategies                                 │  │  ─→ server emits         │  │
-│   /v1/strategies/opportunities                   │  │     `tool_pending`,      │  │
-│   /v1/strategies/positions                       │  │     mobile executes      │  │
+│   /strategies                                 │  │  ─→ server emits         │  │
+│   /strategies/opportunities                   │  │     `tool_pending`,      │  │
+│   /strategies/positions                       │  │     mobile executes      │  │
 │                                                  │  │     locally, posts back  │  │
 │  Prisma / Postgres                               │  │     via /respond.        │  │
 │   + UserStrategy / StrategyPosition              │  │                           │  │
@@ -365,7 +365,7 @@ might communicate, but don't):
   reads (opportunities, positions, user config) round-trip through
   mobile because mobile holds the per-wallet JWT. The agent emits
   a `tool_pending` for `defi_list_opportunities`; mobile calls
-  `/v1/strategies/opportunities` with its JWT; mobile posts the
+  `/strategies/opportunities` with its JWT; mobile posts the
   list back through `/chat/:id/respond`. This preserves the
   "paying-wallet JWT" rule and keeps agent-api stateless w.r.t.
   user data.
@@ -409,7 +409,7 @@ mobile-app              agent-api               api/                Chain RPC
     │                       │ LLM reasoning       │                      │
     │ ◀──── tool_pending ───│ (defi_list_opportunities {tier})           │
     │                                                                    │
-    │ GET /v1/strategies/opportunities?tier=conservative                  │
+    │ GET /strategies/opportunities?tier=conservative                  │
     │  Authorization: Bearer <JWT for 0xBBB>                              │
     │ ──────────────────────────────────────────▶                        │
     │                                             │ read OpportunityCache │
@@ -434,7 +434,7 @@ mobile-app              agent-api               api/                Chain RPC
     │                                                                  ok │
     │ ◀──────────────────────────────────────────────────────────────────│
     │                                                                    │
-    │ POST /v1/strategies/positions  (record open position)              │
+    │ POST /strategies/positions  (record open position)              │
     │ ──────────────────────────────────────────▶                        │
     │ ◀──────────────────── 201 ──────────────────                       │
     │                                                                    │
@@ -474,8 +474,8 @@ mobile-app              agent-api               api/                Chain RPC
 └────────────────────────────────────┘
            │
            ▼
-    Postgres / Valkey  ◀── read by  /v1/strategies/opportunities (mobile)
-                       ◀── read by  /v1/strategies/positions     (mobile)
+    Postgres / Valkey  ◀── read by  /strategies/opportunities (mobile)
+                       ◀── read by  /strategies/positions     (mobile)
 ```
 
 ### 5.6 Per-wallet JWT binding (CLAUDE.md rule, applied here)
@@ -494,13 +494,13 @@ SecureStore — one JWT pair per wallet:
     refresh_token_<lowercased addr>    refresh TTL ~200 days
 
 The "paying-wallet JWT" rule generalises to DeFi Strategies:
-    /v1/strategies/* for wallet B uses wallet B's JWT — never the
+    /strategies/* for wallet B uses wallet B's JWT — never the
     active wallet's, never wallet A's. Same as payment intents.
 
 Mobile flow:
     hooks/useStrategyJwtBinder(walletB)
       → ky instance with `Authorization: Bearer <wallet B JWT>`
-      → all /v1/strategies/* reads/writes bind to wallet B server-side.
+      → all /strategies/* reads/writes bind to wallet B server-side.
 
 Silent refresh on 401: POST /auth/refresh with refresh_token_<B>.
 ```
@@ -526,7 +526,7 @@ RIGHT (this spec, §15.5):
                           →  position lands under B
 
 Same rule applies to every preview-card render, every approval-sheet
-prompt, every signer derivation, every /v1/strategies/* call. The
+prompt, every signer derivation, every /strategies/* call. The
 agent's wallet_context is the source of truth — NOT useWallet's
 activeWallet.
 ```
@@ -617,9 +617,9 @@ mobile-app/
 │                                       #  existing unified PendingTxCard.tsx)
 │
 ├ hooks/queries/
-│  ├ useStrategies.ts                  # GET /v1/strategies
-│  ├ useStrategyOpportunities.ts       # GET /v1/strategies/opportunities
-│  ├ useStrategyPositions.ts           # GET /v1/strategies/positions
+│  ├ useStrategies.ts                  # GET /strategies
+│  ├ useStrategyOpportunities.ts       # GET /strategies/opportunities
+│  ├ useStrategyPositions.ts           # GET /strategies/positions
 │  ├ useStrategyConfig.ts              # CRUD on user config
 │  └ useStrategyMutations.ts           # deposit/withdraw/exit
 │
@@ -663,7 +663,7 @@ mobile-app/
 api/src/
 └ strategies/
    ├ strategies.module.ts
-   ├ strategies.controller.ts          # /v1/strategies routes
+   ├ strategies.controller.ts          # /strategies routes
    ├ strategies.service.ts             # User config CRUD
    ├ opportunities.service.ts          # Reads OpportunityCache, returns filtered list
    ├ positions.service.ts              # Reads StrategyPosition + on-chain values
@@ -1186,7 +1186,7 @@ different `AaveV3Ethereum.POOL` / `AaveV3Arbitrum.POOL` from the
   edits to `app/`.
 - **Backend can leverage the same slug.** `OpportunityCache.protocolSlug`
   matches `DefiProtocolAdapter.slug`, so the agent's tool call can
-  carry the slug it received from `/v1/strategies/opportunities`
+  carry the slug it received from `/strategies/opportunities`
   unchanged.
 
 ---
@@ -1314,7 +1314,7 @@ mobile app never talks to DeFiLlama / DeBank / Zerion directly. Two
 reasons:
 
 1. Keeps API keys out of the binary (CLAUDE.md,
-   distribution-discipline). Mobile reads through `/v1/strategies/*`.
+   distribution-discipline). Mobile reads through `/strategies/*`.
 2. Lets the backend cache, rate-limit, and circuit-break one place.
 
 Routing summary per provider — values cited from official docs, see
@@ -1518,8 +1518,8 @@ per §14.5 — either a custom card name (with-UI tool, registered in
 
 | Tool name | Category | UI | Description | Approval gate |
 |---|---|---|---|---|
-| `defi_list_opportunities` | read | `OpportunityListCard` (NEW, interactive) | Calls `/v1/strategies/opportunities`. Returns scored, tier-filtered list. Accepts **transient parameters** (`tier`, `asset_symbol`, `chain_id`, `liquidity_profile`, `amount_usd`) so the agent can call it for first-touch users who have no `UserStrategy` yet (§14.6). | none (read) |
-| `defi_list_positions` | read | `PositionListCard` (NEW, interactive) | Calls `/v1/strategies/positions` for the active wallet. | none (read) |
+| `defi_list_opportunities` | read | `OpportunityListCard` (NEW, interactive) | Calls `/strategies/opportunities`. Returns scored, tier-filtered list. Accepts **transient parameters** (`tier`, `asset_symbol`, `chain_id`, `liquidity_profile`, `amount_usd`) so the agent can call it for first-touch users who have no `UserStrategy` yet (§14.6). | none (read) |
+| `defi_list_positions` | read | `PositionListCard` (NEW, interactive) | Calls `/strategies/positions` for the active wallet. | none (read) |
 | `defi_get_config` | read | fallback | Returns the user's current `UserStrategy` config. | none |
 | `defi_simulate_deposit` | simulate | fallback | Builds tx via adapter, runs `estimate_gas`. Returns gas + slippage + safety summary. | none (simulate) |
 | `defi_deposit` | write | unified `PendingTxCard` (reused) | Executes a single-step deposit into the adapter selected by `{protocolSlug, chainId, asset, amount}`. | grant + threshold |
@@ -1602,7 +1602,7 @@ work).
 3. **No new persistence in `agent-api/`** — `UserStrategy` lives in
    `api/`'s database. **All strategy reads/writes are
    `executor: "mobile"`** (consistent with the existing protocol):
-   the agent emits `tool_pending`, mobile calls `/v1/strategies/*`
+   the agent emits `tool_pending`, mobile calls `/strategies/*`
    with its per-wallet JWT, mobile posts the result back via
    `POST /chat/:id/respond`. We deliberately do **not** introduce an
    `agent-api/ ↔ api/` edge — see §5.2 "three non-edges worth
@@ -1628,18 +1628,18 @@ endpoints, all keyed by the JWT's wallet address (no walletAddress
 in the path):
 
 ```
-GET    /v1/strategies                       # current user strategy or null
-POST   /v1/strategies                       # create / overwrite config
-PATCH  /v1/strategies                       # partial update (pause/resume, tier change, …)
-DELETE /v1/strategies                       # disable
+GET    /strategies                       # current user strategy or null
+POST   /strategies                       # create / overwrite config
+PATCH  /strategies                       # partial update (pause/resume, tier change, …)
+DELETE /strategies                       # disable
 
-GET    /v1/strategies/opportunities         # ?tier=…&chainId=…&assetSymbol=…
-GET    /v1/strategies/opportunities/:slug   # one opportunity + full score breakdown
+GET    /strategies/opportunities         # ?tier=…&chainId=…&assetSymbol=…
+GET    /strategies/opportunities/:slug   # one opportunity + full score breakdown
 
-GET    /v1/strategies/positions             # all active + closed positions for the JWT's wallet
-GET    /v1/strategies/positions/:id
+GET    /strategies/positions             # all active + closed positions for the JWT's wallet
+GET    /strategies/positions/:id
 
-POST   /v1/strategies/positions/:id/refresh # force on-chain re-read (rate-limited)
+POST   /strategies/positions/:id/refresh # force on-chain re-read (rate-limited)
 ```
 
 ### Worker wiring (BullMQ — already in use for payouts)
@@ -1914,7 +1914,7 @@ the user's choice → LLM follows up with `defi_withdraw` or
 `defi_rebalance` pre-filled. Tap the goal-line "Edit" affordance
 (only visible when `goal` is set) → `action: "edit_goal"` →
 opens an in-card editor for the goal label and target date; the
-result writes through `PATCH /v1/strategies/positions/:id` and
+result writes through `PATCH /strategies/positions/:id` and
 does NOT require a chain transaction.
 
 #### 14.5.4 `RebalancePreviewCard` — input / output / interaction
@@ -2009,7 +2009,7 @@ When mobile sees a `defi_list_opportunities` call and the JWT-bound
 wallet has **no `UserStrategy` row**, the executor:
 
 1. Skips the usual "look up `UserStrategy.tier`" step.
-2. Calls `/v1/strategies/opportunities` with the transient
+2. Calls `/strategies/opportunities` with the transient
    parameters from the LLM (defaults: `tier=conservative`,
    `liquidity_profile=instant`).
 3. Backend returns the curated-Conservative-whitelist list filtered
@@ -2053,7 +2053,7 @@ mobile executor:
 
 1. Submits the on-chain deposit through the usual path.
 2. On success, writes `StrategyPosition.goal` and
-   `StrategyPosition.targetDate` via `POST /v1/strategies/positions`
+   `StrategyPosition.targetDate` via `POST /strategies/positions`
    (or lets the backend backfill from the `tool_executed` payload
    — same path the existing `openTxHash` backfill uses).
 
@@ -2259,7 +2259,7 @@ Ship the smallest end-to-end Conservative-tier flow.
 
 1. New Prisma models (`UserStrategy`, `StrategyPosition`,
    `OpportunityCache`, `ProtocolScoreCache`) + migration.
-2. `api/` strategies module: `/v1/strategies/*` endpoints, DeFiLlama
+2. `api/` strategies module: `/strategies/*` endpoints, DeFiLlama
    poller, scoring service, **Zerion free-tier client (with daily
    budget circuit breaker)**, BullMQ workers.
 3. Mobile `services/defi/` skeleton + Aave v3 / Lido / Curve 3pool
@@ -2340,7 +2340,7 @@ per-wallet JWT-binding rule (§15.4).
 
 **Decision:** `UserStrategy` is keyed by `(userId, walletAddress)`.
 The Prisma schema in §6 already encodes this. The
-`/v1/strategies/*` endpoints select rows by the JWT's wallet
+`/strategies/*` endpoints select rows by the JWT's wallet
 address (no `walletAddress` in the path) so the per-wallet JWT
 binding stays clean. Affects: §6 schema, §13 endpoints, §15.4 JWT
 binding.
@@ -3073,7 +3073,7 @@ When this spec is implemented, the entire flip is:
    - Receives `wallet_context` per multi-agent §9 (no change to the
      handler signature).
    - Routes `defi_*` tool calls through Zod schema validation,
-     queries `api/`'s `/v1/strategies/*` endpoints with the
+     queries `api/`'s `/strategies/*` endpoints with the
      paying-wallet JWT, and emits `tool_pending` SSE frames for the
      mobile executor as normal.
    - Optionally calls `core_handoff` (multi-agent §6.1) when a DeFi
@@ -3175,7 +3175,7 @@ shared code namespace-agnostic and to satisfy the JWT-binding rule
 
 1. Agent reads `wallet_context` (wallet A, EVM, chainId 8453 Base).
 2. Agent calls `defi_list_opportunities { tier: "conservative" }`.
-3. Mobile executor proxies to `GET /v1/strategies/opportunities?tier=conservative&chainId=8453`
+3. Mobile executor proxies to `GET /strategies/opportunities?tier=conservative&chainId=8453`
    with the per-wallet JWT.
 4. Server returns scored list. Top entry:
    `{ slug: "aave-v3-base", apy: 7.2%, score: 92, tier: "conservative" }`.
@@ -3189,7 +3189,7 @@ shared code namespace-agnostic and to satisfy the JWT-binding rule
    - Loads `aaveV3` adapter → `buildDeposit()` → `UnsignedCall` with `needsApproval: { token: USDC, spender: AavePool, amount: 500e6 }`.
    - Submits via `walletKit.sendUserOpWithUsdcPaymaster()` (Base) — gas paid in USDC, one signature for approve + deposit.
 8. `PendingTxCard` polls; on confirm, writes `StrategyPosition` via
-   `POST /v1/strategies/positions` (or lets `TransactionHistory`
+   `POST /strategies/positions` (or lets `TransactionHistory`
    backfill).
 9. Agent replies with the receipt: "Deposit confirmed in block N."
 
@@ -3212,7 +3212,7 @@ NEVER opened `/strategies` and has NO `UserStrategy` row.
    chain_id, liquidity_profile, amount_usd }`.
 4. Mobile executor: detects no `UserStrategy` row for wallet B, but
    the call's optional params let it proceed without one. Calls
-   `/v1/strategies/opportunities` with the transient params.
+   `/strategies/opportunities` with the transient params.
 5. Server returns the curated Conservative list, filtered to USDC +
    Base + instant liquidity. Top entry: `aave-v3-base` (Maple
    filtered out because withdrawal-queue ≠ instant).
@@ -3232,7 +3232,7 @@ NEVER opened `/strategies` and has NO `UserStrategy` row.
    Conservative · Instant · 800/wallet-balance% allocation · 30-day
    `defi_write` grant). User taps **"Confirm deposit + activate."**
 9. Mobile executor (atomic bundle):
-   - `POST /v1/strategies { tier: "conservative",
+   - `POST /strategies { tier: "conservative",
      assetPreference: "stable", liquidityPref: "instant", ... }` →
      `UserStrategy` row created.
    - `permissionGrantStore` writes the `defi_write` capability
@@ -3240,7 +3240,7 @@ NEVER opened `/strategies` and has NO `UserStrategy` row.
    - Calls `aaveV3-base.buildDeposit()` → `UnsignedCall` with
      `needsApproval: { token: USDC, spender: AavePool, amount: 800e6 }`.
    - `walletKit.sendUserOpWithUsdcPaymaster()` — one signature.
-10. On confirm: `POST /v1/strategies/positions { ..., goal:
+10. On confirm: `POST /strategies/positions { ..., goal:
     "Laptop purchase", targetDate: "2026-08-13T00:00:00Z",
     openTxHash: "0x…" }`.
 11. Agent: *"Deposit confirmed in block N. I'll remind you a week

@@ -26,7 +26,7 @@ import {
   AGENT_FOR_EXECUTOR,
   composeAgentExecutors,
 } from "./composeAgentExecutors";
-import { DEFI_STUB_EXECUTORS } from "./defi";
+import { DEFI_EXECUTORS as DEFI_TOOL_EXECUTORS } from "./defi";
 import type { MobileToolExecutor } from "./types";
 import {
   ADDRESS_BOOK_EXECUTORS,
@@ -51,7 +51,7 @@ const WALLET_EXECUTORS = composeAgentExecutors("wallet", {
 });
 
 const DEFI_EXECUTORS = composeAgentExecutors("defi", {
-  ...DEFI_STUB_EXECUTORS,
+  ...DEFI_TOOL_EXECUTORS,
 });
 
 /**
@@ -128,12 +128,17 @@ export const EXPECTED_MOBILE_TOOLS: ReadonlyArray<string> = [
   "send_sui",
   "get_wallet_sui_coins",
   "send_sui_coin",
-  // defi stubs (Task 08 / spec §12) — names match defi-strategies-spec §11
+  // defi (spec §11 — full canonical set)
   "defi_list_opportunities",
   "defi_list_positions",
+  "defi_get_config",
+  "defi_simulate_deposit",
   "defi_deposit",
   "defi_withdraw",
+  "defi_claim",
   "defi_rebalance",
+  "defi_cross_chain_deposit",
+  "defi_compound",
 ];
 
 /**

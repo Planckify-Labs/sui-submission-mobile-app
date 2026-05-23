@@ -1,5 +1,8 @@
 import BalancesCard from "./cards/BalancesCard";
+import OpportunityListCard from "./cards/OpportunityListCard";
 import PendingTxCard from "./cards/PendingTxCard";
+import PositionListCard from "./cards/PositionListCard";
+import RebalancePreviewCard from "./cards/RebalancePreviewCard";
 import RedemptionCatalogCard from "./cards/RedemptionCatalogCard";
 import SolanaPendingTxCard from "./cards/SolanaPendingTxCard";
 import SpendingApprovalCard from "./cards/SpendingApprovalCard";
@@ -56,4 +59,10 @@ export const toolComponents: Record<string, ToolComponent<any, any>> = {
   send_spl_token: SolanaPendingTxCard,
   send_sui: SuiPendingTxCard,
   send_sui_coin: SuiPendingTxCard,
+  defi_list_opportunities: OpportunityListCard,
+  defi_list_positions: PositionListCard,
+  defi_deposit: PendingTxCard,
+  defi_withdraw: PendingTxCard,
+  defi_claim: PendingTxCard,
+  defi_rebalance: RebalancePreviewCard,
 };

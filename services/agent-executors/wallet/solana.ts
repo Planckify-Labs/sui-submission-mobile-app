@@ -30,7 +30,6 @@ import {
   toAgentSlice,
   type WalletBalancesPayload,
 } from "../balancePayload";
-import { recordTransferHistory } from "./recordTransferHistory";
 import {
   ExecutorError,
   ExecutorErrorCode,
@@ -39,6 +38,7 @@ import {
   requireString,
   safeExecute,
 } from "../types";
+import { recordTransferHistory } from "./recordTransferHistory";
 
 const SOLANA_NAMESPACE = "solana" as const;
 

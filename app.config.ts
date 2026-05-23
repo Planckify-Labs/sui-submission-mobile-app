@@ -84,6 +84,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     jsEngine: "hermes",
     edgeToEdgeEnabled: true,
     package: getBundleId(),
+    // Firebase / FCM config. Single google-services.json carries
+    // client_info entries for all three bundle IDs (dev / preview /
+    // prod) under the same Firebase project (takumipay-b6ef3), so
+    // push delivery is unified across build profiles.
+    googleServicesFile: "./google-services.json",
     // TWV-2026-059 — disable `adb backup` and Auto Backup. The wallet's
     // credentials live in Android Keystore via SecureStore, which is
     // excluded from `adb backup` by default, but a wallet binary must

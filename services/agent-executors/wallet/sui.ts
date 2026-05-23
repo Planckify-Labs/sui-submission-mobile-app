@@ -27,7 +27,6 @@ import type { ChainConfig } from "@/constants/configs/chainConfig";
 import { resolveNamespace } from "@/hooks/useWallet.helpers";
 import { storage } from "@/lib/storage/mmkv";
 import { walletKitRegistry } from "@/services/walletKit/registry";
-import { recordTransferHistory } from "./recordTransferHistory";
 import {
   type BalanceGroup,
   type BalanceTokenRow,
@@ -42,6 +41,7 @@ import {
   requireString,
   safeExecute,
 } from "../types";
+import { recordTransferHistory } from "./recordTransferHistory";
 
 const SUI_NAMESPACE = "sui" as const;
 

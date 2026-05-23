@@ -11,6 +11,7 @@ interface MessageContentProps {
   message: AgentMessage;
   mode: "live" | "historical";
   addToolResult?: (toolCallId: string, output: unknown) => void;
+  onUserPrompt?: (prompt: string) => void;
 }
 
 /**
@@ -145,7 +146,7 @@ function computeSuppressedCatalogParts(message: AgentMessage): Set<string> {
 }
 
 const MessageContent: React.FC<MessageContentProps> = React.memo(
-  ({ message, mode, addToolResult }) => {
+  ({ message, mode, addToolResult, onUserPrompt }) => {
     const isUser = message.role === "user";
     const suppressedBalanceParts = computeSuppressedToolParts(message);
     const suppressedCatalogParts = computeSuppressedCatalogParts(message);
@@ -176,6 +177,8 @@ const MessageContent: React.FC<MessageContentProps> = React.memo(
               mode === "live" && addToolResult
                 ? (output: unknown) => addToolResult(part.toolCallId, output)
                 : undefined;
+            const livePromptCallback =
+              mode === "live" ? onUserPrompt : undefined;
             return (
               <Component
                 key={part.toolCallId}
@@ -185,6 +188,7 @@ const MessageContent: React.FC<MessageContentProps> = React.memo(
                 error={part.error}
                 mode={mode}
                 addToolResult={liveCallback}
+                onUserPrompt={livePromptCallback}
               />
             );
           }

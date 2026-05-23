@@ -54,7 +54,6 @@ import type { TProductInputField } from "@/api/types/product";
 import AbiTakumiPointDeposit from "@/contracts/abis/AbiTakumiPointDeposit";
 import { requireWalletClient, resolveChainClients } from "../chainRouter";
 import { checkPointsAuth } from "../pointsAuth";
-import { loadCachedTokens } from "./reads";
 import {
   ExecutorError,
   ExecutorErrorCode,
@@ -66,6 +65,7 @@ import {
   type ToolInput,
 } from "../types";
 import { classifyPointsError, sanitizeApiResponse } from "../utils";
+import { loadCachedTokens } from "./reads";
 
 /**
  * Pre-flight auth guard for points executors that require a JWT.

@@ -169,11 +169,7 @@ export async function runPipeline(
         // error messages (RPC hex, JSON, stack traces) in front of the
         // user — keep the technical reason in __DEV__ logs only.
         if (__DEV__) {
-          console.warn(
-            `[inspector] ${inspector.name} threw`,
-            err.message,
-            err,
-          );
+          console.warn(`[inspector] ${inspector.name} threw`, err.message, err);
         }
         annotations = dedupeAnnotations([
           ...annotations,

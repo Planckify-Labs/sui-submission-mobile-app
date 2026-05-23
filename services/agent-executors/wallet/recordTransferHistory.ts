@@ -117,7 +117,10 @@ export async function recordTransferHistory(
     return record?.id;
   } catch (err) {
     if (__DEV__) {
-      console.warn("[recordTransferHistory] best-effort recording failed:", err);
+      console.warn(
+        "[recordTransferHistory] best-effort recording failed:",
+        err,
+      );
     }
     return undefined;
   }

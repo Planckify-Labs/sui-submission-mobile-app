@@ -77,16 +77,16 @@ vi.mock("@mysten/sui/jsonRpc", () => ({
 // ---------------------------------------------------------------------------
 
 import {
+  type ExecutorContext,
+  ExecutorErrorCode,
+  mapUnknownError,
+} from "./types";
+import {
   getSuiBalance,
   getWalletSuiBalance,
   sendSui,
   sendSuiCoin,
 } from "./wallet/sui";
-import {
-  type ExecutorContext,
-  ExecutorErrorCode,
-  mapUnknownError,
-} from "./types";
 
 // ---------------------------------------------------------------------------
 // Fixtures

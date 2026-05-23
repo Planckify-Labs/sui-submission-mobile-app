@@ -125,6 +125,15 @@ export async function registerForPushNotifications(): Promise<string | null> {
       return null;
     }
 
+    // Dev-only: print the token in a copy-friendly block so it's easy
+    // to grab from the Metro console for `pnpm pushNotif:test` runs.
+    // Stripped in production builds — never log the token in prod.
+    if (__DEV__) {
+      console.log(
+        `\n========== EXPO PUSH TOKEN (copy below) ==========\n${token}\n==================================================\n`,
+      );
+    }
+
     await postPushToken(token);
     return token;
   } catch (err) {

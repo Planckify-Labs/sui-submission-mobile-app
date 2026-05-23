@@ -166,6 +166,30 @@ if [ -f "$ORCHESTRATOR" ]; then
   fi
 fi
 
+# ─── Invariant 6: EXPECTED_MOBILE_TOOLS parity ───────────────────────────────
+# Extract mobile-executor tools from the agent-api registry via TS
+if command -v node >/dev/null 2>&1; then
+  set +e
+  SERVER_MOBILE_TOOLS=$(node -e '
+    require("ts-node/register");
+    const { TOOL_REGISTRY } = require("../../agent-api/src/tools/registry");
+    console.log(Object.values(TOOL_REGISTRY).filter(t => t.executor === "mobile").map(t => t.name).sort().join("\n"));
+  ' 2>/dev/null)
+  
+  MOBILE_EXPECTED_TOOLS=$(node -e '
+    require("ts-node/register");
+    const { EXPECTED_MOBILE_TOOLS } = require("../services/agent-executors/index");
+    console.log(EXPECTED_MOBILE_TOOLS.sort().join("\n"));
+  ' 2>/dev/null)
+  set -e
+  
+  if [ -n "$SERVER_MOBILE_TOOLS" ] && [ -n "$MOBILE_EXPECTED_TOOLS" ]; then
+    if [ "$SERVER_MOBILE_TOOLS" != "$MOBILE_EXPECTED_TOOLS" ]; then
+      fail "EXPECTED_MOBILE_TOOLS out of sync with agent-api registry."
+    fi
+  fi
+fi
+
 if [ "$violations" -gt 0 ]; then
   echo "[check:agents] failed with $violations violation(s)"
   exit 1

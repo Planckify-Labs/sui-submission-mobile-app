@@ -25,6 +25,7 @@ import {
   mmkvPersister,
   shouldPersistQuery,
 } from "@/lib/storage/queryPersister";
+import { bootDefi } from "@/services/defi/bootstrap";
 import {
   registerForPushNotifications,
   usePushNotificationHandler,
@@ -37,6 +38,8 @@ import "../global.css";
 
 // Register WalletKit adapters before any screen/provider reads the registry.
 bootWalletKits();
+// Register DeFi adapters
+bootDefi();
 
 // Patch `qrcode.create` with an MMKV-backed cache so receive-sheet QRs
 // skip the Reed-Solomon compute on repeat opens. Must run before any

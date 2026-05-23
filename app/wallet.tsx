@@ -5,6 +5,7 @@ import {
   Info,
   Plus,
   Shield,
+  Sparkles,
   Wallet as WalletIcon,
 } from "lucide-react-native";
 import React, { useCallback, useMemo, useRef, useState } from "react";
@@ -31,6 +32,7 @@ import WalletCompactCard from "@/components/wallet/WalletCompactCard";
 import WalletDetails from "@/components/wallet/WalletDetails";
 import WalletSwitcherModal from "@/components/wallet/WalletSwitcherModal";
 import { TWallet } from "@/constants/types/walletTypes";
+import { useStrategiesPrefetch } from "@/hooks/strategies/useStrategiesPrefetch";
 import { usePinnedWallets } from "@/hooks/usePinnedWallets";
 import { useWallet, warmWalletSigner } from "@/hooks/useWallet";
 import { chainCacheKey } from "@/hooks/useWallet.helpers";
@@ -58,6 +60,11 @@ export default function Wallet() {
     renameAccount,
     getActiveWalletKit,
   } = useWallet();
+
+  // Warm the strategies screen's queries while the user is here, so the
+  // first tap on the "DeFi Strategies" row below renders with cached
+  // data instead of a cold spinner.
+  useStrategiesPrefetch();
 
   // §6.2: kit resolves from the active wallet's namespace. Any balance
   // fetch at this layer goes through `kit.getNativeBalance`; formatting
@@ -449,6 +456,40 @@ export default function Wallet() {
             setShowWalletInfo={setShowWalletInfo}
             animatedStyle={{ opacity: detailsOpacity }}
           />
+
+          <TouchableOpacity
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="DeFi Strategies"
+            accessibilityHint="Open your DeFi strategy positions, opportunities, and settings"
+            className="bg-light rounded-2xl p-4 mt-4 flex-row items-center justify-between mx-4"
+            onPress={() => router.push("/strategies")}
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.04,
+              shadowRadius: 8,
+              elevation: 2,
+            }}
+          >
+            <View className="flex-row items-center flex-1">
+              <View className="w-10 h-10 rounded-full bg-light-primary-red/10 items-center justify-center mr-3">
+                <Sparkles size={20} color="#c71c4b" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-light-matte-black/50 text-xs mb-0.5">
+                  Earn
+                </Text>
+                <Text
+                  className="text-light-matte-black font-semibold text-base"
+                  numberOfLines={1}
+                >
+                  DeFi Strategies
+                </Text>
+              </View>
+            </View>
+            <ChevronRight size={18} color="#c71c4b" />
+          </TouchableOpacity>
 
           <TouchableOpacity
             activeOpacity={0.7}

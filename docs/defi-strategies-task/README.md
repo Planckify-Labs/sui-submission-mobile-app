@@ -60,7 +60,7 @@ a later phase before the previous phase's exit criteria are green.**
 | # | File | Title |
 |---|---|---|
 | 01 | `01_prisma_models_migration_istaken_false.md` | Prisma models and migration (`UserStrategy`, `StrategyPosition`, `OpportunityCache`, `ProtocolScoreCache`) |
-| 02 | `02_api_strategies_endpoints_istaken_false.md` | `api/` strategies module and `/v1/strategies/*` endpoints |
+| 02 | `02_api_strategies_endpoints_istaken_false.md` | `api/` strategies module and `/strategies/*` endpoints |
 | 03 | `03_api_defillama_scoring_workers_istaken_false.md` | `api/` DeFiLlama poller, scoring service, and BullMQ workers |
 | 04 | `04_api_zerion_client_istaken_false.md` | `api/` Zerion free-tier client with daily budget circuit breaker |
 | 05 | `05_mobile_defi_skeleton_adapters_istaken_false.md` | Mobile `services/defi/` skeleton, executor registrations, and Phase 1 adapters |

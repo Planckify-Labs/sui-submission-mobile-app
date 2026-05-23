@@ -202,6 +202,7 @@ export function buildChainConfigFromBlockchain(
         (b.tokens?.find((t) => t.isNativeCurrency) ?? b.tokens?.[0])?.logoUrl ??
         undefined,
       isTestnet: b.isTestnet ?? isDevnet,
+      smartContracts: b.smartContracts,
     };
   }
 
@@ -221,6 +222,7 @@ export function buildChainConfigFromBlockchain(
         (b.tokens?.find((t) => t.isNativeCurrency) ?? b.tokens?.[0])?.logoUrl ??
         undefined,
       isTestnet: b.isTestnet ?? false,
+      smartContracts: b.smartContracts,
     };
   }
 
@@ -264,5 +266,6 @@ export function buildChainConfigFromBlockchain(
       b.name.toLowerCase().includes("testnet") ||
       b.name.toLowerCase().includes("sepolia") ||
       b.name.toLowerCase().includes("goerli"),
+    smartContracts: b.smartContracts,
   };
 }

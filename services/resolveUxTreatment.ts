@@ -19,6 +19,8 @@ import {
   type ToolCapability,
 } from "./permissionGrantStore.ts";
 import {
+  type DefiInfo,
+  resolveDefiThreshold,
   resolveTransferThreshold,
   type TransferThresholds,
 } from "./transferThresholdStore.ts";
@@ -70,6 +72,8 @@ export interface ApprovalPolicy {
   read: UXTreatment;
   simulate: UXTreatment;
   write: UXTreatment;
+  defi_read: UXTreatment;
+  defi_write: UXTreatment;
   tool_overrides?: Record<string, UXTreatment>;
   auto_approve_below_usd?: number;
 }
@@ -116,6 +120,8 @@ export const HOT_WALLET_POLICY: ApprovalPolicy = {
   read: "silent",
   simulate: "preview",
   write: "confirm",
+  defi_read: "silent",
+  defi_write: "confirm",
   tool_overrides: { approve_erc20: "confirm" },
 };
 
@@ -127,6 +133,8 @@ export const HARDWARE_WALLET_POLICY: ApprovalPolicy = {
   read: "silent",
   simulate: "preview",
   write: "confirm",
+  defi_read: "silent",
+  defi_write: "confirm",
 };
 
 /**
@@ -137,6 +145,8 @@ export const WATCH_ONLY_POLICY: ApprovalPolicy = {
   read: "silent",
   simulate: "silent",
   write: "blocked",
+  defi_read: "silent",
+  defi_write: "blocked",
 };
 
 /**
@@ -147,6 +157,8 @@ export const MULTISIG_POLICY: ApprovalPolicy = {
   read: "silent",
   simulate: "preview",
   write: "confirm",
+  defi_read: "silent",
+  defi_write: "confirm",
 };
 
 // --- Resolver ---------------------------------------------------------------
@@ -172,6 +184,7 @@ export function resolveUXTreatment(
   sessionId: string,
   amountUsd?: number,
   transferInfo?: TransferInfo,
+  defiInfo?: DefiInfo,
 ): UXTreatment {
   const grant = resolveGrant(
     toolName,
@@ -201,6 +214,7 @@ export function resolveUXTreatment(
         amountUsd,
         wallet.transferThresholds,
         transferInfo,
+        defiInfo,
       );
   }
 }
@@ -232,6 +246,7 @@ export function resolveFromPolicy(
   amountUsd?: number,
   thresholds?: TransferThresholds,
   transferInfo?: TransferInfo,
+  defiInfo?: DefiInfo,
 ): UXTreatment {
   const override = policy.tool_overrides?.[toolName];
   if (override) return override;
@@ -251,6 +266,15 @@ export function resolveFromPolicy(
       transferInfo.contractAddressOrNative,
       transferInfo.isNative,
     );
+    if (resolved.threshold_usd > 0 && amountUsd < resolved.threshold_usd) {
+      return "preview";
+    }
+    return base;
+  }
+
+  // Path A.2 — DeFi thresholds (Task 18).
+  if (thresholds && defiInfo) {
+    const resolved = resolveDefiThreshold(thresholds, defiInfo);
     if (resolved.threshold_usd > 0 && amountUsd < resolved.threshold_usd) {
       return "preview";
     }

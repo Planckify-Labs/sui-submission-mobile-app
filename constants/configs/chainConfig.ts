@@ -6,6 +6,7 @@ import {
   polygonMumbai,
   type Chain as TChain,
 } from "viem/chains";
+import type { TSmartContract } from "@/api/types/blockchain";
 
 export type ChainConfig =
   | {
@@ -13,6 +14,7 @@ export type ChainConfig =
       chain: TChain;
       iconUrl?: string;
       isTestnet?: boolean;
+      smartContracts?: TSmartContract[];
     }
   | {
       namespace: "solana";
@@ -21,6 +23,7 @@ export type ChainConfig =
       rpcSubscriptionsUrl?: string;
       iconUrl?: string;
       isTestnet?: boolean;
+      smartContracts?: TSmartContract[];
     }
   | {
       namespace: "sui";
@@ -28,6 +31,7 @@ export type ChainConfig =
       rpcUrl: string;
       iconUrl?: string;
       isTestnet?: boolean;
+      smartContracts?: TSmartContract[];
     };
 
 export type EvmChainConfig = Extract<ChainConfig, { namespace: "eip155" }>;

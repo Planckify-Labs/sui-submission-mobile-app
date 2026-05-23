@@ -42,6 +42,7 @@ export default function QuickPrompts({ onSelectPrompt }: QuickPromptsProps) {
       { id: "static-1", prompt: "how many points do i have?" },
       { id: "static-2", prompt: "items i can redeem with my points" },
       { id: "static-3", prompt: "Swap 1 ETH for USDC" },
+      { id: "static-4", prompt: "Set up a DeFi strategy" },
     ];
 
     return [...transferPrompt, ...redeemPrompt, ...staticPrompts].slice(0, 5);

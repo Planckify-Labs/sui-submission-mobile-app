@@ -20,7 +20,12 @@
  * Mirrors the server-side `TOOL_REGISTRY` capability type. Defined locally
  * because the agent-api registry is not importable from the mobile app.
  */
-export type ToolCapability = "read" | "simulate" | "write";
+export type ToolCapability =
+  | "read"
+  | "simulate"
+  | "write"
+  | "defi_read"
+  | "defi_write";
 
 export type GrantLifetime =
   | { type: "always_ask" }

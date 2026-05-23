@@ -392,11 +392,7 @@ export function createSolanaWalletKit(): WalletKitAdapter {
         const status = value?.[0];
         if (status?.err) {
           if (__DEV__) {
-            console.warn(
-              "[SolanaWalletKit] tx failed",
-              signature,
-              status.err,
-            );
+            console.warn("[SolanaWalletKit] tx failed", signature, status.err);
           }
           throw new Error("Transaction failed");
         }

@@ -9,7 +9,6 @@ import { computeRefIdHash } from "@/services/chains/solana/takumiPay/refIdHash";
 import { buildCreateTransactionInstruction } from "@/services/nanopay/solana/buildCreateTransaction";
 import { buildDepositPointsInstruction } from "@/services/nanopay/solana/buildDepositPoints";
 import { walletKitRegistry } from "@/services/walletKit/registry";
-import { recordTransferHistory } from "./recordTransferHistory";
 import {
   ExecutorError,
   ExecutorErrorCode,
@@ -18,6 +17,7 @@ import {
   requireString,
   safeExecute,
 } from "../types";
+import { recordTransferHistory } from "./recordTransferHistory";
 
 const SOLANA_NAMESPACE = "solana" as const;
 

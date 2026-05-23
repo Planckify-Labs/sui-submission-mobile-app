@@ -60,6 +60,14 @@ export interface TransferThresholds {
   default_native_usd: number;
   /** Default threshold in USD for ERC-20 / non-native transfers. 0 = always ask. */
   default_token_usd: number;
+  /** Default threshold in USD for DeFi actions. 0 = always ask. */
+  defi_per_action_usd: {
+    conservative: number;
+    balanced: number;
+    aggressive: number;
+  };
+  /** Default daily threshold in USD for DeFi actions. 0 = unlimited. */
+  defi_per_day_usd: number;
   /**
    * Per-token overrides. Keyed by `${chainId}:${contractAddressOrNative}`
    * (always lowercased). Wins over the matching default.
@@ -76,6 +84,12 @@ export interface TransferThresholds {
 export const DEFAULT_THRESHOLDS: TransferThresholds = {
   default_native_usd: 0,
   default_token_usd: 0,
+  defi_per_action_usd: {
+    conservative: 0,
+    balanced: 0,
+    aggressive: 0,
+  },
+  defi_per_day_usd: 0,
   overrides: {},
 };
 
@@ -181,6 +195,30 @@ export class TransferThresholdStore {
           typeof parsed.default_token_usd === "number"
             ? parsed.default_token_usd
             : DEFAULT_THRESHOLDS.default_token_usd,
+        defi_per_action_usd: {
+          conservative:
+            typeof parsed.defi_per_action_usd?.conservative === "number"
+              ? parsed.defi_per_action_usd.conservative
+              : typeof parsed.defi_per_action_usd === "number"
+                ? parsed.defi_per_action_usd
+                : DEFAULT_THRESHOLDS.defi_per_action_usd.conservative,
+          balanced:
+            typeof parsed.defi_per_action_usd?.balanced === "number"
+              ? parsed.defi_per_action_usd.balanced
+              : typeof parsed.defi_per_action_usd === "number"
+                ? parsed.defi_per_action_usd
+                : DEFAULT_THRESHOLDS.defi_per_action_usd.balanced,
+          aggressive:
+            typeof parsed.defi_per_action_usd?.aggressive === "number"
+              ? parsed.defi_per_action_usd.aggressive
+              : typeof parsed.defi_per_action_usd === "number"
+                ? parsed.defi_per_action_usd
+                : DEFAULT_THRESHOLDS.defi_per_action_usd.aggressive,
+        },
+        defi_per_day_usd:
+          typeof parsed.defi_per_day_usd === "number"
+            ? parsed.defi_per_day_usd
+            : DEFAULT_THRESHOLDS.defi_per_day_usd,
         overrides:
           parsed.overrides && typeof parsed.overrides === "object"
             ? (parsed.overrides as Record<string, TokenOverride>)
@@ -216,6 +254,8 @@ export class TransferThresholdStore {
     return {
       default_native_usd: this.thresholds.default_native_usd,
       default_token_usd: this.thresholds.default_token_usd,
+      defi_per_action_usd: { ...this.thresholds.defi_per_action_usd },
+      defi_per_day_usd: this.thresholds.defi_per_day_usd,
       overrides: { ...this.thresholds.overrides },
     };
   }
@@ -314,6 +354,30 @@ export function resolveTransferThreshold(
   return {
     threshold_usd: thresholds.default_token_usd,
     source: "default_token",
+  };
+}
+
+export type DefiTier = "conservative" | "balanced" | "aggressive";
+
+export interface DefiInfo {
+  tier: DefiTier;
+  protocolSlug: string;
+  chainId: number;
+}
+
+export function resolveDefiThreshold(
+  thresholds: TransferThresholds,
+  info: DefiInfo,
+): ResolvedThreshold {
+  // Use the tier-specific threshold
+  const threshold_usd = thresholds.defi_per_action_usd[info.tier];
+
+  // Note: defi_overrides could be added here in Phase 3.5 if needed,
+  // but for now we follow Task 18's per-tier focus.
+
+  return {
+    threshold_usd,
+    source: "default_token", // Reusing source for now or could add "default_defi"
   };
 }
 
