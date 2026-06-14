@@ -1,1 +1,0 @@
-{"id":"4ebc535c-fcd2-4c06-90c7-d227f8d2516b","ts":"2026-06-03T00:48:19.767Z","path":"/home/cstralpt/takumipay/mobile-app/AGENTS.md","version":"1.0.0","taskID":"4295dbb1-acb4-415f-a1de-313346ea055f"}
