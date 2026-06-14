@@ -418,7 +418,7 @@ const ImportSeedPhraseSheet: React.FC<Props> = memo(
         />
         {showInvalidError ? (
           <Text className="text-light-primary-red text-sm mt-2 font-medium">
-            This doesn't look like a valid BIP-39 phrase.
+            This doesn&apos;t look like a valid BIP-39 phrase.
           </Text>
         ) : null}
         {validationState === "valid" ? (
@@ -445,7 +445,7 @@ const ImportSeedPhraseSheet: React.FC<Props> = memo(
         </Text>
         <Text className="text-light-matte-black/70 mb-4">
           Your phrase can create a wallet on each chain below. Uncheck any you
-          don't want on this device — you can always add them later.
+          don&apos;t want on this device — you can always add them later.
         </Text>
         <NamespacePicker
           mode="multi"
@@ -478,7 +478,7 @@ const ImportSeedPhraseSheet: React.FC<Props> = memo(
               Wallets imported
             </Text>
             <Text className="text-light-matte-black/70 text-center">
-              You're all set.
+              You&apos;re all set.
             </Text>
           </View>
         ) : (

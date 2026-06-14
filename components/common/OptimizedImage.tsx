@@ -58,6 +58,8 @@ const OptimizedImage = memo(
   },
 );
 
+OptimizedImage.displayName = "OptimizedImage";
+
 const styles = StyleSheet.create({
   container: {
     overflow: "hidden",

@@ -541,7 +541,7 @@ const CreateWalletSheet: React.FC<Props> = memo(function CreateWalletSheet({
       </Text>
       <Text className="text-light-matte-black/70 mb-4">
         Your phrase can create a wallet on each chain below. Uncheck any you
-        don't want on this device — you can always add them later.
+        don&apos;t want on this device — you can always add them later.
       </Text>
       <NamespacePicker
         mode="multi"
@@ -574,7 +574,7 @@ const CreateWalletSheet: React.FC<Props> = memo(function CreateWalletSheet({
             Wallet created
           </Text>
           <Text className="text-light-matte-black/70 text-center">
-            You're all set.
+            You&apos;re all set.
           </Text>
         </>
       ) : (

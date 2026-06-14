@@ -2021,7 +2021,7 @@ function MintFallback({
         ) : !filteredTokens.length ? (
           <View className="items-center justify-center py-8">
             <Text className="text-light-matte-black/60 text-sm">
-              No tokens match "{tokenSearch}"
+              No tokens match &quot;{tokenSearch}&quot;
             </Text>
           </View>
         ) : (
@@ -2091,7 +2091,7 @@ function MintFallback({
         ) : !filteredChains.length ? (
           <View className="items-center justify-center py-8">
             <Text className="text-light-matte-black/60 text-sm">
-              No networks match "{chainSearch}"
+              No networks match &quot;{chainSearch}&quot;
             </Text>
           </View>
         ) : (
@@ -2459,7 +2459,7 @@ function MissingIntentCard() {
         Missing intent
       </Text>
       <Text className="text-light-matte-black/60 text-sm mb-6">
-        We couldn't find a payment intent for this link. Scan a merchant QR or
+        We couldn&apos;t find a payment intent for this link. Scan a merchant QR or
         open a valid payment link to continue.
       </Text>
       <TouchableOpacity

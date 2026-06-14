@@ -75,3 +75,5 @@ export const CategoryTabs = memo<CategoryTabsProps>(
     );
   },
 );
+
+CategoryTabs.displayName = "CategoryTabs";

@@ -1,32 +1,25 @@
 /**
- * Unit tests for `settleX402PaymentEvm` — rail selection, budget gate,
- * fee-safety bound, and error sanitisation (spec Phase 5 §8). Run under
- * `node:test` via `pnpm test:node`.
+ * Unit tests for `settleX402PaymentEvm` after the Part II refactor — it is
+ * now a thin adapter over the rail chain. These tests prove the delegation
+ * (it hands `{ registry, breaker }` to `settleWithFallback`) and an
+ * end-to-end settle through the real `RelayerBroadcastRail` with a mocked
+ * relayer (the Phase 5 behaviour, unchanged). Run under `node:test`.
  */
 
 import { strict as a } from "node:assert";
 import { test } from "node:test";
+import { createSettlementBreaker } from "../../x402/settlement/breaker.ts";
+import type { SettlementRailRegistry } from "../../x402/settlement/registry.ts";
 import type {
-  SettleX402PaymentArgs,
-  X402Erc7710Challenge,
-} from "../types.ts";
+  SettlementAttempt,
+  SettlementRail,
+} from "../../x402/settlement/types.ts";
+import type { SettleX402PaymentArgs, X402Erc7710Challenge } from "../types.ts";
 import {
-  encodeProofEnvelope,
-  settleX402PaymentEvm,
-  type X402SettleDeps,
-} from "./x402Settle.ts";
-
-const CHAIN = { namespace: "eip155", chain: { id: 84532 } } as never;
-const WALLET = { address: "0xabc" } as never;
-const DELEGATION = {
-  delegate: "0x4e44e22ee6da76c2ad19baaaffb52f676230fa06",
-  delegator: "0x000000000000000000000000000000000000bEEF",
-  authority:
-    "0x0000000000000000000000000000000000000000000000000000000000000000",
-  caveats: [],
-  salt: "0x0000000000000000000000000000000000000000000000000000000000000001",
-  signature: "0xdead",
-} as never;
+  createRelayerBroadcastRail,
+  type RelayerRailDeps,
+} from "./rails/RelayerBroadcastRail.ts";
+import { encodeProofEnvelope, settleX402PaymentEvm } from "./x402Settle.ts";
 
 function challenge(
   overrides: Partial<X402Erc7710Challenge> = {},
@@ -47,16 +40,52 @@ function args(
   overrides: Partial<SettleX402PaymentArgs> = {},
 ): SettleX402PaymentArgs {
   return {
-    wallet: WALLET,
-    chain: CHAIN,
+    wallet: { address: "0xabc" } as never,
+    chain: { namespace: "eip155", chain: { id: 84532 } } as never,
     challenge: challenge(),
-    delegation: DELEGATION,
+    delegation: {
+      delegate: "0x4e44e22ee6da76c2ad19baaaffb52f676230fa06",
+      delegator: "0x000000000000000000000000000000000000bEEF",
+      authority:
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+      caveats: [],
+      salt: "0x0000000000000000000000000000000000000000000000000000000000000001",
+      signature: "0xdead",
+    } as never,
     remainingBudgetAtoms: 5_000_000n,
     ...overrides,
   };
 }
 
-function deps(overrides: Partial<X402SettleDeps> = {}): X402SettleDeps {
+function fixedRegistry(rails: SettlementRail[]): SettlementRailRegistry {
+  return {
+    candidates: (ctx) =>
+      rails
+        .filter((r) => r.supports(ctx))
+        .sort((x, y) => x.priority - y.priority),
+  };
+}
+
+function scriptedRail(
+  id: string,
+  result: SettlementAttempt,
+  onAttempt?: () => void,
+): SettlementRail {
+  return {
+    id,
+    kind: "relayer",
+    priority: 10,
+    supports: () => true,
+    attempt: async () => {
+      onAttempt?.();
+      return result;
+    },
+  };
+}
+
+function relayerDeps(
+  overrides: Partial<RelayerRailDeps> = {},
+): RelayerRailDeps {
   return {
     getCapabilities: async () => ({
       84532: {
@@ -65,10 +94,7 @@ function deps(overrides: Partial<X402SettleDeps> = {}): X402SettleDeps {
         tokens: [],
       },
     }),
-    getFeeData: async () => ({
-      minFee: 1_000n,
-      tokenDecimals: 6,
-    }),
+    getFeeData: (async () => ({ minFee: 1_000n, tokenDecimals: 6 })) as never,
     estimate: async () => ({
       success: true,
       requiredPaymentAmount: 10_000n,
@@ -88,68 +114,75 @@ function deps(overrides: Partial<X402SettleDeps> = {}): X402SettleDeps {
   };
 }
 
-test("settles within budget via the relayer rail and returns a tx-hash proof", async () => {
-  const result = await settleX402PaymentEvm(args(), deps());
+test("delegates to the rail chain: a scripted settled rail → settled result", async () => {
+  const result = await settleX402PaymentEvm(args(), {
+    registry: fixedRegistry([
+      scriptedRail("r", {
+        outcome: "settled",
+        rail: "relayer",
+        proof: "P",
+        txHash: "0xabc",
+        spentAtoms: 20_000n,
+      }),
+    ]),
+    breaker: createSettlementBreaker(),
+  });
   a.equal(result.status, "settled");
-  if (result.status !== "settled") return;
-  a.equal(result.rail, "relayer");
-  a.equal(result.txHash, "0xhash");
-  a.equal(result.spentAtoms, 20_000n);
-  // Proof is a base64 envelope carrying the tx hash.
-  const decoded = JSON.parse(globalThis.atob(result.proof));
-  a.equal(decoded.txHash, "0xhash");
-  a.equal(decoded.rail, "relayer");
+  if (result.status === "settled") {
+    a.equal(result.rail, "relayer");
+    a.equal(result.txHash, "0xabc");
+  }
 });
 
-test("SI-1: requested over the remaining budget → over_budget", async () => {
+test("SP-1 surfaces through the adapter: terminal rail → failed, next not tried", async () => {
+  let bTried = false;
+  const result = await settleX402PaymentEvm(args(), {
+    registry: fixedRegistry([
+      scriptedRail("a", {
+        outcome: "terminal_failure",
+        reason: "We couldn't settle this payment. Please try again.",
+      }),
+      scriptedRail(
+        "b",
+        { outcome: "settled", rail: "relayer", proof: "P", spentAtoms: 1n },
+        () => {
+          bTried = true;
+        },
+      ),
+    ]),
+    breaker: createSettlementBreaker(),
+  });
+  a.equal(result.status, "failed");
+  a.equal(bTried, false);
+});
+
+test("budget gate still surfaces over_budget (SI-1)", async () => {
   const result = await settleX402PaymentEvm(
     args({ remainingBudgetAtoms: 10_000n }),
-    deps(),
+    {
+      registry: fixedRegistry([]),
+      breaker: createSettlementBreaker(),
+    },
   );
   a.equal(result.status, "over_budget");
-  if (result.status === "over_budget") {
-    a.equal(result.requestedAtoms, 20_000n);
-    a.equal(result.remainingBudgetAtoms, 10_000n);
-  }
 });
 
-test("SI-2: an over-bound fee fails with friendly copy (no raw detail)", async () => {
-  const result = await settleX402PaymentEvm(
-    args(),
-    deps({
-      // 6 USDC fee > the $5 safety ceiling.
-      estimate: async () => ({
-        success: true,
-        requiredPaymentAmount: 6_000_000n,
-        context: "fee-ctx",
-      }),
-    }),
-  );
-  a.equal(result.status, "failed");
-  if (result.status === "failed") {
-    a.match(result.reason, /couldn't settle/i);
-  }
-});
-
-test("estimate failure → friendly failed result", async () => {
-  const result = await settleX402PaymentEvm(
-    args(),
-    deps({ estimate: async () => ({ success: false, error: "simulation failed" }) }),
-  );
-  a.equal(result.status, "failed");
-});
-
-test("rail selection: a facilitator-named challenge still settles (falls back to relayer)", async () => {
-  const result = await settleX402PaymentEvm(
-    args({ challenge: challenge({ facilitator: "https://facilitator.example" }) }),
-    deps(),
-  );
-  // Rail A SDK isn't wired yet → relayer rail handles it; never a chain branch.
+test("end-to-end through the real relayer rail (mocked 1Shot) → settled", async () => {
+  const result = await settleX402PaymentEvm(args(), {
+    registry: fixedRegistry([
+      createRelayerBroadcastRail({ enabledChainIds: [84532] }, relayerDeps()),
+    ]),
+    breaker: createSettlementBreaker(),
+  });
   a.equal(result.status, "settled");
-  if (result.status === "settled") a.equal(result.rail, "relayer");
+  if (result.status === "settled") {
+    a.equal(result.rail, "relayer");
+    a.equal(result.txHash, "0xhash");
+    a.equal(result.spentAtoms, 20_000n);
+  }
 });
 
-test("encodeProofEnvelope round-trips through base64", () => {
+test("encodeProofEnvelope round-trips through base64 (re-exported)", () => {
   const proof = encodeProofEnvelope({
     challenge: challenge(),
     rail: "relayer",

@@ -550,7 +550,7 @@ function ReceiptErrorCard({
       <View className="flex-row items-center mb-3">
         <AlertCircle color="#dc2626" size={20} />
         <Text className="text-light-matte-black font-semibold text-base ml-2">
-          Couldn't load receipt
+          Couldn&apos;t load receipt
         </Text>
       </View>
       <Text className="text-light-matte-black/70 text-sm mb-5">{detail}</Text>
@@ -593,7 +593,7 @@ function MissingIntentCard() {
         Receipt unavailable
       </Text>
       <Text className="text-light-matte-black/60 text-sm mb-6">
-        We couldn't find a receipt for this link. The payment reference may have
+        We couldn&apos;t find a receipt for this link. The payment reference may have
         expired.
       </Text>
       <TouchableOpacity

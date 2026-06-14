@@ -12,8 +12,10 @@ export const EmptyState = memo(() => {
         No Notifications
       </Text>
       <Text className="text-light-matte-black/50 text-center text-sm">
-        You're all caught up! Check back later for updates.
+        You&apos;re all caught up! Check back later for updates.
       </Text>
     </View>
   );
 });
+
+EmptyState.displayName = "EmptyState";

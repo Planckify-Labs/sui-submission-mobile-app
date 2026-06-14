@@ -61,7 +61,7 @@ const UserAssetList = ({
           No Results
         </Text>
         <Text className="text-light-matte-black/50 text-center">
-          No assets match "{searchQuery}"
+          No assets match &quot;{searchQuery}&quot;
         </Text>
       </View>
     );

@@ -221,11 +221,11 @@ const RedemptionCatalogCard: React.FC<
         <View className="flex-row items-center gap-2">
           <AlertTriangle size={14} color={BRAND_RED} />
           <Text className="text-xs font-bold uppercase tracking-wide text-light-primary-red">
-            Couldn't load catalog
+            Couldn&apos;t load catalog
           </Text>
         </View>
         <Text className="text-sm text-light-matte-black/80 mt-1.5">
-          We couldn't load the catalog right now. Please try again in a moment.
+          We couldn&apos;t load the catalog right now. Please try again in a moment.
         </Text>
       </View>
     );

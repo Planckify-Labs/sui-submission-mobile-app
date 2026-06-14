@@ -150,7 +150,7 @@ export default function PaymentErrorModal({
                 Payment Failed
               </Text>
               <Text className="text-light-matte-black/60 text-center text-sm px-4">
-                We couldn't complete your payment. Please try again.
+                We couldn&apos;t complete your payment. Please try again.
               </Text>
             </Animated.View>
 

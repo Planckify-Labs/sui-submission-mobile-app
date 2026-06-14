@@ -125,7 +125,7 @@ export function formatScopeLabel(scope: GrantScope): string {
     case "global":
       return "All actions";
     case "delegation":
-      return "Onchain allowance";
+      return "Spending delegation";
   }
 }
 

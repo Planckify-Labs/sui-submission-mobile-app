@@ -488,7 +488,7 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
                     ) : filteredGrouped.size === 0 ? (
                       <View className="items-center justify-center py-8">
                         <Text className="text-light-matte-black/60 text-sm">
-                          No networks match "{searchQuery}"
+                          No networks match &quot;{searchQuery}&quot;
                         </Text>
                       </View>
                     ) : (
@@ -513,6 +513,8 @@ const ChainSelectorBase = forwardRef<ChainSelectorRef>((_, ref) => {
     </>
   );
 });
+
+ChainSelectorBase.displayName = "ChainSelector";
 
 const ChainSelector = memo(ChainSelectorBase);
 

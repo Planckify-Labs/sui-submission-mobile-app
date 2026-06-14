@@ -521,15 +521,15 @@ export default function TransferThresholdsScreen() {
                 How to think about this
               </Text>
               <Text className="text-light-matte-black/70 text-xs leading-5">
-                · "Auto-approve only USDC" — set defaults to $0, add a USDC
+                · &quot;Auto-approve only USDC&quot; — set defaults to $0, add a USDC
                 override at your limit.
               </Text>
               <Text className="text-light-matte-black/70 text-xs leading-5 mt-1">
-                · "Auto-approve everything except USDC" — keep defaults, add a
+                · &quot;Auto-approve everything except USDC&quot; — keep defaults, add a
                 USDC override at $0.
               </Text>
               <Text className="text-light-matte-black/70 text-xs leading-5 mt-1">
-                · "Auto-approve a specific list" — set defaults to $0, add an
+                · &quot;Auto-approve a specific list&quot; — set defaults to $0, add an
                 override per token.
               </Text>
             </View>
@@ -1343,8 +1343,8 @@ function WalletMultiSelect({
         style={{ backgroundColor: "#c71c4b15" }}
       >
         <Text className="text-light-primary-red text-xs leading-5">
-          Be sure you know what you're doing. Thresholds control how much the
-          agent can move on these wallets without asking. You'll get a final
+          Be sure you know what you&apos;re doing. Thresholds control how much the
+          agent can move on these wallets without asking. You&apos;ll get a final
           confirmation before the save lands.
         </Text>
       </View>

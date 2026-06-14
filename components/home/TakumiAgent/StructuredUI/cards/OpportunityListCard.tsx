@@ -244,7 +244,7 @@ const OpportunityListCard: React.FC<
           </View>
           <Text className="text-sm text-light-matte-black/70 mb-3">
             Sign in to see real-time yield opportunities tailored to your
-            wallet's risk profile.
+            wallet&apos;s risk profile.
           </Text>
           <TouchableOpacity
             onPress={() => router.push("/auth")}
@@ -260,11 +260,11 @@ const OpportunityListCard: React.FC<
         <View className="flex-row items-center gap-2">
           <AlertTriangle size={14} color={BRAND_RED} />
           <Text className="text-xs font-bold uppercase tracking-wide text-light-primary-red">
-            Couldn't load opportunities
+            Couldn&apos;t load opportunities
           </Text>
         </View>
         <Text className="text-sm text-light-matte-black/80 mt-1.5">
-          We couldn't load yield opportunities right now. Please try again in a
+          We couldn&apos;t load yield opportunities right now. Please try again in a
           moment.
         </Text>
       </View>
@@ -310,7 +310,7 @@ const OpportunityListCard: React.FC<
       </View>
       {rows.length > 6 ? (
         <Text className="text-[11px] text-gray-500 mt-2">
-          +{rows.length - 6} more in the agent's reply.
+          +{rows.length - 6} more in the agent&apos;s reply.
         </Text>
       ) : null}
       {strategy && onUserPrompt ? (

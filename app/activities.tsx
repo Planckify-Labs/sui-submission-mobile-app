@@ -65,8 +65,10 @@ const CONTENT_CONTAINER_STYLE = {
 };
 
 const ItemSeparator = React.memo(() => <View className="h-4" />);
+ItemSeparator.displayName = "ItemSeparator";
 
 const SkeletonSeparator = React.memo(() => <View className="h-4" />);
+SkeletonSeparator.displayName = "SkeletonSeparator";
 
 const { width } = Dimensions.get("window");
 
@@ -102,6 +104,7 @@ const EmptyState = React.memo(({ type }: { type: ActivityTab }) => {
     </View>
   );
 });
+EmptyState.displayName = "EmptyState";
 
 const EmptyStateView = React.memo(
   ({
@@ -129,6 +132,7 @@ const EmptyStateView = React.memo(
     </ScrollView>
   ),
 );
+EmptyStateView.displayName = "EmptyStateView";
 
 export default function ActivitiesScreen() {
   const router = useRouter();

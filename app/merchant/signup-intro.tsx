@@ -239,7 +239,7 @@ export default function MerchantSignupIntro() {
             Register as Merchant
           </Text>
           <Text className="text-light-matte-black/70 text-base mb-8">
-            Let's set up your shop in TakumiPay.
+            Let&apos;s set up your shop in TakumiPay.
           </Text>
 
           <TouchableOpacity

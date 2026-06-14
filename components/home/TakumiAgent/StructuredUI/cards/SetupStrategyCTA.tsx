@@ -35,7 +35,7 @@ export default function SetupStrategyCTA({
           </Text>
         </View>
         <Text className="text-sm text-light-matte-black/80 mt-1 mb-2.5">
-          Pick a risk tier and you're ready to deposit into any of these.
+          Pick a risk tier and you&apos;re ready to deposit into any of these.
         </Text>
         <TouchableOpacity
           onPress={() => router.push("/strategies/onboarding")}

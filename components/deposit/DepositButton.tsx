@@ -25,3 +25,5 @@ export const DepositButton = memo<DepositButtonProps>(
     );
   },
 );
+
+DepositButton.displayName = "DepositButton";

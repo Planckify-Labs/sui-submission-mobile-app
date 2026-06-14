@@ -65,3 +65,5 @@ export const ExchangeRateCard = memo<ExchangeRateCardProps>(
     );
   },
 );
+
+ExchangeRateCard.displayName = "ExchangeRateCard";

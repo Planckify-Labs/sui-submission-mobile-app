@@ -237,11 +237,11 @@ const PositionListCard: React.FC<
         <View className="flex-row items-center gap-2">
           <AlertTriangle size={14} color={BRAND_RED} />
           <Text className="text-xs font-bold uppercase tracking-wide text-light-primary-red">
-            Couldn't load positions
+            Couldn&apos;t load positions
           </Text>
         </View>
         <Text className="text-sm text-light-matte-black/80 mt-1.5">
-          We couldn't load your DeFi positions right now. Please try again in a
+          We couldn&apos;t load your DeFi positions right now. Please try again in a
           moment.
         </Text>
       </View>
@@ -260,7 +260,7 @@ const PositionListCard: React.FC<
           </Text>
         </View>
         <Text className="text-sm text-light-matte-black/80 mt-1.5">
-          You don't have any open DeFi positions yet.
+          You don&apos;t have any open DeFi positions yet.
         </Text>
         <SetupStrategyCTA variant="block" />
       </View>

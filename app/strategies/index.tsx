@@ -630,7 +630,7 @@ export default function StrategiesIndex() {
                     No opportunities right now
                   </Text>
                   <Text className="text-light-matte-black/50 text-xs text-center mt-1 max-w-[260px]">
-                    We'll surface new ones as they pass our scoring filter.
+                    We&apos;ll surface new ones as they pass our scoring filter.
                   </Text>
                 </View>
               )}

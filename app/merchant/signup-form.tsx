@@ -608,7 +608,7 @@ export default function MerchantSignupForm() {
                     </>
                   ) : (
                     <Text className="text-light-matte-black/60 text-sm text-center">
-                      Couldn't load QRIS types. Check your connection and try
+                      Couldn&apos;t load QRIS types. Check your connection and try
                       again.
                     </Text>
                   )}

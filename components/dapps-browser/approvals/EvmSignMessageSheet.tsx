@@ -195,7 +195,7 @@ function DecodedPermitCard({
           </Text>
           <Text className="text-xs text-red-700 mt-0.5">
             This contract is not on our known-safe list. Scam drainers abuse
-            permits via unfamiliar spenders. Verify the address on the dApp's
+            permits via unfamiliar spenders. Verify the address on the dApp&apos;s
             official docs before signing.
           </Text>
         </View>

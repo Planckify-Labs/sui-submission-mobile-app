@@ -646,10 +646,10 @@ function DoneCard({ onContinue }: { onContinue: () => void }) {
           <CheckCircle2 color="#16a34a" size={32} />
         </View>
         <Text className="text-light-matte-black font-bold text-xl">
-          You're all set
+          You&apos;re all set
         </Text>
         <Text className="text-light-matte-black/60 text-sm text-center mt-1">
-          Payments are now instant. We'll finish the setup in the background.
+          Payments are now instant. We&apos;ll finish the setup in the background.
         </Text>
       </View>
       <TouchableOpacity

@@ -214,7 +214,7 @@ const BalancesCard: React.FC<
         <View className="flex-row items-center gap-2">
           <AlertTriangle size={14} color={BRAND_RED} />
           <Text className="text-xs font-bold uppercase tracking-wide text-light-primary-red">
-            Couldn't read balances
+            Couldn&apos;t read balances
           </Text>
         </View>
         {normalized.error ? (
@@ -273,7 +273,7 @@ const BalancesCard: React.FC<
       {groupErrors.length > 0 ? (
         <View className="mt-2 rounded-xl bg-light-primary-red/5 border border-light-primary-red/20 px-2.5 py-1.5">
           <Text className="text-[10px] uppercase tracking-wide text-light-primary-red font-bold">
-            Couldn't reach {groupErrors.length} chain
+            Couldn&apos;t reach {groupErrors.length} chain
             {groupErrors.length === 1 ? "" : "s"}
           </Text>
         </View>

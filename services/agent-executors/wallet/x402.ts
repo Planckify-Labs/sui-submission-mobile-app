@@ -76,7 +76,7 @@ export const x402Fetch: MobileToolExecutor = (input, context) =>
         data: {
           paid: false,
           message:
-            "This resource needs an EVM agent allowance. Switch to an EVM wallet to let the agent pay it.",
+            "This resource needs an EVM spending delegation. Switch to an EVM wallet to let the agent pay it.",
         },
       };
     }
@@ -92,7 +92,7 @@ export const x402Fetch: MobileToolExecutor = (input, context) =>
         data: {
           paid: false,
           message:
-            "This resource needs an EVM agent allowance. Switch to an EVM wallet to let the agent pay it.",
+            "This resource needs an EVM spending delegation. Switch to an EVM wallet to let the agent pay it.",
         },
       };
     }
@@ -126,10 +126,10 @@ export const x402Fetch: MobileToolExecutor = (input, context) =>
           // own — the agent spends a signed ERC-7710 allowance, which is
           // a separate one-time grant on this same network (§3.2, §4.4).
           message:
-            "To pay for this automatically I need a USDC spending allowance. " +
-            "Open Wallet → Agent permissions and authorize a USDC allowance " +
+            "To pay for this automatically I need a USDC spending delegation. " +
+            "Open Wallet → Agent permissions and authorize a USDC spending delegation " +
             "on this network (the chain you're currently on), then ask me again. " +
-            "A smart-account upgrade alone doesn't grant the allowance.",
+            "A smart-account upgrade alone doesn't grant the delegation.",
         },
       };
     }
@@ -224,6 +224,10 @@ export const x402Fetch: MobileToolExecutor = (input, context) =>
       ...(result.txHash ? { tx_hash: result.txHash as `0x${string}` } : {}),
       data: {
         paid: result.paid,
+        // The chain the payment actually settled on — lets the receipt
+        // card link the tx hash to the right block explorer (the agent
+        // often omits `chain_id` from its input).
+        chain_id: chainId,
         ...(result.paid && result.amountAtoms !== undefined
           ? { amount_usdc: usdcLabel(result.amountAtoms) }
           : {}),

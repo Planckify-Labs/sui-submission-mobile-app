@@ -331,7 +331,7 @@ export default function OpportunityDetail() {
             <ArrowUpRight size={18} color="#ffffff" strokeWidth={2.5} />
           </TouchableOpacity>
           <Text className="text-light-matte-black/50 text-[11px] text-center mt-2">
-            You'll review and sign the deposit on-device.
+            You&apos;ll review and sign the deposit on-device.
           </Text>
         </View>
       </SafeAreaView>

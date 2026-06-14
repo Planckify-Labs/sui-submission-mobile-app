@@ -29,3 +29,5 @@ export const QuickAmountButtons = memo<QuickAmountButtonsProps>(
     );
   },
 );
+
+QuickAmountButtons.displayName = "QuickAmountButtons";

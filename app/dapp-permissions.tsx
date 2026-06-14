@@ -32,7 +32,7 @@ export default function DappPermissions(): React.ReactElement {
           dApp permissions
         </Text>
         <Text className="text-xs text-gray-500 mt-1">
-          Sites you've connected your wallet to.
+          Sites you&apos;ve connected your wallet to.
         </Text>
       </View>
       <ScrollView className="flex-1 px-4 py-3">

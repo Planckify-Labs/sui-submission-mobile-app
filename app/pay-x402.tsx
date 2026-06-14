@@ -460,7 +460,7 @@ function MissingResourceCard() {
         Missing resource URL
       </Text>
       <Text className="text-light-matte-black/60 text-sm mb-6">
-        We couldn't find a payment target for this link. Scan or paste an x402
+        We couldn&apos;t find a payment target for this link. Scan or paste an x402
         payment URL to continue.
       </Text>
       <TouchableOpacity

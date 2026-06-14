@@ -47,3 +47,5 @@ export const AmountInputSection = memo<AmountInputSectionProps>(
     );
   },
 );
+
+AmountInputSection.displayName = "AmountInputSection";

@@ -31,3 +31,5 @@ export const DepositHeader = memo(() => {
     </View>
   );
 });
+
+DepositHeader.displayName = "DepositHeader";

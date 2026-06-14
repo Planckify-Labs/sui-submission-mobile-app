@@ -119,3 +119,5 @@ export const NotificationItem = memo<NotificationItemProps>(
     );
   },
 );
+
+NotificationItem.displayName = "NotificationItem";

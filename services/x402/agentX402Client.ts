@@ -145,7 +145,7 @@ export async function runAgentX402Fetch(
     return {
       status: "failed",
       reason:
-        "This resource needs an EVM agent allowance. Switch to an EVM wallet to let the agent pay it.",
+        "This resource needs an EVM spending delegation. Switch to an EVM wallet to let the agent pay it.",
     };
   }
 

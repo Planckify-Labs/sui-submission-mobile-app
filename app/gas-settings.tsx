@@ -112,8 +112,8 @@ export default function GasSettingsScreen() {
                 you can transact with no ETH in your wallet.
               </Text>
               <Text className="text-light-matte-black/70 text-xs leading-5 mt-2">
-                If a network doesn't support USDC gas, or your USDC can't cover
-                the transfer plus the fee, we'll let you know rather than
+                If a network doesn&apos;t support USDC gas, or your USDC can&apos;t
+                cover the transfer plus the fee, we&apos;ll let you know rather than
                 quietly spending your native balance.
               </Text>
             </View>

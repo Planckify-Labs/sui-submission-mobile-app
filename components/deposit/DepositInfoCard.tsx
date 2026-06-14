@@ -29,3 +29,5 @@ export const DepositInfoCard = memo<DepositInfoCardProps>(
     );
   },
 );
+
+DepositInfoCard.displayName = "DepositInfoCard";

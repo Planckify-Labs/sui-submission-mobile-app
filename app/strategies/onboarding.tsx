@@ -383,7 +383,7 @@ export default function StrategiesOnboarding() {
         return (
           <View>
             <Text className="text-sm text-light-matte-black/60 mb-3">
-              Pick one or more. Filters the opportunities you'll see.
+              Pick one or more. Filters the opportunities you&apos;ll see.
             </Text>
             {ASSET_OPTIONS.map((opt) => (
               <OptionRow
@@ -494,7 +494,7 @@ export default function StrategiesOnboarding() {
             ) : (
               <Text className="text-sm text-light-matte-black/60">
                 No curated protocols for this tier right now. Skipping uses the
-                agent's default routing.
+                agent&apos;s default routing.
               </Text>
             )}
           </View>
