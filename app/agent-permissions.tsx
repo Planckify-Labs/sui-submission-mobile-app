@@ -825,7 +825,7 @@ export default function AgentPermissionsScreen() {
           {showAllowanceCard && (
             <View className="mx-4 mb-6">
               <Text className="text-light-matte-black/50 text-xs uppercase tracking-wide mb-2 ml-1">
-                Onchain allowance
+                Spending delegation
               </Text>
 
               {delegationGroups.map((group) => (
@@ -863,7 +863,7 @@ export default function AgentPermissionsScreen() {
                         <View
                           key={grantKey(grant)}
                           accessible
-                          accessibilityLabel={`Onchain allowance on ${group.chainName}, up to ${amountLabel}, ${lifetime.primary}`}
+                          accessibilityLabel={`Spending delegation on ${group.chainName}, up to ${amountLabel}, ${lifetime.primary}`}
                           className={`px-4 py-3 flex-row items-center justify-between ${index > 0 ? "border-t border-light-matte-black/5" : ""}`}
                         >
                           <View className="w-9 h-9 rounded-xl bg-light-primary-red/10 items-center justify-center mr-3">
@@ -886,7 +886,7 @@ export default function AgentPermissionsScreen() {
                           <TouchableOpacity
                             onPress={() => handleRevoke(grant)}
                             accessibilityRole="button"
-                            accessibilityLabel={`Revoke onchain allowance for ${amountLabel} on ${group.chainName}`}
+                            accessibilityLabel={`Revoke spending delegation for ${amountLabel} on ${group.chainName}`}
                             hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                             className="bg-light-primary-red/10 px-3 py-1.5 rounded-xl"
                           >
@@ -921,7 +921,7 @@ export default function AgentPermissionsScreen() {
                         setShowAllowanceSheet(true);
                       }}
                       accessibilityRole="button"
-                      accessibilityLabel="Authorize a new onchain allowance"
+                      accessibilityLabel="Authorize a new spending delegation"
                       className="px-4 py-3 flex-row items-center"
                     >
                       <View className="w-9 h-9 rounded-xl bg-light-primary-red/10 items-center justify-center mr-3">
@@ -929,7 +929,7 @@ export default function AgentPermissionsScreen() {
                       </View>
                       <View className="flex-1">
                         <Text className="text-light-matte-black font-semibold">
-                          Authorize allowance
+                          Authorize spending delegation
                         </Text>
                         <Text className="text-light-matte-black/60 text-xs mt-0.5">
                           Pick a token and sign a capped delegation the agent
@@ -949,7 +949,7 @@ export default function AgentPermissionsScreen() {
                         </Text>
                         <Text className="text-light-matte-black/60 text-xs mt-0.5">
                           Upgrade this wallet to a smart account (in Wallet
-                          Details) to enable onchain allowances.
+                          Details) to enable spending delegations.
                         </Text>
                       </View>
                     </View>
@@ -963,8 +963,8 @@ export default function AgentPermissionsScreen() {
                 </Text>
               ) : (
                 <Text className="text-light-matte-black/50 text-xs mt-2 ml-1 leading-4">
-                  Allowances are cryptographic ERC-7710 delegations. The cap is
-                  enforced onchain — revoke any time.
+                  This is a cryptographic ERC-7710 delegation — not a token
+                  approval. The cap is enforced onchain — revoke any time.
                 </Text>
               )}
             </View>
@@ -1170,7 +1170,7 @@ export default function AgentPermissionsScreen() {
 
       <PinConfirmationModal
         visible={showAllowancePin}
-        title="Confirm allowance"
+        title="Confirm delegation"
         onClose={() => {
           setShowAllowancePin(false);
           setPendingAllowance(null);
@@ -1180,7 +1180,7 @@ export default function AgentPermissionsScreen() {
 
       <LoadinngSpinnerPopup
         visible={signingAllowance}
-        title="Authorizing allowance"
+        title="Authorizing delegation"
         message="Signing your onchain delegation. Please wait…"
       />
     </>

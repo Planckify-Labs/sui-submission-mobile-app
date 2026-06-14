@@ -40,8 +40,26 @@ export function buildExplorerUrl(
   const explorer = entry.chain.blockExplorers?.default?.url;
   if (!explorer || typeof explorer !== "string") return undefined;
 
+  return explorerTxUrlFromBase(explorer, tx_hash);
+}
+
+/**
+ * Build an explorer tx URL from an explicit base explorer URL (e.g. the
+ * backend `TBlockchain.blockExplorer`). Use this when the chain isn't in
+ * the static `supportedChains` seed — most testnet / L2 rows (Base
+ * Sepolia, etc.) only exist in the backend `/blockchains` feed, so the
+ * static `buildExplorerUrl` returns `undefined` for them.
+ *
+ * Returns `undefined` for a missing base or hash so callers can disable
+ * the tap action.
+ */
+export function explorerTxUrlFromBase(
+  baseUrl: string | undefined | null,
+  tx_hash: string,
+): string | undefined {
+  if (!baseUrl || !tx_hash) return undefined;
   // Strip a trailing slash so we can concatenate safely without
   // producing `https://…//tx/0x…`.
-  const base = explorer.endsWith("/") ? explorer.slice(0, -1) : explorer;
+  const base = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
   return `${base}/tx/${tx_hash}`;
 }

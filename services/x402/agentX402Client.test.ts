@@ -188,5 +188,6 @@ test("missing settleX402Payment capability → friendly failure", async () => {
     fetchImpl,
   });
   a.equal(result.status, "failed");
-  if (result.status === "failed") a.match(result.reason, /EVM agent allowance/);
+  if (result.status === "failed")
+    a.match(result.reason, /EVM spending delegation/);
 });

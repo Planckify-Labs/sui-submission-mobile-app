@@ -23,7 +23,11 @@ import {
 } from "lucide-react-native";
 import type React from "react";
 import { Pressable, Text, View } from "react-native";
-import { buildExplorerUrl } from "../../PendingTxCard/explorerUrl";
+import { useBlockchainByChainId } from "@/hooks/useBlockchainsWithStorage";
+import {
+  buildExplorerUrl,
+  explorerTxUrlFromBase,
+} from "../../PendingTxCard/explorerUrl";
 import type { ToolComponentProps } from "../types";
 
 const SUCCESS_GREEN = "#10b981";
@@ -40,6 +44,7 @@ type X402FetchInput = {
 
 type X402Data = {
   paid?: boolean;
+  chain_id?: number;
   amount_usdc?: string;
   rail?: "facilitator" | "relayer" | string;
   tx_hash?: string;
@@ -119,6 +124,19 @@ const X402FetchCard: React.FC<
   const label = resourceLabel(input?.url);
   const data = output?.data;
 
+  // Resolve the chain the payment settled on so the tx hash links to the
+  // right explorer. Prefer the executor's emitted `chain_id` (the actual
+  // settle chain), then the agent's input, then Base Sepolia (the Phase 5
+  // settle chain). The hook runs unconditionally — before the early
+  // returns below — to satisfy the rules of hooks.
+  const chainId =
+    data?.chain_id ??
+    (typeof input?.chain_id === "number" ? input.chain_id : 84532);
+  // Most testnet / L2 rows (incl. Base Sepolia) only exist in the backend
+  // `/blockchains` feed, not the static `supportedChains` seed — so we read
+  // the explorer base from the feed and fall back to the static helper.
+  const { data: blockchain } = useBlockchainByChainId(chainId);
+
   // Pending — settling the micropayment.
   if (!data && (state === "input-streaming" || state === "input-available")) {
     return (
@@ -130,7 +148,7 @@ const X402FetchCard: React.FC<
           </Text>
         </View>
         <Text className="text-sm text-gray-700 mt-1.5">
-          Settling a micropayment from your agent allowance…
+          Settling a micropayment from your spending delegation…
         </Text>
       </Shell>
     );
@@ -147,7 +165,7 @@ const X402FetchCard: React.FC<
           </Text>
         </View>
         <Text className="text-sm text-light-matte-black/80 mt-1.5">
-          {data.message ?? `${label} costs more than your remaining allowance.`}
+          {data.message ?? `${label} costs more than your remaining delegated budget.`}
         </Text>
         <View className="flex-row items-center justify-between mt-2">
           <Text className="text-[11px] text-gray-500">
@@ -168,12 +186,12 @@ const X402FetchCard: React.FC<
         <View className="flex-row items-center gap-2">
           <KeyRound size={16} color={MUTED_GRAY} />
           <Text className="text-xs font-bold uppercase tracking-wide text-gray-500">
-            Allowance needed
+            Delegation needed
           </Text>
         </View>
         <Text className="text-sm text-light-matte-black/80 mt-1.5">
           {data.message ??
-            "Grant the agent a USDC spending allowance so it can pay for this automatically."}
+            "Grant the agent a USDC spending delegation so it can pay for this automatically."}
         </Text>
       </Shell>
     );
@@ -198,12 +216,10 @@ const X402FetchCard: React.FC<
 
   // Paid — the receipt. Discloses the price of the autonomous spend.
   const txHash = data?.tx_hash ?? output?.tx_hash;
-  const chainId =
-    typeof input?.chain_id === "number" ? input.chain_id : 84532; // Base Sepolia (Phase 5 settle chain)
-  const explorerUrl =
-    txHash && chainId
-      ? buildExplorerUrl(chainId, txHash as `0x${string}`)
-      : undefined;
+  const explorerUrl = txHash
+    ? explorerTxUrlFromBase(blockchain?.blockExplorer, txHash) ??
+      buildExplorerUrl(chainId, txHash as `0x${string}`)
+    : undefined;
   const rail = railLabel(data?.rail);
 
   return (
@@ -225,11 +241,21 @@ const X402FetchCard: React.FC<
         {rail ? <Text className="text-light-matte-black/50"> · {rail}</Text> : null}
       </Text>
       {txHash ? (
-        <View className="flex-row items-center gap-2 mt-2">
-          <Text className="text-[11px] text-gray-500 flex-1" numberOfLines={1}>
+        <View className="flex-row items-center gap-1.5 mt-2">
+          <Text
+            className={`text-[11px] flex-1 ${explorerUrl ? "text-green-700 font-medium underline" : "text-gray-500"}`}
+            numberOfLines={1}
+          >
             {truncateHash(txHash)}
           </Text>
-          {explorerUrl ? <ExternalLink size={12} color={MUTED_GRAY} /> : null}
+          {explorerUrl ? (
+            <>
+              <Text className="text-[11px] text-green-700 font-medium">
+                View
+              </Text>
+              <ExternalLink size={12} color={SUCCESS_GREEN} />
+            </>
+          ) : null}
         </View>
       ) : null}
     </Shell>

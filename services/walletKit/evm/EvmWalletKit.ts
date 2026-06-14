@@ -77,6 +77,7 @@ import {
   encodeSignedDelegations,
   signUnsignedDelegation,
 } from "./delegations.ts";
+import { bootstrapEvmSettlementRails } from "./rails/bootstrap.ts";
 import {
   relayerEstimate7710Transaction,
   relayerGetCapabilities,
@@ -120,6 +121,10 @@ function resolveStatelessDelegatorAddress(chainId: number): `0x${string}` {
 }
 
 export function createEvmWalletKit(): WalletKitAdapter {
+  // Dock the EVM settlement rails into the x402 settlement registry
+  // (idempotent). The `settleX402Payment` chain resolves them by presence.
+  bootstrapEvmSettlementRails();
+
   return {
     namespace: EVM_NAMESPACE,
     supportsTokenTransfer: true,

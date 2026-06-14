@@ -35,6 +35,7 @@ import { installQRMatrixCache } from "@/services/qrMatrixCache";
 // Ordering (spec §6.2): polyfill import → bootWalletKits() → any screen/provider.
 import { bootWalletKits } from "@/services/walletKit/boot";
 import { hasStoredWallets } from "@/services/walletService";
+import { refreshSettlementRailConfig } from "@/services/x402/refreshSettlementRailConfig";
 import "../global.css";
 
 // Register WalletKit adapters before any screen/provider reads the registry.
@@ -43,6 +44,10 @@ bootWalletKits();
 bootGasAbstraction();
 // Register DeFi adapters
 bootDefi();
+// Refresh the API-driven x402 settlement-rail override (enable/disable,
+// reorder, fee caps) into the on-device cache — best-effort, fire-and-forget
+// (x402-extensibility-spec §12.1, OQ-2). Failure leaves defaults in place.
+void refreshSettlementRailConfig();
 
 // Patch `qrcode.create` with an MMKV-backed cache so receive-sheet QRs
 // skip the Reed-Solomon compute on repeat opens. Must run before any

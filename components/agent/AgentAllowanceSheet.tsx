@@ -378,7 +378,7 @@ export default function AgentAllowanceSheet({
                 )}
                 <ShieldCheck size={22} color="#c71c4b" />
                 <Text className="text-light-matte-black text-xl font-bold ml-2">
-                  {stage === "pick" ? "Choose a token" : "Onchain Allowance"}
+                  {stage === "pick" ? "Choose a token" : "Spending Delegation"}
                 </Text>
               </View>
               <Pressable
@@ -543,7 +543,7 @@ export default function AgentAllowanceSheet({
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <Text className="text-white font-bold text-base">
-                      Authorize Allowance
+                      Authorize Delegation
                     </Text>
                   )}
                 </TouchableOpacity>
