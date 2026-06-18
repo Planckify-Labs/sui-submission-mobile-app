@@ -48,17 +48,22 @@ export const smartContractApi = {
   },
 
   searchSmartContracts: async (params: {
+    name?: string;
     blockchainId?: string;
     chainId?: number;
     isActive?: boolean;
+    isBlockchainEVM?: boolean;
   }) => {
     const searchParams = new URLSearchParams();
+    if (params.name) searchParams.set("name", params.name);
     if (params.blockchainId)
       searchParams.set("blockchainId", params.blockchainId);
     if (params.chainId != null)
       searchParams.set("chainId", String(params.chainId));
     if (params.isActive != null)
       searchParams.set("isActive", String(params.isActive));
+    if (params.isBlockchainEVM != null)
+      searchParams.set("isBlockchainEVM", String(params.isBlockchainEVM));
     try {
       return await publicApi
         .get(`smart-contracts/search?${searchParams}`)

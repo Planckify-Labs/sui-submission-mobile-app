@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import type { SuiSimulationSummary } from "@/services/chains/sui/payloads";
 import type { Intent } from "../intentSchema";
 import type { CompileContext, CompiledIntent } from "../intentTypes";
+import { createEffectMismatchCheck } from "./checks/effectMismatchCheck";
 import { createHighSlippageCheck } from "./checks/highSlippageCheck";
 import { createOverConcentrationCheck } from "./checks/overConcentrationCheck";
 import { createStaleOracleCheck } from "./checks/staleOracleCheck";
@@ -135,6 +137,131 @@ describe("overConcentrationCheck", () => {
       args(
         withdraw,
         compiled({ inputCoinType: "0x2::sui::SUI", inputAmountRaw: 950n }),
+      ),
+    );
+    expect(f).toBeNull();
+  });
+});
+
+describe("effectMismatchCheck", () => {
+  const check = createEffectMismatchCheck();
+  const SUI = "0x2::sui::SUI";
+  const USDC =
+    "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC";
+  const OTHER = "0xfeed::other::OTHER";
+
+  function dryRun(
+    changes: Array<{ owner: string; coinType: string; amount: bigint }>,
+    status = "success",
+  ): SuiSimulationSummary {
+    return {
+      status,
+      gasUsed: {
+        computation: 0n,
+        storage: 0n,
+        storageRebate: 0n,
+        nonRefundableStorageFee: 0n,
+      },
+      balanceChanges: changes,
+      objectChanges: [],
+      warnings: [],
+    };
+  }
+
+  function effArgs(
+    c: CompiledIntent,
+    sim: SuiSimulationSummary | null,
+    intent: Intent = swap,
+  ): RiskCheckArgs {
+    return { intent, compiled: c, dryRun: sim, ctx };
+  }
+
+  const swapCompiled = compiled({ inputCoinType: SUI, outputCoinType: USDC });
+
+  it("passes a clean swap (input out, output credited to sender)", async () => {
+    const f = await check.run(
+      effArgs(
+        swapCompiled,
+        dryRun([
+          { owner: "0xabc", coinType: SUI, amount: -5_000_000_000n },
+          { owner: "0xabc", coinType: USDC, amount: 9_000_000n },
+        ]),
+      ),
+    );
+    expect(f).toBeNull();
+  });
+
+  it("blocks when the output coin is NOT credited to the sender", async () => {
+    const f = await check.run(
+      effArgs(
+        swapCompiled,
+        dryRun([{ owner: "0xabc", coinType: SUI, amount: -5_000_000_000n }]),
+      ),
+    );
+    expect(f?.severity).toBe("block");
+    expect(f?.code).toBe("effect.mismatch");
+  });
+
+  it("blocks when an unexpected (non-input, non-SUI) coin leaves the sender", async () => {
+    const f = await check.run(
+      effArgs(
+        swapCompiled,
+        dryRun([
+          { owner: "0xabc", coinType: SUI, amount: -5_000_000_000n },
+          { owner: "0xabc", coinType: USDC, amount: 9_000_000n },
+          { owner: "0xabc", coinType: OTHER, amount: -100n },
+        ]),
+      ),
+    );
+    expect(f?.severity).toBe("block");
+  });
+
+  it("allows a net-negative SUI when SUI is the OUTPUT (gas confounds it)", async () => {
+    const usdcToSui: Intent = {
+      action: "swap",
+      fromAsset: "USDC",
+      toAsset: "SUI",
+      amount: { human: "10" },
+      maxSlippageBps: 50,
+    };
+    const c = compiled({ inputCoinType: USDC, outputCoinType: SUI });
+    const f = await check.run(
+      effArgs(
+        c,
+        dryRun([
+          { owner: "0xabc", coinType: USDC, amount: -10_000_000n },
+          { owner: "0xabc", coinType: SUI, amount: -1_000n },
+        ]),
+        usdcToSui,
+      ),
+    );
+    expect(f).toBeNull();
+  });
+
+  it("does not false-block on a null / reverting dry-run (executor's gate)", async () => {
+    expect(await check.run(effArgs(swapCompiled, null))).toBeNull();
+    expect(
+      await check.run(
+        effArgs(
+          swapCompiled,
+          dryRun([{ owner: "0xabc", coinType: OTHER, amount: -1n }], "failure"),
+        ),
+      ),
+    ).toBeNull();
+  });
+
+  it("ignores non-swap intents (supply/withdraw have a richer effect shape)", async () => {
+    const supply: Intent = {
+      action: "supply",
+      venue: "scallop",
+      asset: "USDC",
+      amount: { human: "100" },
+    };
+    const f = await check.run(
+      effArgs(
+        compiled({ inputCoinType: USDC, outputCoinType: USDC }),
+        dryRun([{ owner: "0xabc", coinType: OTHER, amount: -1n }]),
+        supply,
       ),
     );
     expect(f).toBeNull();

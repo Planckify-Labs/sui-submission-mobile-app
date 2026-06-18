@@ -17,10 +17,14 @@
 import { parseUnits } from "viem";
 import type { TToken } from "@/api/types/token";
 import type { SuiChainConfig } from "@/constants/configs/chainConfig";
-import { readScallopSupplyMeta } from "@/services/defi/adapters/scallopSui";
+import {
+  buildScallopZapSupply,
+  readScallopSupplyMeta,
+} from "@/services/defi/adapters/scallopSui";
 import { DefiError } from "@/services/defi/errors/defiErrors";
 import { listDefiAdaptersForChain } from "@/services/defi/registry";
 import { getSuiSwapRoute } from "@/services/swap/sui/suiSwapRouter";
+import { appendDeepbookSwap } from "@/services/swap/sui/venues/deepbookSwap";
 import { decodeSuiPtb } from "./decodeSuiPtb";
 import type { Intent } from "./intentSchema";
 import type { CompileContext, CompiledIntent } from "./intentTypes";
@@ -38,12 +42,18 @@ export interface CompileDeps {
   getSwapRoute: typeof getSuiSwapRoute;
   listAdaptersForChain: typeof listDefiAdaptersForChain;
   readSupplyMeta: typeof readScallopSupplyMeta;
+  /** Atomic swap→supply composer (mainnet-only Scallop) — §4.7. */
+  buildZapSupply: typeof buildScallopZapSupply;
+  /** The DEX swap leg appended into the zap's shared tx — §4.7. */
+  appendSwapInto: typeof appendDeepbookSwap;
 }
 
 const DEFAULT_DEPS: CompileDeps = {
   getSwapRoute: getSuiSwapRoute,
   listAdaptersForChain: listDefiAdaptersForChain,
   readSupplyMeta: readScallopSupplyMeta,
+  buildZapSupply: buildScallopZapSupply,
+  appendSwapInto: appendDeepbookSwap,
 };
 
 interface ResolvedToken {
@@ -89,6 +99,9 @@ export async function compileIntentToPtb(
   if (intent.action === "swap") {
     return compileSwap(intent, ctx, deps);
   }
+  if (intent.action === "swap_and_supply") {
+    return compileSwapAndSupply(intent, ctx, deps);
+  }
   return compileScallop(intent, ctx, deps);
 }
 
@@ -127,6 +140,67 @@ async function compileSwap(
     poolObjectId: route.poolObjectId,
     inputCoinType: from.coinType,
     inputAmountRaw: amountRaw,
+    // Venue-authoritative output coin — the effect-mismatch check (§5.2)
+    // verifies the dry-run actually credits THIS coin to the sender.
+    outputCoinType: route.toCoinType,
+  };
+}
+
+async function compileSwapAndSupply(
+  intent: Extract<Intent, { action: "swap_and_supply" }>,
+  ctx: CompileContext,
+  deps: CompileDeps,
+): Promise<CompiledIntent> {
+  // Mainnet-only: the supply leg is Scallop. Gate via the registry exactly
+  // like compileScallop — on testnet the adapter isn't registered, so a zap
+  // returns `not_on_this_network` and the agent offers a plain swap instead.
+  const adapter = deps
+    .listAdaptersForChain("sui", ctx.chain.network)
+    .find((a) => a.slug === SCALLOP_SLUG);
+  if (!adapter) {
+    throw new DefiError("unsupported_chain", "supply_mainnet_only");
+  }
+
+  // Resolve the INPUT coin (held by the user); the output/supply coin is
+  // venue-authoritative (the DEX defines it), same as a plain swap.
+  const from = resolveToken(ctx.tokens, intent.fromAsset);
+  const amountRaw = parseAmount(intent.amount.human, from.decimals);
+
+  // Compose both legs into ONE atomic PTB: the swap leg appends to Scallop's
+  // shared tx and its output coin feeds the deposit (§4.7).
+  const result = await deps.buildZapSupply({
+    wallet: ctx.wallet,
+    chain: ctx.chain as SuiChainConfig,
+    supplyAssetSymbol: intent.toAsset,
+    appendSwap: (tx) =>
+      deps.appendSwapInto(tx, {
+        wallet: ctx.wallet,
+        chain: ctx.chain as SuiChainConfig,
+        fromSymbol: intent.fromAsset,
+        toSymbol: intent.toAsset,
+        fromCoinType: from.coinType,
+        fromDecimals: from.decimals,
+        amountHuman: intent.amount.human,
+        amountRaw,
+        maxSlippageBps: intent.maxSlippageBps,
+      }),
+  });
+
+  const meta = await deps.readSupplyMeta(intent.toAsset, ctx.wallet.address);
+
+  return {
+    ptbBase64: result.ptbBase64,
+    decoded: decodeSuiPtb(result.ptbBase64),
+    summary: `Swap ${intent.amount.human} ${intent.fromAsset} to ${intent.toAsset}, then supply to Scallop${
+      meta.apy ? `, earning ~${meta.apy}% APY` : ""
+    }`,
+    apy: meta.apy,
+    expectedOut: result.expectedOut,
+    priceImpact: result.priceImpact,
+    poolObjectId: result.poolObjectId,
+    inputCoinType: from.coinType,
+    inputAmountRaw: amountRaw,
+    outputCoinType: result.toCoinType,
   };
 }
 

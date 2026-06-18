@@ -15,7 +15,12 @@
 
 import { z } from "zod";
 
-export const IntentAction = z.enum(["supply", "withdraw", "swap"]);
+export const IntentAction = z.enum([
+  "supply",
+  "withdraw",
+  "swap",
+  "swap_and_supply",
+]);
 export type TIntentAction = z.infer<typeof IntentAction>;
 
 /**
@@ -53,12 +58,29 @@ export const IntentSchema = z.discriminatedUnion("action", [
     amount: Amount, // exact-in
     maxSlippageBps: z.number().int().min(1).max(5000).default(50), // 0.5% default
   }),
+  z.object({
+    // "Zap": swap `fromAsset` → `toAsset` on a DEX, then supply `toAsset` to
+    // Scallop — composed into ONE atomic Programmable Transaction Block (the
+    // swap's output coin feeds the deposit; spec §4.7). MAINNET-ONLY (the
+    // supply leg is Scallop); on testnet the registry doesn't resolve Scallop
+    // so the compiler returns `not_on_this_network`. No venue field — the DEX
+    // is network-selected and the lending venue is implicitly Scallop.
+    action: z.literal("swap_and_supply"),
+    fromAsset: z.string().min(1), // what the user holds, e.g. "SUI"
+    toAsset: z.string().min(1), // swapped to AND supplied, e.g. "USDC"
+    amount: Amount, // exact-in of fromAsset
+    maxSlippageBps: z.number().int().min(1).max(5000).default(50),
+  }),
 ]);
 
 export type Intent = z.infer<typeof IntentSchema>;
 export type SupplyIntent = Extract<Intent, { action: "supply" }>;
 export type WithdrawIntent = Extract<Intent, { action: "withdraw" }>;
 export type SwapIntent = Extract<Intent, { action: "swap" }>;
+export type SwapAndSupplyIntent = Extract<
+  Intent,
+  { action: "swap_and_supply" }
+>;
 
 /**
  * Parse an unknown LLM tool input into a validated `Intent`. The agent

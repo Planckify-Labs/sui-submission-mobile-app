@@ -30,10 +30,15 @@ import type {
   PoolMap,
 } from "@mysten/deepbook-v3";
 import { SuiJsonRpcClient } from "@mysten/sui/jsonRpc";
-import { Transaction } from "@mysten/sui/transactions";
+import {
+  Transaction,
+  type TransactionObjectArgument,
+} from "@mysten/sui/transactions";
 import { parseUnits } from "viem";
 import type { SuiNetwork } from "@/services/chains/sui/payloads";
+import { appendIntentReceipt } from "../appendIntentReceipt";
 import { resolveDeepbookPool } from "../deepbook.config";
+import { resolveIntentReceiptPackageId } from "../intentReceiptPackageId";
 import {
   SuiSwapError,
   type SuiSwapRoute,
@@ -125,133 +130,28 @@ export const deepbookSwapVenue: SuiSwapVenue = {
   },
 
   async getRoute(params: SuiSwapRouteParams): Promise<SuiSwapRoute | null> {
-    const resolved = resolveDeepbookPool(
-      params.chain.network,
-      params.fromSymbol,
-      params.toSymbol,
-    );
-    if (!resolved) {
-      if (typeof __DEV__ !== "undefined" && __DEV__) {
-        console.warn(
-          `[deepbookSwap] no pool for ${params.fromSymbol}->${params.toSymbol} on ${params.chain.network}`,
-        );
-      }
-      return null;
-    }
-
     try {
-      const { db, coins, pools } = await loadDeepBook(
-        params.chain,
-        params.wallet.address,
-      );
-      const amountIn = Number(params.amountHuman);
-      if (!Number.isFinite(amountIn) || amountIn <= 0) return null;
-
-      // Output coin (coinType + decimals) from DeepBook's own config — the
-      // DEX is authoritative for the pool's coins, so the user never needs a
-      // registry row or holdings for the asset they're swapping INTO. If the
-      // SDK doesn't describe the pool's coins we skip the venue rather than
-      // fabricate decimals (no magic fallbacks — config is authoritative).
-      const outMeta = resolveOutputCoin(
-        params.chain.network,
-        resolved.poolKey,
-        resolved.side,
-        pools,
-        coins,
-      );
-      if (!outMeta) {
-        if (typeof __DEV__ !== "undefined" && __DEV__) {
-          console.warn(
-            `[deepbookSwap] SDK has no coin metadata for pool ${resolved.poolKey} on ${params.chain.network}`,
-          );
-        }
-        return null;
-      }
-
-      // Quote (decimal out) + reference mid price for price impact.
-      //
-      // Use the INPUT-FEE quote variants: the build below passes
-      // `deepAmount: 0`, so DeepBook charges the swap fee from the INPUT coin
-      // — the user needs NO DEEP token (the pool is not whitelisted). Quoting
-      // with the pay-DEEP variant would mis-state expectedOut/minOut vs. what
-      // actually executes and could make a valid swap revert on `minOut`.
-      let expectedOutDecimal: number;
-      if (resolved.side === "base->quote") {
-        const q = await db.getQuoteQuantityOutInputFee(
-          resolved.poolKey,
-          amountIn,
-        );
-        expectedOutDecimal = q.quoteOut;
-      } else {
-        const q = await db.getBaseQuantityOutInputFee(
-          resolved.poolKey,
-          amountIn,
-        );
-        expectedOutDecimal = q.baseOut;
-      }
-      if (!Number.isFinite(expectedOutDecimal) || expectedOutDecimal <= 0) {
-        // A zero fill on a pool that HAS liquidity means the amount is below
-        // the pool's *usable* minimum. NOTE the input fee is taken FROM the
-        // input, so the effective minimum sits a bit ABOVE the raw on-chain
-        // minSize + lot rounding — e.g. on minSize-1 SUI_DBUSDC, 1.0 SUI
-        // yields 0 (fee+lot push it under 1.0) while ~1.1 fills. So we can't
-        // gate on `amountIn < minSize`; instead, a 0 fill while the book has
-        // liquidity IS the actionable "amount below minimum" case. Only a
-        // genuinely empty/priceless book is a real no-route (→ null).
-        let minSize: number | undefined;
-        try {
-          minSize = (await db.poolBookParams(resolved.poolKey)).minSize;
-        } catch {
-          minSize = undefined;
-        }
-        let hasLiquidity = false;
-        try {
-          const mid = await db.midPrice(resolved.poolKey);
-          hasLiquidity = Number.isFinite(mid) && mid > 0;
-        } catch {
-          hasLiquidity = false;
-        }
-        if (typeof __DEV__ !== "undefined" && __DEV__) {
-          console.warn(
-            `[deepbookSwap] ${resolved.poolKey}: 0 output for ${amountIn} ${params.fromSymbol} (minSize ${minSize ?? "?"}, liquidity ${hasLiquidity})`,
-          );
-        }
-        if (hasLiquidity) {
-          throw new SuiSwapError(
-            "amount_below_minimum",
-            minSize !== undefined
-              ? `min ~${minSize} ${params.fromSymbol} (after fee)`
-              : undefined,
-          );
-        }
-        return null;
-      }
-
-      const priceImpact = await computePriceImpact(
-        db,
-        resolved.poolKey,
-        resolved.side,
-        amountIn,
-        expectedOutDecimal,
-      );
-
-      const minOutDecimal =
-        expectedOutDecimal * (1 - params.maxSlippageBps / 10_000);
-
       const tx = new Transaction();
       tx.setSender(params.wallet.address);
-      const swapArgs = {
-        poolKey: resolved.poolKey,
-        amount: amountIn,
-        deepAmount: 0,
-        minOut: minOutDecimal,
-      };
-      const results =
-        resolved.side === "base->quote"
-          ? db.deepBook.swapExactBaseForQuote(swapArgs)(tx)
-          : db.deepBook.swapExactQuoteForBase(swapArgs)(tx);
-      // [baseOut, quoteOut, deepOut] — sweep all three back to the user.
-      tx.transferObjects([...results], tx.pure.address(params.wallet.address));
+      const swap = await appendDeepbookSwap(tx, params);
+      if (!swap) return null;
+
+      // Single-swap path: sweep the output + leftover coins back to the user.
+      tx.transferObjects(
+        [swap.outputCoin, ...swap.leftoverCoins],
+        tx.pure.address(params.wallet.address),
+      );
+
+      // Final command: the on-chain intent receipt. The Package ID is resolved
+      // from the smart-contracts API (MMKV-cached), never hardcoded — undefined
+      // ⇒ not registered / unreachable ⇒ no-op, the swap is unaffected (§10).
+      const receiptPackageId = await resolveIntentReceiptPackageId(
+        params.chain.network as SuiNetwork,
+      );
+      appendIntentReceipt(tx, {
+        packageId: receiptPackageId,
+        descriptor: `swap ${params.amountHuman} ${params.fromSymbol}->${params.toSymbol}`,
+      });
 
       const bytes = await tx.build({
         client: new SuiJsonRpcClient({
@@ -260,21 +160,14 @@ export const deepbookSwapVenue: SuiSwapVenue = {
         }),
       });
 
-      let poolObjectId: string | undefined;
-      try {
-        poolObjectId = await db.poolId(resolved.poolKey);
-      } catch {
-        poolObjectId = undefined;
-      }
-
       return {
         venue: this.id,
         ptbBase64: toBase64(bytes),
-        expectedOut: decimalToRaw(expectedOutDecimal, outMeta.decimals),
-        priceImpact,
-        poolObjectId,
+        expectedOut: swap.expectedOut,
+        priceImpact: swap.priceImpact,
+        poolObjectId: swap.poolObjectId,
         fromCoinType: params.fromCoinType,
-        toCoinType: outMeta.coinType,
+        toCoinType: swap.toCoinType,
       };
     } catch (err) {
       // A typed, actionable reason (e.g. amount_below_minimum) must reach the
@@ -292,6 +185,178 @@ export const deepbookSwapVenue: SuiSwapVenue = {
     }
   },
 };
+
+/** A DeepBook swap appended to an existing tx (the `buildInto` seam, §4.7). */
+export interface AppendedDeepbookSwap {
+  /** The coin the user receives — kept (single swap) or supplied (zap). */
+  outputCoin: TransactionObjectArgument;
+  /** The swap's other return coins (leftover input + DEEP) — return to user. */
+  leftoverCoins: TransactionObjectArgument[];
+  expectedOut: bigint;
+  priceImpact: number;
+  toCoinType: string;
+  toDecimals: number;
+  poolObjectId?: string;
+}
+
+/**
+ * Quote + append a DeepBook swap to an EXISTING `Transaction`, returning the
+ * output coin **un-transferred** plus the leftover coins and the quote numbers
+ * the guardian needs. This is the composable seam (spec §4.7):
+ *   • `getRoute` (single swap) transfers everything back to the user;
+ *   • the atomic swap→supply compose feeds `outputCoin` straight into a
+ *     Scallop deposit on the SAME tx — one all-or-nothing PTB.
+ *
+ * Returns `null` for an ordinary no-route (so the selector falls through);
+ * throws `SuiSwapError("amount_below_minimum")` for an actionable too-small
+ * order. Does NOT set the sender, transfer, append the receipt, or build —
+ * the caller owns the tx lifecycle.
+ */
+export async function appendDeepbookSwap(
+  tx: Transaction,
+  params: SuiSwapRouteParams,
+): Promise<AppendedDeepbookSwap | null> {
+  const resolved = resolveDeepbookPool(
+    params.chain.network,
+    params.fromSymbol,
+    params.toSymbol,
+  );
+  if (!resolved) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn(
+        `[deepbookSwap] no pool for ${params.fromSymbol}->${params.toSymbol} on ${params.chain.network}`,
+      );
+    }
+    return null;
+  }
+
+  const { db, coins, pools } = await loadDeepBook(
+    params.chain,
+    params.wallet.address,
+  );
+  const amountIn = Number(params.amountHuman);
+  if (!Number.isFinite(amountIn) || amountIn <= 0) return null;
+
+  // Output coin (coinType + decimals) from DeepBook's own config — the DEX is
+  // authoritative for the pool's coins, so the user never needs a registry row
+  // or holdings for the asset they're swapping INTO. If the SDK doesn't
+  // describe the pool's coins we skip the venue rather than fabricate decimals.
+  const outMeta = resolveOutputCoin(
+    params.chain.network,
+    resolved.poolKey,
+    resolved.side,
+    pools,
+    coins,
+  );
+  if (!outMeta) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn(
+        `[deepbookSwap] SDK has no coin metadata for pool ${resolved.poolKey} on ${params.chain.network}`,
+      );
+    }
+    return null;
+  }
+
+  // Quote (decimal out). Use the INPUT-FEE quote variants: the build below
+  // passes `deepAmount: 0`, so DeepBook charges the swap fee from the INPUT
+  // coin — the user needs NO DEEP token (the pool is not whitelisted). Quoting
+  // with the pay-DEEP variant would mis-state expectedOut/minOut vs. what
+  // actually executes and could make a valid swap revert on `minOut`.
+  let expectedOutDecimal: number;
+  if (resolved.side === "base->quote") {
+    const q = await db.getQuoteQuantityOutInputFee(resolved.poolKey, amountIn);
+    expectedOutDecimal = q.quoteOut;
+  } else {
+    const q = await db.getBaseQuantityOutInputFee(resolved.poolKey, amountIn);
+    expectedOutDecimal = q.baseOut;
+  }
+  if (!Number.isFinite(expectedOutDecimal) || expectedOutDecimal <= 0) {
+    // A zero fill on a pool that HAS liquidity means the amount is below the
+    // pool's *usable* minimum. NOTE the input fee is taken FROM the input, so
+    // the effective minimum sits a bit ABOVE the raw on-chain minSize + lot
+    // rounding — e.g. on minSize-1 SUI_DBUSDC, 1.0 SUI yields 0 (fee+lot push
+    // it under 1.0) while ~1.1 fills. So we can't gate on `amountIn < minSize`;
+    // instead, a 0 fill while the book has liquidity IS the actionable "amount
+    // below minimum" case. Only a genuinely empty/priceless book is a real
+    // no-route (→ null).
+    let minSize: number | undefined;
+    try {
+      minSize = (await db.poolBookParams(resolved.poolKey)).minSize;
+    } catch {
+      minSize = undefined;
+    }
+    let hasLiquidity = false;
+    try {
+      const mid = await db.midPrice(resolved.poolKey);
+      hasLiquidity = Number.isFinite(mid) && mid > 0;
+    } catch {
+      hasLiquidity = false;
+    }
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn(
+        `[deepbookSwap] ${resolved.poolKey}: 0 output for ${amountIn} ${params.fromSymbol} (minSize ${minSize ?? "?"}, liquidity ${hasLiquidity})`,
+      );
+    }
+    if (hasLiquidity) {
+      throw new SuiSwapError(
+        "amount_below_minimum",
+        minSize !== undefined
+          ? `min ~${minSize} ${params.fromSymbol} (after fee)`
+          : undefined,
+      );
+    }
+    return null;
+  }
+
+  const priceImpact = await computePriceImpact(
+    db,
+    resolved.poolKey,
+    resolved.side,
+    amountIn,
+    expectedOutDecimal,
+  );
+
+  const minOutDecimal =
+    expectedOutDecimal * (1 - params.maxSlippageBps / 10_000);
+
+  const swapArgs = {
+    poolKey: resolved.poolKey,
+    amount: amountIn,
+    deepAmount: 0,
+    minOut: minOutDecimal,
+  };
+  // DeepBook returns [baseOut, quoteOut, deepOut]. The user's OUTPUT is the
+  // quote coin for base->quote, the base coin for quote->base; the other two
+  // (leftover input + DEEP) are returned to the user by the caller.
+  const results =
+    resolved.side === "base->quote"
+      ? db.deepBook.swapExactBaseForQuote(swapArgs)(tx)
+      : db.deepBook.swapExactQuoteForBase(swapArgs)(tx);
+  const coinsOut = [...results] as TransactionObjectArgument[];
+  const outputCoin =
+    resolved.side === "base->quote" ? coinsOut[1] : coinsOut[0];
+  const leftoverCoins =
+    resolved.side === "base->quote"
+      ? [coinsOut[0], coinsOut[2]]
+      : [coinsOut[1], coinsOut[2]];
+
+  let poolObjectId: string | undefined;
+  try {
+    poolObjectId = await db.poolId(resolved.poolKey);
+  } catch {
+    poolObjectId = undefined;
+  }
+
+  return {
+    outputCoin,
+    leftoverCoins,
+    expectedOut: decimalToRaw(expectedOutDecimal, outMeta.decimals),
+    priceImpact,
+    toCoinType: outMeta.coinType,
+    toDecimals: outMeta.decimals,
+    poolObjectId,
+  };
+}
 
 /**
  * Price impact ≈ (referenceOut − expectedOut) / referenceOut, where the

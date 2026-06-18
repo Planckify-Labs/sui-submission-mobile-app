@@ -27,6 +27,20 @@ describe("intentSchema", () => {
     expect(parsed.maxSlippageBps).toBe(100);
   });
 
+  it("accepts a swap_and_supply (zap) intent and defaults slippage", () => {
+    const parsed = parseIntent({
+      action: "swap_and_supply",
+      fromAsset: "SUI",
+      toAsset: "USDC",
+      amount: { human: "5" },
+    });
+    if (parsed?.action !== "swap_and_supply") {
+      throw new Error("expected swap_and_supply");
+    }
+    expect(parsed.maxSlippageBps).toBe(50);
+    expect(parsed.toAsset).toBe("USDC");
+  });
+
   it("accepts a supply intent (scallop venue)", () => {
     const parsed = parseIntent({
       action: "supply",

@@ -25,8 +25,11 @@ export function createHighSlippageCheck(): RiskCheck {
   return {
     code: "slippage.high",
     async run({ intent, compiled }): Promise<RiskFlag | null> {
-      // Only swaps carry a price-impact quote; supply/withdraw never do.
-      if (intent.action !== "swap") return null;
+      // Only DEX legs carry a price-impact quote (a plain swap or the swap
+      // leg of a swap→supply zap); supply/withdraw never do.
+      if (intent.action !== "swap" && intent.action !== "swap_and_supply") {
+        return null;
+      }
       if (typeof compiled.priceImpact !== "number") return null;
 
       const pct = Math.abs(compiled.priceImpact) * 100;

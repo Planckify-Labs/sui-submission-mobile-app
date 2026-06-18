@@ -44,6 +44,13 @@ function deps(over: Partial<CompileDeps>): CompileDeps {
     }),
     listAdaptersForChain: () => [],
     readSupplyMeta: async () => ({}),
+    buildZapSupply: async () => ({
+      ptbBase64: "AAA=",
+      expectedOut: 9_000_000n,
+      priceImpact: 0.01,
+      toCoinType: USDC_COIN_TYPE,
+    }),
+    appendSwapInto: async () => null,
     ...over,
   };
 }
@@ -122,6 +129,56 @@ describe("compileIntentToPtb — swap", () => {
     expect(compiled.inputCoinType).toBe("0x2::sui::SUI"); // native, registry-free
     expect(compiled.inputAmountRaw).toBe(100_000_000n); // 0.1 SUI @ 9dp
     expect(captured?.toSymbol).toBe("USDC");
+  });
+});
+
+describe("compileIntentToPtb — swap_and_supply (atomic zap)", () => {
+  const zap: Intent = {
+    action: "swap_and_supply",
+    fromAsset: "SUI",
+    toAsset: "USDC",
+    amount: { human: "5" },
+    maxSlippageBps: 50,
+  };
+
+  it("yields not_on_this_network on testnet (Scallop is mainnet-only)", async () => {
+    await expect(
+      compileIntentToPtb(zap, ctxOn("testnet"), deps({})),
+    ).rejects.toMatchObject({ code: "unsupported_chain" });
+  });
+
+  it("composes the swap + supply into one PTB on mainnet", async () => {
+    const scallop = {
+      slug: "scallop-sui",
+      namespace: "sui",
+      chainId: "mainnet",
+    } as unknown as DefiProtocolAdapter;
+
+    let zapArgs: { supplyAssetSymbol: string } | null = null;
+    const compiled = await compileIntentToPtb(zap, ctxOn("mainnet"), {
+      ...deps({}),
+      listAdaptersForChain: () => [scallop],
+      readSupplyMeta: async () => ({ apy: "5.20" }),
+      buildZapSupply: async (a) => {
+        zapArgs = { supplyAssetSymbol: a.supplyAssetSymbol };
+        return {
+          ptbBase64: "AAA=",
+          expectedOut: 9_000_000n,
+          priceImpact: 0.012,
+          toCoinType: USDC_COIN_TYPE,
+        };
+      },
+    });
+
+    expect(zapArgs?.supplyAssetSymbol).toBe("USDC");
+    expect(compiled.summary).toBe(
+      "Swap 5 SUI to USDC, then supply to Scallop, earning ~5.20% APY",
+    );
+    expect(compiled.inputCoinType).toBe("0x2::sui::SUI");
+    expect(compiled.inputAmountRaw).toBe(5_000_000_000n);
+    expect(compiled.outputCoinType).toBe(USDC_COIN_TYPE);
+    expect(compiled.priceImpact).toBe(0.012);
+    expect(compiled.apy).toBe("5.20");
   });
 });
 

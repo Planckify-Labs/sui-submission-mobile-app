@@ -10,6 +10,7 @@
  * the executor remains the backstop).
  */
 
+import { createEffectMismatchCheck } from "./checks/effectMismatchCheck";
 import { createHighSlippageCheck } from "./checks/highSlippageCheck";
 import { createOverConcentrationCheck } from "./checks/overConcentrationCheck";
 import { createStaleOracleCheck } from "./checks/staleOracleCheck";
@@ -33,7 +34,7 @@ class RiskCheckRegistry {
 
 export { RiskCheckRegistry };
 
-/** Production registry — the three Phase-1 risk classes (§5.2). */
+/** Production registry — the Phase-1 risk classes (§5.2). */
 export const guardianRegistry = new RiskCheckRegistry();
 
 let registered = false;
@@ -42,6 +43,9 @@ function ensureRegistered(): void {
   guardianRegistry.register(createHighSlippageCheck());
   guardianRegistry.register(createStaleOracleCheck());
   guardianRegistry.register(createOverConcentrationCheck());
+  // Reasons over the dry-run's REAL balance changes (not the venue quote) —
+  // the "why Sui" pre-sign effect inspection.
+  guardianRegistry.register(createEffectMismatchCheck());
   registered = true;
 }
 

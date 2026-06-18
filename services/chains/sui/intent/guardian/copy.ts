@@ -98,6 +98,21 @@ const RISK_COPY: Partial<Record<`${RiskCode}:${Severity}`, LocalizedTemplate>> =
           "Setelah ini, ~{pct}% dana kamu di satu tempat — terlalu terpusat untuk disarankan.",
       },
     },
+    // effect.mismatch — computed from the dry-run's REAL balance changes
+    // (dryRunTransactionBlock effects), not the venue quote. "block" only:
+    // an effect that doesn't match the plan is never merely a heads-up.
+    "effect.mismatch:block": {
+      en: {
+        title: "Effects don't match the plan",
+        detail:
+          "When I simulated this, it would also move funds it shouldn't — so I won't prepare it to sign.",
+      },
+      id: {
+        title: "Efeknya tidak sesuai rencana",
+        detail:
+          "Saat saya simulasikan, transaksi ini juga memindahkan dana yang seharusnya tidak — jadi saya tidak akan menyiapkannya untuk ditandatangani.",
+      },
+    },
   };
 
 /** Verdict chip + decline copy used by the card and the executor. */

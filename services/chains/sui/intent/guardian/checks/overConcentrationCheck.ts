@@ -29,17 +29,19 @@ export type InputBalanceReader = (
 const WARN_CEILING_PCT = 70;
 const BLOCK_CEILING_PCT = 90;
 
-export const liveInputBalanceReader: InputBalanceReader = async ({
-  compiled,
-  ctx,
-}) => {
+export const liveInputBalanceReader: InputBalanceReader = async (args) => {
+  const { compiled, ctx, client } = args;
   if (!compiled.inputCoinType) return null;
   try {
-    const client = new SuiJsonRpcClient({
-      url: ctx.chain.rpcUrl,
-      network: ctx.chain.network,
-    });
-    const { totalBalance } = await client.getBalance({
+    // Reuse the executor's shared client when present (one RPC connection per
+    // preview); only construct one when called standalone.
+    const rpc =
+      client ??
+      new SuiJsonRpcClient({
+        url: ctx.chain.rpcUrl,
+        network: ctx.chain.network,
+      });
+    const { totalBalance } = await rpc.getBalance({
       owner: ctx.wallet.address,
       coinType: compiled.inputCoinType,
     });
@@ -62,7 +64,14 @@ export function createOverConcentrationCheck(
         return null;
       }
 
-      const balance = await readBalance(args);
+      // Prefer the balance the executor already read for its affordability
+      // gate (one RPC round-trip per preview instead of two). `null` = that
+      // read failed (no flag); `undefined` = not provided → read live here
+      // (the unit-test path that injects a reader).
+      const balance =
+        args.inputBalanceRaw !== undefined
+          ? args.inputBalanceRaw
+          : await readBalance(args);
       if (balance === null || balance <= 0n) return null;
 
       // Share of holdings this action consumes, rounded UP (conservative).

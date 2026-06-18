@@ -24,6 +24,7 @@ import {
   CheckCircle2,
   Coins,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react-native";
 import type React from "react";
@@ -52,6 +53,8 @@ type IntentPreviewData = {
   decoded?: DecodedCommand[];
   risk_flags?: RiskFlag[];
   blocked?: boolean;
+  /** Live on-chain reads the guardian performed this run (real, not canned). */
+  inspected?: string[];
 };
 
 type IntentPreviewOutput = {
@@ -212,6 +215,7 @@ const IntentPreviewCard: React.FC<
 
   const flags = Array.isArray(data.risk_flags) ? data.risk_flags : [];
   const decoded = Array.isArray(data.decoded) ? data.decoded : [];
+  const inspected = Array.isArray(data.inspected) ? data.inspected : [];
   const blocked =
     data.blocked === true || flags.some((f) => f.severity === "block");
   const hasWarn = flags.some((f) => f.severity === "warn");
@@ -285,6 +289,29 @@ const IntentPreviewCard: React.FC<
               </View>
             );
           })}
+        </View>
+      ) : null}
+
+      {/* 4b. What the guardian read on-chain this run (real state, not canned).
+            This is the "why Sui" proof: it dry-ran the exact PTB and inspected
+            live pool/balance state before signing. */}
+      {inspected.length > 0 ? (
+        <View className="mt-2.5 rounded-xl bg-gray-50 px-3 py-2">
+          <View className="flex-row items-center gap-1.5">
+            <ShieldCheck size={12} color={SUCCESS_GREEN} />
+            <Text className="text-[11px] font-bold uppercase tracking-wide text-gray-400">
+              Checked against live Sui state
+            </Text>
+          </View>
+          {inspected.map((line, i) => (
+            <View
+              key={`${line}-${i}`}
+              className="mt-1 flex-row items-center gap-1.5"
+            >
+              <CheckCircle2 size={11} color={SUCCESS_GREEN} />
+              <Text className="text-xs text-gray-600">{line}</Text>
+            </View>
+          ))}
         </View>
       ) : null}
 

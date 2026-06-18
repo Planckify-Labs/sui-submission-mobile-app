@@ -22,6 +22,13 @@
  */
 
 import { toBase64 } from "@mysten/bcs";
+import type {
+  Transaction,
+  TransactionObjectArgument,
+} from "@mysten/sui/transactions";
+import type { SuiChainConfig } from "@/constants/configs/chainConfig";
+import type { TWallet } from "@/constants/types/walletTypes";
+import { SuiSwapError } from "@/services/swap/sui/types";
 import { DefiError } from "../errors/defiErrors";
 import type {
   BuildDepositArgs,
@@ -78,6 +85,118 @@ export async function readScallopSupplyMeta(
   } catch (err) {
     devWarn("readScallopSupplyMeta", err);
     return {};
+  }
+}
+
+/** The swap leg appended into the shared tx (the DEX side of a zap). */
+export interface ZapSwapLeg {
+  outputCoin: TransactionObjectArgument;
+  leftoverCoins: TransactionObjectArgument[];
+  expectedOut: bigint;
+  priceImpact: number;
+  toCoinType: string;
+  poolObjectId?: string;
+}
+
+export interface ZapSupplyArgs {
+  wallet: TWallet;
+  chain: SuiChainConfig;
+  /** Symbol of the asset to swap INTO and then supply (e.g. "USDC"). */
+  supplyAssetSymbol: string;
+  /**
+   * Appends the swap leg to the shared `Transaction` and returns its output
+   * coin + leftovers. Injected so the DEX SDK stays in the swap layer — this
+   * module owns only the Scallop deposit leg (space-docking).
+   */
+  appendSwap: (tx: Transaction) => Promise<ZapSwapLeg | null>;
+}
+
+export interface ZapSupplyResult {
+  ptbBase64: string;
+  expectedOut: bigint;
+  priceImpact: number;
+  toCoinType: string;
+  poolObjectId?: string;
+}
+
+/**
+ * Atomic swap→supply (spec §4.7, the "why Sui" hero) — MAINNET-ONLY.
+ *
+ * Builds ONE Programmable Transaction Block that swaps `fromAsset`→`toAsset`
+ * on a DEX and supplies the resulting coin to Scallop, all-or-nothing. The
+ * Scallop SDK is the master tx (its `ScallopTxBlock.txBlock` IS a `@mysten/sui`
+ * `Transaction`, and the docs support driving both together); the DEX swap
+ * appends to that same tx and we feed its output coin straight into
+ * `scallopTxBlock.deposit(coin, coinName)` (official builder API, returns the
+ * market coin). The market coin + any swap leftovers transfer back to the user.
+ *
+ * On EVM/Solana there is no atomic multi-step preview like this — that is the
+ * Sui-specific advantage the Intent Engine showcases. Every SDK failure maps
+ * to a curated `DefiError`/`SuiSwapError`, never a raw string.
+ */
+export async function buildScallopZapSupply(
+  args: ZapSupplyArgs,
+): Promise<ZapSupplyResult> {
+  if (args.chain.namespace !== "sui") {
+    throw new DefiError("unsupported_chain", "scallop: requires sui namespace");
+  }
+  const coin = resolveScallopCoin(args.supplyAssetSymbol);
+  if (!coin) {
+    throw new DefiError(
+      "unsupported_asset",
+      `scallop: ${args.supplyAssetSymbol}`,
+    );
+  }
+  try {
+    const builder = await createBuilder();
+    const stx = builder.createTxBlock();
+    // Version-skew boundary (the ONLY reason for the casts here): Scallop's
+    // `sui-kit@1.4.x` bundles `@mysten/sui@^1.x`, but this app runs
+    // `@mysten/sui@^2.x`. The SDK DOES type these — `ScallopTxBlock.txBlock`
+    // is `Transaction` and `deposit(coin: SuiObjectArg, poolCoinName)` returns
+    // `TransactionResult` — but those are the SAME shapes from a DIFFERENT
+    // major version, so TS sees them as nominally distinct. We bridge
+    // structurally at this one seam, exactly like the DeepBook path
+    // (`as unknown as DeepBookCompatibleClient`, "2.16 vs the SDK's 2.18 peer
+    // differ only structurally"). Runtime validation is the mainnet smoke
+    // test (spec §14.5).
+    const tx = stx.txBlock as unknown as Transaction;
+    tx.setSender(args.wallet.address);
+
+    const swap = await args.appendSwap(tx);
+    if (!swap) {
+      throw new DefiError("deposit_failed", "zap: swap leg unavailable");
+    }
+
+    // Supply the swapped coin to Scallop; `deposit(coin, poolCoinName)` returns
+    // the market coin (official builder API). The cast targets the SDK's REAL
+    // first-parameter type (`SuiObjectArg` from sui-kit), not `never`, so a
+    // genuine signature change still fails to compile — it only bridges the
+    // 1.x↔2.x `TransactionObjectArgument` skew described above.
+    const marketCoin = stx.deposit(
+      swap.outputCoin as unknown as Parameters<typeof stx.deposit>[0],
+      coin.coinName,
+    ) as unknown as TransactionObjectArgument;
+
+    // Return the market coin + any swap leftovers (unused input + DEEP).
+    tx.transferObjects(
+      [marketCoin, ...swap.leftoverCoins],
+      tx.pure.address(args.wallet.address),
+    );
+
+    const bytes = await tx.build({ client: builder.suiKit.client });
+    return {
+      ptbBase64: toBase64(bytes),
+      expectedOut: swap.expectedOut,
+      priceImpact: swap.priceImpact,
+      toCoinType: swap.toCoinType,
+      poolObjectId: swap.poolObjectId,
+    };
+  } catch (err) {
+    if (err instanceof DefiError) throw err;
+    if (err instanceof SuiSwapError) throw err; // preserve actionable swap reason
+    devWarn("buildScallopZapSupply", err);
+    throw new DefiError("deposit_failed", "zap: build failed");
   }
 }
 

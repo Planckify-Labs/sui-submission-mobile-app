@@ -96,10 +96,17 @@ function buildSuiExplorerUrl(
   return `https://suivision.xyz/txblock/${digest}`;
 }
 
-function networkLabel(network: string | undefined): string {
+/**
+ * Network chip label, or `null` when the network is unknown. A failed result
+ * carries no `data.network`, so we must NOT default to "Mainnet" — that
+ * wrongly implied a mainnet execution on a testnet swap. Render nothing
+ * instead; successful results always carry the real network.
+ */
+function networkLabel(network: string | undefined): string | null {
+  if (network === "mainnet") return "Mainnet";
   if (network === "devnet") return "Devnet";
   if (network === "testnet") return "Testnet";
-  return "Mainnet";
+  return null;
 }
 
 function ResultCard({
@@ -130,6 +137,7 @@ function ResultCard({
   const data: SuiWriteData = output.data ?? {};
   const digest = typeof data.digest === "string" ? data.digest : undefined;
   const network = typeof data.network === "string" ? data.network : undefined;
+  const netLabel = networkLabel(network);
   const explorerUrl = digest ? buildSuiExplorerUrl(digest, network) : undefined;
   const canOpen = typeof explorerUrl === "string";
 
@@ -154,9 +162,11 @@ function ResultCard({
           <Text className="text-xs font-bold uppercase tracking-wide text-light-primary-red">
             Failed
           </Text>
-          <Text className="ml-auto text-[11px] text-gray-500">
-            {networkLabel(network)}
-          </Text>
+          {netLabel ? (
+            <Text className="ml-auto text-[11px] text-gray-500">
+              {netLabel}
+            </Text>
+          ) : null}
         </View>
         <Text className="text-sm text-light-matte-black/80 mt-1.5">
           {description}
@@ -194,9 +204,9 @@ function ResultCard({
         <Text className="text-xs font-bold uppercase tracking-wide text-green-700">
           Confirmed
         </Text>
-        <Text className="ml-auto text-[11px] text-gray-500">
-          {networkLabel(network)}
-        </Text>
+        {netLabel ? (
+          <Text className="ml-auto text-[11px] text-gray-500">{netLabel}</Text>
+        ) : null}
       </View>
       <Text className="text-sm text-light-matte-black/80 mt-1.5">
         {description}

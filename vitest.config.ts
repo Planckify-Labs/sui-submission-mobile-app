@@ -24,6 +24,9 @@ export default defineConfig({
       "services/chains/sui/intent/compileIntentToPtb.test.ts",
       "services/chains/sui/intent/guardian/guardian.test.ts",
       "services/swap/sui/venueSelector.test.ts",
+      "services/swap/sui/appendIntentReceipt.test.ts",
+      "services/swap/sui/intentReceiptPackageId.test.ts",
+      "services/agent-executors/defi/intentExecutors.test.ts",
     ],
   },
 });

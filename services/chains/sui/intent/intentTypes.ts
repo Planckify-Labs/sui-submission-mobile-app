@@ -41,4 +41,10 @@ export interface CompiledIntent {
   inputCoinType?: string;
   /** Resolved raw input amount being deployed (same units as `inputCoinType`). */
   inputAmountRaw?: bigint;
+  /**
+   * Resolved OUTPUT coinType the wallet should receive (swap only) — lets the
+   * effect-mismatch guardian verify the dry-run actually credits this coin to
+   * the sender, instead of trusting the venue quote alone.
+   */
+  outputCoinType?: string;
 }

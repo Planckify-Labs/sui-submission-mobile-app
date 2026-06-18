@@ -27,23 +27,29 @@ const SWAP_WINDOW_MS = 60_000; // 60s
 const LENDING_WINDOW_MS = 30 * 60_000; // 30 min
 
 function windowFor(action: string): number {
-  return action === "swap" ? SWAP_WINDOW_MS : LENDING_WINDOW_MS;
+  // Anything that touches a DEX price (swap, or the swap leg of a zap) needs
+  // a fresh price; a pure lending supply/withdraw accrues slowly.
+  return action === "supply" || action === "withdraw"
+    ? LENDING_WINDOW_MS
+    : SWAP_WINDOW_MS;
 }
 
 /**
  * Production reader: object's `previousTransaction` → that block's
  * `timestampMs`. Two reads; wrapped so any failure returns null.
  */
-export const livePoolFreshnessReader: PoolFreshnessReader = async ({
-  compiled,
-  ctx,
-}) => {
+export const livePoolFreshnessReader: PoolFreshnessReader = async (args) => {
+  const { compiled, ctx, client: shared } = args;
   if (!compiled.poolObjectId) return null;
   try {
-    const client = new SuiJsonRpcClient({
-      url: ctx.chain.rpcUrl,
-      network: ctx.chain.network,
-    });
+    // Reuse the executor's shared client when present (one connection per
+    // preview); only construct one when called standalone (e.g. unit tests).
+    const client =
+      shared ??
+      new SuiJsonRpcClient({
+        url: ctx.chain.rpcUrl,
+        network: ctx.chain.network,
+      });
     const obj = await client.getObject({
       id: compiled.poolObjectId,
       options: { showPreviousTransaction: true },

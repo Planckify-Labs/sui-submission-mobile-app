@@ -13,13 +13,18 @@
  * RPC/SDK string.
  */
 
+import type { SuiJsonRpcClient } from "@mysten/sui/jsonRpc";
 import type { SuiSimulationSummary } from "@/services/chains/sui/payloads";
 import type { Intent } from "../intentSchema";
 import type { CompileContext, CompiledIntent } from "../intentTypes";
 
 export type Severity = "info" | "warn" | "block";
 
-export type RiskCode = "slippage.high" | "oracle.stale" | "concentration.high";
+export type RiskCode =
+  | "slippage.high"
+  | "oracle.stale"
+  | "concentration.high"
+  | "effect.mismatch";
 
 export interface RiskFlag {
   code: RiskCode;
@@ -36,6 +41,19 @@ export interface RiskCheckArgs {
   /** From `simulateSuiTransaction` (dryRunTransactionBlock). May be null on RPC failure. */
   dryRun: SuiSimulationSummary | null;
   ctx: CompileContext;
+  /**
+   * Shared RPC client for live on-chain reads, created once by the executor
+   * so the checks don't each spin up their own. Optional: when absent (unit
+   * tests inject their readers), a live reader falls back to constructing one.
+   */
+  client?: SuiJsonRpcClient;
+  /**
+   * The paying wallet's raw balance of `compiled.inputCoinType`, pre-read
+   * ONCE by the executor (it already reads it for the affordability gate) so
+   * the over-concentration check needn't read it again. `null` means the read
+   * failed (no flag); `undefined` means not provided → the check reads live.
+   */
+  inputBalanceRaw?: bigint | null;
 }
 
 export interface RiskCheck {
