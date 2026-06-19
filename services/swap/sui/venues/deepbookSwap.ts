@@ -313,7 +313,6 @@ export async function appendDeepbookSwap(
     resolved.poolKey,
     resolved.side,
     amountIn,
-    expectedOutDecimal,
   );
 
   const minOutDecimal =
@@ -363,21 +362,77 @@ export async function appendDeepbookSwap(
  * reference is the swap valued at the pool's mid price. Returns 0 when the
  * mid price is unavailable (the on-chain `minOut` is still enforced).
  */
+/**
+ * Price impact = how far the order's volume-weighted execution price sits from
+ * the mid, computed FROM THE ORDER BOOK — i.e. pure market depth, with NO fee
+ * in it.
+ *
+ * The earlier version compared the swap's *post-fee* quote against mid, which
+ * counted the DeepBook taker fee (large on the no-DEEP `…InputFee` path used
+ * here) as "price impact" — so a ~$4 swap on the deep `SUI_USDC` book reported
+ * ~9% impact and the guardian blocked a perfectly fine trade. Impact and fee
+ * are different costs: impact is depth (this function), the fee is a separate
+ * flat cost, and the guardian's on-chain dry-run is the authoritative check on
+ * the *actual* received amount. We walk the book the order would consume and
+ * take the VWAP vs mid; a too-large order that exhausts the returned depth adds
+ * the unfilled fraction as impact so genuine thin-pool cases still flag.
+ */
 async function computePriceImpact(
   db: DeepBookClient,
   poolKey: string,
   side: "base->quote" | "quote->base",
   amountIn: number,
-  expectedOut: number,
 ): Promise<number> {
   try {
-    const mid = await db.midPrice(poolKey); // quote per base
-    if (!Number.isFinite(mid) || mid <= 0) return 0;
-    const referenceOut =
-      side === "base->quote" ? amountIn * mid : amountIn / mid;
-    if (!Number.isFinite(referenceOut) || referenceOut <= 0) return 0;
-    const impact = (referenceOut - expectedOut) / referenceOut;
-    return impact > 0 ? impact : 0;
+    // Wide enough to cover any demo-sized order on a liquid pool; a huge order
+    // that still exhausts it falls through to the shortfall term below.
+    const book = await db.getLevel2TicksFromMid(poolKey, 100);
+    const bestBid = book.bid_prices?.[0];
+    const bestAsk = book.ask_prices?.[0];
+    if (
+      !Number.isFinite(bestBid) ||
+      !Number.isFinite(bestAsk) ||
+      bestBid <= 0 ||
+      bestAsk <= 0
+    ) {
+      return 0; // no readable book → don't fabricate impact; dry-run is the guard
+    }
+    const mid = (bestBid + bestAsk) / 2;
+
+    if (side === "base->quote") {
+      // Selling `amountIn` base into the bids (best/highest first).
+      let baseLeft = amountIn;
+      let quoteOut = 0;
+      for (
+        let i = 0;
+        i < book.bid_prices.length && baseLeft > 0;
+        i++
+      ) {
+        const fill = Math.min(book.bid_quantities[i], baseLeft);
+        quoteOut += fill * book.bid_prices[i];
+        baseLeft -= fill;
+      }
+      const filled = amountIn - baseLeft;
+      if (filled <= 0) return 1;
+      const vwap = quoteOut / filled; // quote per base
+      const depthImpact = Math.max(0, (mid - vwap) / mid);
+      return depthImpact + baseLeft / amountIn; // + unfilled shortfall
+    }
+
+    // quote->base: buying base with `amountIn` quote from the asks (best first).
+    let quoteLeft = amountIn;
+    let baseOut = 0;
+    for (let i = 0; i < book.ask_prices.length && quoteLeft > 0; i++) {
+      const px = book.ask_prices[i];
+      const spend = Math.min(book.ask_quantities[i] * px, quoteLeft);
+      baseOut += spend / px;
+      quoteLeft -= spend;
+    }
+    const spent = amountIn - quoteLeft;
+    if (baseOut <= 0 || spent <= 0) return 1;
+    const vwap = spent / baseOut; // quote per base
+    const depthImpact = Math.max(0, (vwap - mid) / mid);
+    return depthImpact + quoteLeft / amountIn;
   } catch {
     return 0;
   }
