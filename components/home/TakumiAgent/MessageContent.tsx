@@ -92,22 +92,35 @@ function computeSuppressedToolParts(message: AgentMessage): Set<string> {
 }
 
 /**
- * Catalog-family tools: when the agent's first call fails and it
- * retries with a sibling, the failed card sticks around and renders
- * the "Couldn't load catalog" banner above the in-flight one. Suppress
- * the failed card as soon as a later catalog-family sibling appears in
- * the same message — pending, succeeded, or otherwise — so the user
- * sees the new card's loading skeleton instead of the stale error.
+ * Tool families where a FAILED part is transient: when the agent's first
+ * call fails and it retries with a sibling, the failed card sticks around
+ * and renders an error banner above the in-flight one. Suppress the failed
+ * card as soon as a later sibling of the SAME family appears in the message
+ * — pending, succeeded, or otherwise — so the user sees the new card's
+ * skeleton/result instead of the stale error.
+ *
+ *  - Catalog family: `get_redemption_catalog` & co. retry across siblings
+ *    ("Couldn't load catalog").
+ *  - Intent-preview family: a relative-amount swap ("90% of my SUI") can
+ *    fail a `defi_intent_preview` attempt and retry; the stale yellow
+ *    "couldn't prepare that plan" / "not enough balance" banner must vanish
+ *    once a later preview supersedes it (Sui Overflow Scene 3 — the guardian
+ *    block must show ONE clean NOT-RECOMMENDED card, no leftover errors).
  *
  * Mirrors the balance-tool dedupe above; the key difference is that
- * "in-flight" counts as "supersedes the earlier failure" — we don't
- * wait for the retry to land.
+ * "in-flight" counts as "supersedes the earlier failure" — we don't wait
+ * for the retry to land. A *blocked* preview is output-available (not
+ * failed), so the final NOT-RECOMMENDED card is never suppressed and is
+ * exactly what supersedes the earlier failures.
  */
-const CATALOG_TOOL_NAMES = new Set([
-  "get_redemption_catalog",
-  "search_redemption_catalog",
-  "get_redemption_categories",
-]);
+const RETRY_SUPERSEDE_FAMILIES: ReadonlyArray<ReadonlySet<string>> = [
+  new Set([
+    "get_redemption_catalog",
+    "search_redemption_catalog",
+    "get_redemption_categories",
+  ]),
+  new Set(["defi_intent_preview"]),
+];
 
 function isFailedToolPart(output: unknown, state: string): boolean {
   if (state === "output-error") return true;
@@ -117,30 +130,31 @@ function isFailedToolPart(output: unknown, state: string): boolean {
   return false;
 }
 
-function computeSuppressedCatalogParts(message: AgentMessage): Set<string> {
-  const catalogParts: Array<{
-    toolCallId: string;
-    index: number;
-    failed: boolean;
-  }> = [];
-  message.parts.forEach((part, index) => {
-    if (part.type !== "tool") return;
-    if (!CATALOG_TOOL_NAMES.has(part.toolName)) return;
-    catalogParts.push({
-      toolCallId: part.toolCallId,
-      index,
-      failed: isFailedToolPart(part.output, part.state),
-    });
-  });
-
+function computeSuppressedRetryParts(message: AgentMessage): Set<string> {
   const suppressed = new Set<string>();
-  for (const a of catalogParts) {
-    if (!a.failed) continue;
-    // A failed catalog part is replaced by ANY later catalog-family
-    // sibling — the later one's own state (skeleton / success / error)
-    // owns the visual slot from that point on.
-    const supersededBy = catalogParts.find((b) => b.index > a.index);
-    if (supersededBy) suppressed.add(a.toolCallId);
+  for (const family of RETRY_SUPERSEDE_FAMILIES) {
+    const familyParts: Array<{
+      toolCallId: string;
+      index: number;
+      failed: boolean;
+    }> = [];
+    message.parts.forEach((part, index) => {
+      if (part.type !== "tool") return;
+      if (!family.has(part.toolName)) return;
+      familyParts.push({
+        toolCallId: part.toolCallId,
+        index,
+        failed: isFailedToolPart(part.output, part.state),
+      });
+    });
+
+    for (const a of familyParts) {
+      if (!a.failed) continue;
+      // A failed part is replaced by ANY later sibling of the same family —
+      // the later one's own state (skeleton / success / error) owns the slot.
+      const supersededBy = familyParts.find((b) => b.index > a.index);
+      if (supersededBy) suppressed.add(a.toolCallId);
+    }
   }
   return suppressed;
 }
@@ -149,7 +163,7 @@ const MessageContent: React.FC<MessageContentProps> = React.memo(
   ({ message, mode, addToolResult, onUserPrompt }) => {
     const isUser = message.role === "user";
     const suppressedBalanceParts = computeSuppressedToolParts(message);
-    const suppressedCatalogParts = computeSuppressedCatalogParts(message);
+    const suppressedRetryParts = computeSuppressedRetryParts(message);
     const originDisplayName = useOriginAgentDisplay(message.originAgentId);
 
     return (
@@ -164,14 +178,21 @@ const MessageContent: React.FC<MessageContentProps> = React.memo(
             if (isUser) {
               return <PlainTextMessage key={`text-${i}`} content={part.text} />;
             }
-            return <MarkdownMessage key={`text-${i}`} content={part.text} />;
+            // Space consecutive assistant text blocks so two segments never
+            // glue into a run-on ("…have it!I need…"). The first block sits
+            // flush; later blocks get a paragraph gap above.
+            return (
+              <View key={`text-${i}`} className={i > 0 ? "mt-2" : undefined}>
+                <MarkdownMessage content={part.text} />
+              </View>
+            );
           }
 
           if (part.type === "tool") {
             const Component = toolComponents[part.toolName];
             if (!Component) return null;
             if (suppressedBalanceParts.has(part.toolCallId)) return null;
-            if (suppressedCatalogParts.has(part.toolCallId)) return null;
+            if (suppressedRetryParts.has(part.toolCallId)) return null;
 
             const liveCallback =
               mode === "live" && addToolResult
