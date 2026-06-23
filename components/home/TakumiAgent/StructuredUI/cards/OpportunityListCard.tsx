@@ -21,6 +21,7 @@ import type React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import SingleLoadingSekeleton from "@/components/common/SingleLoadingSekeleton";
 import { useUserStrategy } from "@/hooks/queries/useStrategy";
+import { getChainFamilyLabel } from "@/services/walletKit/chainInfo";
 import type { ToolComponentProps } from "../types";
 import SetupStrategyCTA from "./SetupStrategyCTA";
 
@@ -101,8 +102,13 @@ function chainLabel(
   namespace?: string,
 ): string | null {
   if (chainName && chainName.trim()) return chainName;
-  if (namespace === "solana") return "Solana";
-  if (namespace === "sui") return "Sui";
+  // Non-EVM payloads (Solana / Sui) carry a namespace but no numeric
+  // chainId — ask the registry for the chain-family label instead of
+  // branching on the namespace string here.
+  if (chainId === undefined && namespace) {
+    const label = getChainFamilyLabel(namespace);
+    if (label !== "Wallet") return label;
+  }
   switch (chainId) {
     case 1:
       return "Ethereum";
@@ -264,8 +270,8 @@ const OpportunityListCard: React.FC<
           </Text>
         </View>
         <Text className="text-sm text-light-matte-black/80 mt-1.5">
-          We couldn&apos;t load yield opportunities right now. Please try again in a
-          moment.
+          We couldn&apos;t load yield opportunities right now. Please try again
+          in a moment.
         </Text>
       </View>
     );

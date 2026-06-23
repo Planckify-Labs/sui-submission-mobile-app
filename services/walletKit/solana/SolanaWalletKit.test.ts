@@ -26,6 +26,7 @@ import { describe, it } from "node:test";
 
 import { mainnet } from "viem/chains";
 
+import type { TBlockchain } from "../../../api/types/blockchain.ts";
 import type { ChainConfig } from "../../../constants/configs/chainConfig.ts";
 import { createSolanaWalletKit } from "./SolanaWalletKit.ts";
 
@@ -266,4 +267,105 @@ describe("SolanaWalletKit network methods — namespace guard", () => {
   // the kit surface. The primitives are already covered in
   // `services/chains/solana/transferService.test.ts`; the kit surface
   // only adds thin RPC construction + namespace-narrowing over them.
+});
+
+const solanaMainnetChain: ChainConfig = {
+  namespace: "solana",
+  cluster: "mainnet-beta",
+  rpcUrl: "https://api.mainnet-beta.solana.com",
+};
+
+function blockchainRow(partial: Partial<TBlockchain>): TBlockchain {
+  return {
+    id: "row",
+    name: "Row",
+    chainId: null,
+    chainSlug: null,
+    rpcUrl: "",
+    blockExplorer: "",
+    isEVM: false,
+    isActive: true,
+    isTestnet: false,
+    updatedAt: "",
+    ...partial,
+  } as TBlockchain;
+}
+
+describe("SolanaWalletKit — chain-agnostic capabilities", () => {
+  const kit = createSolanaWalletKit();
+
+  it("getAuthChainSlug maps cluster -> slug; null off-namespace", () => {
+    assert.equal(kit.getAuthChainSlug?.(solanaDevnetChain), "solana-devnet");
+    assert.equal(kit.getAuthChainSlug?.(solanaMainnetChain), "solana-mainnet");
+    assert.equal(kit.getAuthChainSlug?.(ethereumChain), null);
+  });
+
+  it("advertises solana defaults", () => {
+    assert.equal(kit.defaultAuthChainSlug, "solana-mainnet");
+    assert.equal(kit.preferredPaymentRail, "solana");
+  });
+
+  it("matchesBlockchainRow matches by chainSlug + testnet parity", () => {
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        solanaDevnetChain,
+        blockchainRow({ chainSlug: "solana-devnet", isTestnet: true }),
+      ),
+      true,
+    );
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        solanaMainnetChain,
+        blockchainRow({ chainSlug: "solana-mainnet", isTestnet: false }),
+      ),
+      true,
+    );
+  });
+
+  it("matchesBlockchainRow rejects testnet mismatch, EVM rows, and sui rows", () => {
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        solanaMainnetChain,
+        blockchainRow({ chainSlug: "solana-devnet", isTestnet: true }),
+      ),
+      false,
+    );
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        solanaMainnetChain,
+        blockchainRow({ isEVM: true, chainId: 1 }),
+      ),
+      false,
+    );
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        solanaMainnetChain,
+        blockchainRow({ chainSlug: "sui-mainnet" }),
+      ),
+      false,
+    );
+  });
+
+  it("matchesBlockchainRow falls back to name/rpc heuristic without chainSlug", () => {
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        solanaMainnetChain,
+        blockchainRow({
+          name: "Solana",
+          rpcUrl: "https://api.mainnet-beta.solana.com",
+        }),
+      ),
+      true,
+    );
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        solanaMainnetChain,
+        blockchainRow({
+          name: "Sui",
+          rpcUrl: "https://fullnode.mainnet.sui.io",
+        }),
+      ),
+      false,
+    );
+  });
 });

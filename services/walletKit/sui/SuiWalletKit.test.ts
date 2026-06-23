@@ -24,6 +24,7 @@ import { describe, it } from "node:test";
 
 import { mainnet } from "viem/chains";
 
+import type { TBlockchain } from "../../../api/types/blockchain.ts";
 import type { ChainConfig } from "../../../constants/configs/chainConfig.ts";
 import { mnemonicToSuiKeypair } from "../../chains/sui/derivation.ts";
 import { createSuiWalletKit } from "./SuiWalletKit.ts";
@@ -452,4 +453,78 @@ describe("SuiWalletKit signing-path delegation — fail-loud guards", () => {
   // `services/chains/sui/transferService.ts` + `coinTransferService.ts`;
   // the kit surface only adds thin RPC construction + namespace narrowing
   // over them.
+});
+
+function suiBlockchainRow(partial: Partial<TBlockchain>): TBlockchain {
+  return {
+    id: "row",
+    name: "Row",
+    chainId: null,
+    chainSlug: null,
+    rpcUrl: "",
+    blockExplorer: "",
+    isEVM: false,
+    isActive: true,
+    isTestnet: false,
+    updatedAt: "",
+    ...partial,
+  } as TBlockchain;
+}
+
+describe("SuiWalletKit — chain-agnostic capabilities", () => {
+  const kit = createSuiWalletKit();
+
+  it("getAuthChainSlug maps network -> slug; null off-namespace", () => {
+    assert.equal(kit.getAuthChainSlug?.(suiMainnetChain), "sui-mainnet");
+    assert.equal(kit.getAuthChainSlug?.(suiTestnetChain), "sui-testnet");
+    assert.equal(kit.getAuthChainSlug?.(suiDevnetChain), "sui-devnet");
+    assert.equal(kit.getAuthChainSlug?.(ethereumChain), null);
+  });
+
+  it("advertises sui auth default and no payment rail (EVM fallback)", () => {
+    assert.equal(kit.defaultAuthChainSlug, "sui-mainnet");
+    // Sui has no dedicated merchant-payment rail; chainInfo defaults it to "evm".
+    assert.equal(kit.preferredPaymentRail, undefined);
+  });
+
+  it("matchesBlockchainRow matches by chainSlug + testnet parity", () => {
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        suiMainnetChain,
+        suiBlockchainRow({ chainSlug: "sui-mainnet", isTestnet: false }),
+      ),
+      true,
+    );
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        suiTestnetChain,
+        suiBlockchainRow({ chainSlug: "sui-testnet", isTestnet: true }),
+      ),
+      true,
+    );
+  });
+
+  it("matchesBlockchainRow rejects testnet mismatch, EVM rows, and solana rows", () => {
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        suiMainnetChain,
+        suiBlockchainRow({ chainSlug: "sui-testnet", isTestnet: true }),
+      ),
+      false,
+    );
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        suiMainnetChain,
+        suiBlockchainRow({ isEVM: true, chainId: 1 }),
+      ),
+      false,
+    );
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        suiMainnetChain,
+        suiBlockchainRow({ chainSlug: "solana-mainnet" }),
+      ),
+      false,
+    );
+  });
 });

@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNonce } from "@/hooks/queries/useAuth";
 import useRQGlobalState from "@/hooks/useRQGlobalState";
 import { useWallet } from "@/hooks/useWallet";
-import { getEvmChainId } from "@/services/walletKit/chainInfo";
+import { getNonceParams } from "@/services/walletKit/chainInfo";
 
 interface TSignMessageModalProps {
   visible: boolean;
@@ -51,22 +51,13 @@ const SignMessageModal: React.FC<TSignMessageModalProps> = ({
 
   const { activeWallet, activeChain } = useWallet();
 
-  // Namespace-aware nonce fetch — EVM passes chainId, Solana passes
-  // chainSlug. Using `getEvmChainId` unconditionally (previous behavior)
-  // returned undefined for Solana wallets and the server 400'd the
-  // request with "Invalid Ethereum wallet address format".
-  const isSolana = activeWallet?.namespace === "solana";
-  const activeChainId = getEvmChainId(activeChain);
-  const solanaChainSlug = isSolana
-    ? activeChain?.namespace === "solana" && activeChain.cluster === "devnet"
-      ? "solana-devnet"
-      : "solana-mainnet"
-    : undefined;
-
-  const nonceOpts = isSolana
-    ? { chainSlug: solanaChainSlug }
-    : { chainId: activeChainId };
-  const nonceSelector = isSolana ? solanaChainSlug : activeChainId;
+  // Namespace-aware nonce fetch — EVM passes chainId, non-EVM (Solana)
+  // passes chainSlug. `getNonceParams` owns the per-family mapping and the
+  // race-safe mainnet fallback (active chain can momentarily lag a wallet
+  // switch), so this stays chain-agnostic instead of 400'ing on the wrong
+  // ("Invalid Ethereum wallet address format") path.
+  const nonceOpts = getNonceParams(activeWallet, activeChain);
+  const nonceSelector = nonceOpts.chainSlug ?? nonceOpts.chainId;
 
   const { data: fetchedNonceData, refetch: refetchNonce } = useNonce(
     activeWallet?.address,

@@ -97,10 +97,7 @@ import {
 } from "@/hooks/queries/usePaymentTokens";
 import { useBlockchainsWithStorage } from "@/hooks/useBlockchainsWithStorage";
 import { useWallet } from "@/hooks/useWallet";
-import {
-  buildChainConfigFromBlockchain,
-  resolveNamespace,
-} from "@/hooks/useWallet.helpers";
+import { buildChainConfigFromBlockchain } from "@/hooks/useWallet.helpers";
 import {
   classifyPaymentError,
   type PaymentErrorCode,
@@ -129,6 +126,13 @@ import {
   postOnchainSubmit,
 } from "@/services/nanopay/pathOnchainSettlement";
 import { executeOnchainSettlementSvm } from "@/services/nanopay/pathOnchainSettlementSvm";
+import {
+  formatChainLabel,
+  getEvmChainId,
+  getNonceParams,
+  matchesBlockchainRow,
+  preferredChainRail,
+} from "@/services/walletKit/chainInfo";
 
 /** Arc Testnet viem chainId — source chain for the Nanopay EIP-3009 sig. */
 const ARC_TESTNET_CHAIN_ID = 5042002;
@@ -426,8 +430,7 @@ function IntentFlow({
       setPhase("error");
       return;
     }
-    const activeEvmChainId =
-      activeChain.namespace === "eip155" ? activeChain.chain.id : null;
+    const activeEvmChainId = getEvmChainId(activeChain) ?? null;
     if (activeEvmChainId !== sourceChainId) {
       const ok = await changeActiveChainToConfig(sourceChainConfig);
       if (!ok) {
@@ -635,8 +638,7 @@ function PathACard({
       setPhase("error");
       return;
     }
-    const activeEvmChainId =
-      activeChain.namespace === "eip155" ? activeChain.chain.id : null;
+    const activeEvmChainId = getEvmChainId(activeChain) ?? null;
     if (activeEvmChainId !== sourceChainId) {
       const ok = await changeActiveChainToConfig(sourceChainConfig);
       if (!ok) {
@@ -1008,18 +1010,10 @@ function OnchainCard({
       setPhase("signing");
       setError(null);
 
-      if (intentChainConfig.namespace === "solana") {
-        if (typeof kit.sendAnchorInstruction !== "function") {
-          setError(
-            makeLocalError(
-              "wallet_unsupported",
-              "Solana kit missing sendAnchorInstruction",
-            ),
-          );
-          setPhase("error");
-          return;
-        }
-
+      // Dispatch on the kit's settlement capability, not the chain
+      // namespace: Solana settles via an Anchor instruction, EVM via a
+      // contract transaction — each kit advertises exactly one.
+      if (typeof kit.sendAnchorInstruction === "function") {
         const programIdStr = paymentContract?.address;
         if (!programIdStr) {
           setError(
@@ -1047,18 +1041,7 @@ function OnchainCard({
           blockchainId: intent.blockchainId!,
           poster: defaultOnchainSubmitPoster,
         }).catch(() => null);
-      } else {
-        if (typeof kit.sendContractTransaction !== "function") {
-          setError(
-            makeLocalError(
-              "wallet_unsupported",
-              "EVM kit missing sendContractTransaction",
-            ),
-          );
-          setPhase("error");
-          return;
-        }
-
+      } else if (typeof kit.sendContractTransaction === "function") {
         const contractAddress = paymentContract?.address as
           | `0x${string}`
           | undefined;
@@ -1088,6 +1071,15 @@ function OnchainCard({
           blockchainId: intent.blockchainId!,
           poster: defaultOnchainSubmitPoster,
         }).catch(() => null);
+      } else {
+        setError(
+          makeLocalError(
+            "wallet_unsupported",
+            "Wallet can't settle payments on this chain",
+          ),
+        );
+        setPhase("error");
+        return;
       }
 
       setPhase("settled");
@@ -1143,11 +1135,7 @@ function OnchainCard({
 
   const networkLabel =
     intentBlockchainRow?.name ??
-    (intentChainConfig?.namespace === "solana"
-      ? `Solana ${intentChainConfig.cluster === "devnet" ? "Devnet" : "Mainnet"}`
-      : intentChainConfig?.namespace === "eip155"
-        ? intentChainConfig.chain.name
-        : "Unknown");
+    (intentChainConfig ? formatChainLabel(intentChainConfig) : "Unknown");
 
   return (
     <View className="bg-light rounded-3xl p-6 shadow-md-">
@@ -1377,18 +1365,9 @@ function MintFallback({
   // payment-disabled.
   useEffect(() => {
     if (selectedChainId || !availableChains.length) return;
-    const match = availableChains.find((b) => {
-      if (activeChain.namespace === "eip155") {
-        return b.isEVM && b.chainId === activeChain.chain.id;
-      }
-      if (activeChain.namespace === "solana") {
-        return (
-          resolveNamespace(b) === "solana" &&
-          b.isTestnet === (activeChain.cluster === "devnet")
-        );
-      }
-      return false;
-    });
+    const match = availableChains.find((b) =>
+      matchesBlockchainRow(activeChain, b),
+    );
     setSelectedChainId(match?.id ?? availableChains[0].id);
   }, [activeChain, availableChains, selectedChainId]);
 
@@ -1473,23 +1452,9 @@ function MintFallback({
   }, [selectedWallet]);
 
   // ── Inline sign-in (SIWE / SIWS via kit.signAuthMessage) ─────────
-  const solanaChainSlug =
-    selectedChainConfig?.namespace === "solana"
-      ? selectedChainConfig.cluster === "devnet"
-        ? "solana-devnet"
-        : "solana-mainnet"
-      : undefined;
+  const nonceOpts = getNonceParams(selectedChainConfig, selectedChainConfig);
 
-  const nonceOpts = solanaChainSlug
-    ? { chainSlug: solanaChainSlug }
-    : selectedChainConfig?.namespace === "eip155"
-      ? { chainId: selectedChainConfig.chain.id }
-      : {};
-
-  const { data: nonceData } = useNonce(
-    selectedWallet?.address,
-    nonceOpts as { chainId?: number; chainSlug?: string },
-  );
+  const { data: nonceData } = useNonce(selectedWallet?.address, nonceOpts);
   const { mutateAsync: verifySignature } = useVerifySignature();
 
   const handleSignIn = useCallback(async () => {
@@ -1686,8 +1651,9 @@ function MintFallback({
           selectedWallet?.address,
         );
       }
-      const preferredChain =
-        selectedChainConfig?.namespace === "solana" ? "solana" : "evm";
+      const preferredChain = selectedChainConfig
+        ? preferredChainRail(selectedChainConfig)
+        : "evm";
       const created = await createIntent.mutateAsync({
         scannedPayload: raw,
         currency: "IDR",
@@ -2459,8 +2425,8 @@ function MissingIntentCard() {
         Missing intent
       </Text>
       <Text className="text-light-matte-black/60 text-sm mb-6">
-        We couldn&apos;t find a payment intent for this link. Scan a merchant QR or
-        open a valid payment link to continue.
+        We couldn&apos;t find a payment intent for this link. Scan a merchant QR
+        or open a valid payment link to continue.
       </Text>
       <TouchableOpacity
         activeOpacity={0.7}

@@ -1,5 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { KeyPairSigner } from "@solana/kit";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { ArrowLeft, Shield, Wallet2 } from "lucide-react-native";
@@ -16,13 +15,11 @@ import { useNonce, useVerifySignature } from "@/hooks/queries/useAuth";
 import { useLoadingSteps } from "@/hooks/useLoadingSteps";
 import useRQGlobalState from "@/hooks/useRQGlobalState";
 import { useWallet } from "@/hooks/useWallet";
-import { bytesToBase58 } from "@/services/chains/solana/codec";
 import {
   formatChainLabel,
-  getEvmChainId,
+  getNonceParams,
 } from "@/services/walletKit/chainInfo";
 import { walletKitRegistry } from "@/services/walletKit/registry";
-import * as walletService from "@/services/walletService";
 
 interface NonceData {
   message: string;
@@ -48,77 +45,35 @@ export default function AuthScreen() {
   const queryClient = useQueryClient();
   const { deferredTask } = usePerformance();
 
-  const {
-    activeWallet,
-    activeChain,
-    getClientForActiveWallet,
-    getWalletAccount,
-    activeWalletIndex,
-    isLoading: isWalletLoading,
-  } = useWallet();
+  const { activeWallet, activeChain, isLoading: isWalletLoading } = useWallet();
 
-  const activeChainId = getEvmChainId(activeChain);
   const activeChainName = formatChainLabel(activeChain);
 
-  // Branch the nonce fetch on wallet namespace.
-  // EVM: pass numeric chainId (SIWE path).
-  // Solana: pass chainSlug derived from cluster (SIWS path).
-  // Sui: pass chainSlug derived from network (SIWS-Sui path).
-  //
-  // Source of truth is the *wallet's* namespace, not `activeChain`.
-  // `activeChain` briefly lags behind `activeWallet` on switch: the wallet
-  // mutation commits first, then the chain mutation. Reading cluster from
-  // `activeChain` mid-transition hands us a wrong-namespace chain and the
-  // chainSlug becomes undefined — the nonce request then drops the query
-  // param, falls through to the SIWE path on the server, and dies with
-  // "Invalid Ethereum wallet address format". Default to mainnet when
-  // the chain hasn't caught up; the user can still switch testnet via
-  // the chain selector and re-trigger auth.
-  const isSolana = activeWallet?.namespace === "solana";
-  const isSui = activeWallet?.namespace === "sui";
-  const solanaChainSlug = isSolana
-    ? activeChain?.namespace === "solana" && activeChain.cluster === "devnet"
-      ? "solana-devnet"
-      : "solana-mainnet"
-    : undefined;
-  const suiChainSlug = isSui
-    ? activeChain?.namespace === "sui" && activeChain.network === "testnet"
-      ? "sui-testnet"
-      : activeChain?.namespace === "sui" && activeChain.network === "devnet"
-        ? "sui-devnet"
-        : "sui-mainnet"
-    : undefined;
+  // Nonce fetch params, keyed on the *wallet's* namespace (not
+  // `activeChain`, which briefly lags a wallet switch — the wallet mutation
+  // commits before the chain mutation). EVM authenticates with a numeric
+  // chainId (SIWE); Solana/Sui with a chainSlug (SIWS). `getNonceParams`
+  // owns that mapping and the race-safe mainnet fallback, so a
+  // mid-transition chain can't drop the param and 400 the request with
+  // "Invalid Ethereum wallet address format".
+  const nonceParams = getNonceParams(activeWallet, activeChain);
+  const nonceSelector = nonceParams.chainSlug ?? nonceParams.chainId;
 
-  const nonceOpts = isSui
-    ? { chainSlug: suiChainSlug }
-    : isSolana
-      ? { chainSlug: solanaChainSlug }
-      : { chainId: activeChainId };
-
-  const { data: fetchedNonce } = useNonce(activeWallet?.address, nonceOpts);
+  const { data: fetchedNonce } = useNonce(activeWallet?.address, nonceParams);
 
   // Pre-warm the signer the moment this screen mounts so the later
-  // "Sign & Continue" tap doesn't pay a fresh ~50–200 ms (Solana
-  // Ed25519) / ~100–500 ms (EVM BIP-32) derivation on the main thread
-  // inside `handleSignMessage`. By the time the user reads the copy
-  // and taps the button, the signer is already cached.
+  // "Sign & Continue" tap doesn't pay a fresh derivation on the main
+  // thread inside `handleSignMessage`. Each kit owns its dwell-site cache
+  // (EVM the viem account; Solana/Sui the keypair signer), so we ask the
+  // registry without branching on namespace.
   useEffect(() => {
     if (!activeWallet?.address) return;
-    if (activeWallet.namespace === "solana") {
-      void walletKitRegistry.get("solana").getSignerForWallet(activeWallet);
-    } else if (activeWallet.namespace === "sui") {
-      void walletKitRegistry.get("sui").getSignerForWallet(activeWallet);
-    } else if (activeWallet.namespace === "eip155") {
-      // Sync derivation — caches into `accountCache` by address.
-      walletService.getAccountForWallet(activeWallet);
-    }
+    void walletKitRegistry
+      .get(activeWallet.namespace)
+      .getSignerForWallet(activeWallet);
   }, [activeWallet]);
 
-  const nonceQueryKey = isSui
-    ? ["auth", "nonce", activeWallet?.address, suiChainSlug]
-    : isSolana
-      ? ["auth", "nonce", activeWallet?.address, solanaChainSlug]
-      : ["auth", "nonce", activeWallet?.address, activeChainId];
+  const nonceQueryKey = ["auth", "nonce", activeWallet?.address, nonceSelector];
 
   const { data: nonceData, setNewData: setNonceData } =
     useRQGlobalState<NonceData>({
@@ -151,26 +106,11 @@ export default function AuthScreen() {
     let message = nonceData?.message || fetchedNonce?.message;
     if (!message && activeWallet?.address) {
       try {
-        const ns = activeWallet.namespace;
-        const slug =
-          ns === "sui"
-            ? activeChain?.namespace === "sui" &&
-              activeChain.network === "testnet"
-              ? "sui-testnet"
-              : activeChain?.namespace === "sui" &&
-                  activeChain.network === "devnet"
-                ? "sui-devnet"
-                : "sui-mainnet"
-            : ns === "solana"
-              ? activeChain?.namespace === "solana" &&
-                activeChain.cluster === "devnet"
-                ? "solana-devnet"
-                : "solana-mainnet"
-              : null;
-        const query = slug
-          ? `?chainSlug=${encodeURIComponent(slug)}`
-          : activeChainId
-            ? `?chainId=${activeChainId}`
+        const params = getNonceParams(activeWallet, activeChain);
+        const query = params.chainSlug
+          ? `?chainSlug=${encodeURIComponent(params.chainSlug)}`
+          : params.chainId
+            ? `?chainId=${params.chainId}`
             : "";
         const fresh = await publicApi
           .get(`auth/nonce/${activeWallet.address}${query}`)
@@ -200,72 +140,23 @@ export default function AuthScreen() {
       completeStep(0);
       await delay(800);
 
-      let signature: string;
-
-      if (activeWallet?.namespace === "sui") {
-        completeStep(1);
-        signature = await deferredTask(async () => {
-          const kit = walletKitRegistry.get("sui");
-          // `signAuthMessage` on the Sui kit wraps
-          // `Ed25519Keypair.signPersonalMessage` — applies the
-          // PersonalMessage intent prefix + BLAKE2b digest internally
-          // and returns the 97-byte serialized signature (flag + sig
-          // + pubkey) base64-encoded. The server's SIWS-Sui verifier
-          // round-trips this exactly via
-          // `Ed25519PublicKey.verifyPersonalMessage`.
-          return kit.signAuthMessage(activeWallet, message);
-        }, "Signing SIWS-Sui message");
-      } else if (activeWallet?.namespace === "solana") {
-        if (!activeWallet) {
-          throw new Error("No active Solana wallet");
-        }
-        completeStep(1);
-        signature = await deferredTask(async () => {
-          const kit = walletKitRegistry.get("solana");
-          const signer = (await kit.getSignerForWallet(
-            activeWallet,
-          )) as KeyPairSigner | null;
-          if (!signer) throw new Error("No Solana signer available");
-          const messageBytes = new TextEncoder().encode(message);
-          const [sigDict] = await signer.signMessages([
-            { content: messageBytes, signatures: {} },
-          ]);
-          const sigBytes = sigDict[signer.address];
-          if (!sigBytes || sigBytes.length !== 64) {
-            throw new Error("Invalid Solana signature bytes");
-          }
-          return bytesToBase58(sigBytes);
-        }, "Signing SIWS message");
-      } else if (activeWallet?.namespace === "eip155") {
-        const walletClient = await deferredTask(() => {
-          const client = getClientForActiveWallet();
-          if (!client) {
-            throw new Error("Unable to initialize wallet client");
-          }
-          return client;
-        }, "Initializing wallet client");
-
-        const account = await deferredTask(async () => {
-          const acc = await getWalletAccount(activeWalletIndex);
-          if (!acc) {
-            throw new Error("Wallet account not properly configured");
-          }
-          return acc;
-        }, "Getting wallet account");
-
-        completeStep(1);
-
-        signature = await deferredTask(async () => {
-          return await walletClient.signMessage({
-            account,
-            message: message,
-          });
-        }, "Signing message");
-      } else {
-        throw new Error(
-          `Unsupported wallet namespace for auth: ${activeWallet?.namespace}`,
-        );
+      if (!activeWallet) {
+        throw new Error("No active wallet for authentication");
       }
+
+      completeStep(1);
+
+      // Each kit owns its signing primitive + output encoding (EVM hex via
+      // EIP-191; Solana base58; Sui base64 SIWS). Dispatch through the
+      // registry so this stays chain-agnostic — the per-namespace branches
+      // moved onto `kit.signAuthMessage`.
+      const signature = await deferredTask(
+        () =>
+          walletKitRegistry
+            .get(activeWallet.namespace)
+            .signAuthMessage(activeWallet, message),
+        "Signing authentication message",
+      );
 
       completeStep(2);
       await delay(800);
@@ -298,10 +189,6 @@ export default function AuthScreen() {
     fetchedNonce,
     activeWallet,
     activeChain,
-    activeChainId,
-    getClientForActiveWallet,
-    getWalletAccount,
-    activeWalletIndex,
     verifySignature,
     queryClient,
     deferredTask,

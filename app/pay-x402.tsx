@@ -44,6 +44,7 @@ import {
   X402ChallengeParseError,
   X402FetchError,
 } from "@/services/nanopay/pathCRawX402";
+import { getEvmChainId } from "@/services/walletKit/chainInfo";
 
 const USDC_DECIMALS = 6;
 
@@ -197,8 +198,7 @@ function PathCFlow({ resourceUrl }: { resourceUrl: string }) {
       setPhase("error");
       return;
     }
-    const activeEvmId =
-      activeChain.namespace === "eip155" ? activeChain.chain.id : null;
+    const activeEvmId = getEvmChainId(activeChain) ?? null;
     if (activeEvmId !== targetChain.chain.id) {
       const ok = await changeActiveChainToConfig(targetChain);
       if (!ok) {
@@ -460,8 +460,8 @@ function MissingResourceCard() {
         Missing resource URL
       </Text>
       <Text className="text-light-matte-black/60 text-sm mb-6">
-        We couldn&apos;t find a payment target for this link. Scan or paste an x402
-        payment URL to continue.
+        We couldn&apos;t find a payment target for this link. Scan or paste an
+        x402 payment URL to continue.
       </Text>
       <TouchableOpacity
         activeOpacity={0.7}

@@ -28,6 +28,7 @@ import * as smartAccountsKit from "@metamask/smart-accounts-kit";
 import { formatUnits, isAddress, parseUnits } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { mainnet } from "viem/chains";
+import type { TBlockchain } from "../../../api/types/blockchain.ts";
 import type { ChainConfig } from "../../../constants/configs/chainConfig.ts";
 import * as clients from "../../../utils/clients.ts";
 import { truncateAddress as truncateAddressUtil } from "../../../utils/walletUtils.ts";
@@ -337,5 +338,68 @@ describe("EvmWalletKit.upgradeToSmartAccount & isSmartAccountActive", () => {
     );
 
     setGlobalMockPublicClient(null);
+  });
+});
+
+function evmRow(partial: Partial<TBlockchain>): TBlockchain {
+  return {
+    id: "row",
+    name: "Row",
+    chainId: null,
+    chainSlug: null,
+    rpcUrl: "",
+    blockExplorer: "",
+    isEVM: false,
+    isActive: true,
+    isTestnet: false,
+    updatedAt: "",
+    ...partial,
+  } as TBlockchain;
+}
+
+describe("EvmWalletKit — chain-agnostic capabilities", () => {
+  const kit = createEvmWalletKit();
+
+  it("does not implement auth chainSlug (EVM keys on chainId)", () => {
+    assert.equal(kit.getAuthChainSlug, undefined);
+    assert.equal(kit.defaultAuthChainSlug, undefined);
+  });
+
+  it("advertises the evm payment rail", () => {
+    assert.equal(kit.preferredPaymentRail, "evm");
+  });
+
+  it("matchesBlockchainRow matches an EVM row by chainId", () => {
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        ethereumChain,
+        evmRow({ isEVM: true, chainId: 1 }),
+      ),
+      true,
+    );
+  });
+
+  it("matchesBlockchainRow rejects wrong chainId, non-EVM rows, and non-EVM chains", () => {
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        ethereumChain,
+        evmRow({ isEVM: true, chainId: 8453 }),
+      ),
+      false,
+    );
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        ethereumChain,
+        evmRow({ isEVM: false, chainSlug: "solana-mainnet" }),
+      ),
+      false,
+    );
+    assert.equal(
+      kit.matchesBlockchainRow?.(
+        solanaChain,
+        evmRow({ isEVM: true, chainId: 1 }),
+      ),
+      false,
+    );
   });
 });

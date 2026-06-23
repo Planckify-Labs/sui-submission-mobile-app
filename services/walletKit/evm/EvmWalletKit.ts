@@ -131,6 +131,7 @@ export function createEvmWalletKit(): WalletKitAdapter {
     supportsPrivateKeyImport: true,
     displayName: "Ethereum",
     brandColor: "#627EEA",
+    preferredPaymentRail: "evm",
     getChainId(chain) {
       return chain.namespace === EVM_NAMESPACE ? chain.chain.id : null;
     },
@@ -141,6 +142,13 @@ export function createEvmWalletKit(): WalletKitAdapter {
       return chain.namespace === EVM_NAMESPACE
         ? chain.chain.nativeCurrency.symbol
         : null;
+    },
+    matchesBlockchainRow(chain, row) {
+      return (
+        chain.namespace === EVM_NAMESPACE &&
+        row.isEVM === true &&
+        row.chainId === chain.chain.id
+      );
     },
     buildTxExplorerUrl(txHash, chain) {
       if (chain.namespace !== EVM_NAMESPACE) return null;

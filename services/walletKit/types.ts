@@ -22,6 +22,7 @@ import type {
   Signer,
   TransactionInstruction,
 } from "@solana/web3.js";
+import type { TBlockchain } from "@/api/types/blockchain";
 import type { ChainConfig } from "@/constants/configs/chainConfig";
 import type { TWallet } from "@/constants/types/walletTypes";
 import type { Namespace } from "@/services/chains/types";
@@ -965,4 +966,38 @@ export interface WalletKitAdapter {
    * receipts) call this without branching on namespace.
    */
   buildTxExplorerUrl?(txHash: string, chain: ChainConfig): string | null;
+
+  /**
+   * Returns the backend auth-nonce `chainSlug` for `chain` (e.g.
+   * `"solana-devnet"`, `"sui-testnet"`). Solana/Sui implement this; EVM
+   * leaves it undefined because EVM nonce requests key on the numeric
+   * `chainId` instead. Consumers go through
+   * `services/walletKit/chainInfo.ts#getNonceParams`, which falls back to
+   * `getEvmChainId` when this returns `null`. Returns `null` when `chain`
+   * doesn't belong to this kit.
+   */
+  getAuthChainSlug?(chain: ChainConfig): string | null;
+  /**
+   * The family's mainnet auth-nonce `chainSlug` (e.g. `"solana-mainnet"`).
+   * Used by `chainInfo.ts#getNonceParams` as the race-safe fallback when
+   * the active chain momentarily lags a wallet switch (see auth.tsx). Only
+   * kits that expose `getAuthChainSlug` set this; EVM omits both.
+   */
+  defaultAuthChainSlug?: string;
+  /**
+   * True when the `/blockchains` row `row` is the same network as `chain`.
+   * EVM matches on `row.isEVM && row.chainId === chainId`; Solana/Sui match
+   * on the `chainSlug` prefix (with a name/rpc fallback for rows that
+   * predate `chainSlug`) plus testnet parity. Lets balance/payment screens
+   * resolve the matching API row without branching on namespace. Returns
+   * `false` when `chain` doesn't belong to this kit.
+   */
+  matchesBlockchainRow?(chain: ChainConfig, row: TBlockchain): boolean;
+  /**
+   * Backend payment-rail selector for `chain` (`"evm"` / `"solana"`), used
+   * by pay-merchant intent creation. Kits without a dedicated rail omit it;
+   * `chainInfo.ts#preferredChainRail` defaults those to `"evm"` to preserve
+   * the historical "solana or evm" mapping.
+   */
+  preferredPaymentRail?: "evm" | "solana";
 }

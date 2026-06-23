@@ -25,7 +25,9 @@
  *     for non-EVM chains, matching the previous inline pattern exactly.
  */
 
+import type { TBlockchain } from "@/api/types/blockchain";
 import type { ChainConfig } from "@/constants/configs/chainConfig";
+import type { Namespace } from "@/services/chains/types";
 import { walletKitRegistry } from "./registry";
 
 /**
@@ -87,6 +89,75 @@ export function getChainFamilyLabel(namespace: string | undefined): string {
   } catch {
     return capitalize(namespace);
   }
+}
+
+/**
+ * Auth-nonce `chainSlug` for `chain` (`"solana-devnet"`, `"sui-testnet"`,
+ * …) via the registered kit. `null` for EVM (which keys on `chainId`) or
+ * when no kit is registered. Prefer `getNonceParams` at call sites.
+ */
+export function getAuthChainSlug(chain: ChainConfig): string | null {
+  if (!walletKitRegistry.has(chain.namespace)) return null;
+  return (
+    walletKitRegistry.get(chain.namespace).getAuthChainSlug?.(chain) ?? null
+  );
+}
+
+/**
+ * Builds the `auth/nonce` query params for a sign-in. `source` is the
+ * namespace authority (the wallet for auth flows, the chain for
+ * chain-led flows like pay-merchant) — both `TWallet` and `ChainConfig`
+ * expose `.namespace`. Non-EVM families authenticate with a `chainSlug`,
+ * EVM with a numeric `chainId`.
+ *
+ * Race-safety (preserves the auth.tsx behaviour): when `chain` has settled
+ * to `source.namespace` we read its precise slug; otherwise — `activeChain`
+ * momentarily lags a wallet switch — we fall back to the family's
+ * `defaultAuthChainSlug` (mainnet) so the request never drops to the wrong
+ * (SIWE) path and 400s. Returns `{}` when there's no registered kit.
+ */
+export function getNonceParams(
+  source: { namespace: Namespace } | null | undefined,
+  chain: ChainConfig | null | undefined,
+): { chainId?: number; chainSlug?: string } {
+  if (!source || !walletKitRegistry.has(source.namespace)) return {};
+  const kit = walletKitRegistry.get(source.namespace);
+  if (kit.getAuthChainSlug) {
+    const slug =
+      chain && chain.namespace === source.namespace
+        ? kit.getAuthChainSlug(chain)
+        : (kit.defaultAuthChainSlug ?? null);
+    return slug ? { chainSlug: slug } : {};
+  }
+  const chainId = chain ? getEvmChainId(chain) : undefined;
+  return chainId !== undefined ? { chainId } : {};
+}
+
+/**
+ * True when the `/blockchains` row `row` is the same network as `chain`.
+ * Delegates to the kit's `matchesBlockchainRow`; `false` when the kit
+ * doesn't implement it or isn't registered. Lets balance/payment screens
+ * pick the matching API row without branching on namespace.
+ */
+export function matchesBlockchainRow(
+  chain: ChainConfig,
+  row: TBlockchain,
+): boolean {
+  if (!walletKitRegistry.has(chain.namespace)) return false;
+  return (
+    walletKitRegistry.get(chain.namespace).matchesBlockchainRow?.(chain, row) ??
+    false
+  );
+}
+
+/**
+ * Backend payment-rail string for `chain` (`"solana"` / `"evm"`). Defaults
+ * to `"evm"` for kits without a dedicated rail, preserving the historical
+ * "solana or evm" mapping in pay-merchant intent creation.
+ */
+export function preferredChainRail(chain: ChainConfig): "evm" | "solana" {
+  if (!walletKitRegistry.has(chain.namespace)) return "evm";
+  return walletKitRegistry.get(chain.namespace).preferredPaymentRail ?? "evm";
 }
 
 function capitalize(s: string): string {

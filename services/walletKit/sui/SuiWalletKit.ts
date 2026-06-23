@@ -127,6 +127,23 @@ export function createSuiWalletKit(): WalletKitAdapter {
     nativeSymbol(chain) {
       return chain.namespace === SUI_NAMESPACE ? "SUI" : null;
     },
+    getAuthChainSlug(chain) {
+      if (chain.namespace !== SUI_NAMESPACE) return null;
+      if (chain.network === "testnet") return "sui-testnet";
+      if (chain.network === "devnet") return "sui-devnet";
+      return "sui-mainnet";
+    },
+    defaultAuthChainSlug: "sui-mainnet",
+    matchesBlockchainRow(chain, row) {
+      if (chain.namespace !== SUI_NAMESPACE || row.isEVM) return false;
+      if (row.isTestnet !== (chain.network !== "mainnet")) return false;
+      if (typeof row.chainSlug === "string") {
+        return row.chainSlug.startsWith("sui-");
+      }
+      const name = (row.name ?? "").toLowerCase();
+      const rpc = (row.rpcUrl ?? "").toLowerCase();
+      return name.startsWith("sui") || rpc.includes("sui.io");
+    },
     buildTxExplorerUrl(digest, chain) {
       if (chain.namespace !== SUI_NAMESPACE) return null;
       if (!digest) return null;

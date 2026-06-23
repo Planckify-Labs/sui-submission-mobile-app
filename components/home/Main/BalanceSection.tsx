@@ -39,7 +39,10 @@ import { useQRPrefetch } from "@/hooks/useQRPrefetch";
 import { useWallet } from "@/hooks/useWallet";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { storage } from "@/lib/storage/mmkv";
-import { getNativeSymbol } from "@/services/walletKit/chainInfo";
+import {
+  getNativeSymbol,
+  matchesBlockchainRow,
+} from "@/services/walletKit/chainInfo";
 import { copyToClipboard } from "@/utils/helperUtils";
 import DisplayTokenPickerModal from "./DisplayTokenPickerModal";
 import RecievePaymentModal from "./RecievePaymentModal";
@@ -90,36 +93,10 @@ const BalanceSection = forwardRef<BalanceSectionRef>((props, ref) => {
 
   const activeBlockchainId = useMemo(() => {
     if (!blockchains) return undefined;
-    if (activeChain.namespace === "eip155") {
-      return blockchains.find(
-        (b) => b.isEVM && b.chainId === activeChain.chain.id,
-      )?.id;
-    }
-    // Non-EVM rows share `isEVM:false`, so we MUST disambiguate by
-    // namespace before filtering on testnet — otherwise Sui rows pick
-    // up Solana tokens and vice versa. Prefer the API's `chainSlug`
-    // (authoritative); fall back to a name/rpc heuristic for backends
-    // that haven't shipped the field yet.
-    const isTestnet = activeChain.isTestnet ?? false;
-    const wantSui = activeChain.namespace === "sui";
-    const wantSolana = activeChain.namespace === "solana";
-    const matchesNamespace = (
-      b: (typeof blockchains)[number] & { chainSlug?: string | null },
-    ): boolean => {
-      if (typeof b.chainSlug === "string") {
-        if (wantSui) return b.chainSlug.startsWith("sui-");
-        if (wantSolana) return b.chainSlug.startsWith("solana-");
-      }
-      const name = (b.name ?? "").toLowerCase();
-      const rpc = (b.rpcUrl ?? "").toLowerCase();
-      const looksSui = name.startsWith("sui") || rpc.includes("sui.io");
-      if (wantSui) return looksSui;
-      if (wantSolana) return !looksSui;
-      return false;
-    };
-    return blockchains.find(
-      (b) => !b.isEVM && b.isTestnet === isTestnet && matchesNamespace(b),
-    )?.id;
+    // Per-chain row matching (EVM by chainId; non-EVM by chainSlug prefix +
+    // testnet parity, with a name/rpc fallback) lives on the kit so this
+    // screen stays chain-agnostic.
+    return blockchains.find((b) => matchesBlockchainRow(activeChain, b))?.id;
   }, [blockchains, activeChain]);
 
   const { data: chainTokens } = useTokens({

@@ -90,6 +90,7 @@ export function createSolanaWalletKit(): WalletKitAdapter {
     supportsPrivateKeyImport: true,
     displayName: "Solana",
     brandColor: "#9945FF",
+    preferredPaymentRail: "solana",
     requireBiometricForConnect: true,
     formatConnectChipLabel(payload: unknown): string {
       const cluster = (payload as { cluster?: string } | null)?.cluster;
@@ -111,6 +112,27 @@ export function createSolanaWalletKit(): WalletKitAdapter {
     },
     nativeSymbol(chain) {
       return chain.namespace === SOLANA_NAMESPACE ? "SOL" : null;
+    },
+    getAuthChainSlug(chain) {
+      if (chain.namespace !== SOLANA_NAMESPACE) return null;
+      return chain.cluster === "devnet" ? "solana-devnet" : "solana-mainnet";
+    },
+    defaultAuthChainSlug: "solana-mainnet",
+    matchesBlockchainRow(chain, row) {
+      if (chain.namespace !== SOLANA_NAMESPACE || row.isEVM) return false;
+      // chainSlug shares the `solana-` prefix across devnet + mainnet, so
+      // gate on testnet parity first (cluster is authoritative).
+      if (row.isTestnet !== (chain.cluster === "devnet")) return false;
+      if (typeof row.chainSlug === "string") {
+        return row.chainSlug.startsWith("solana-");
+      }
+      // Fallback for backends that predate `chainSlug`: a Solana row is a
+      // non-EVM row that doesn't look like Sui (mirrors the prior
+      // BalanceSection name/rpc heuristic).
+      const name = (row.name ?? "").toLowerCase();
+      const rpc = (row.rpcUrl ?? "").toLowerCase();
+      const looksSui = name.startsWith("sui") || rpc.includes("sui.io");
+      return !looksSui;
     },
     buildTxExplorerUrl(txHash, chain) {
       if (chain.namespace !== SOLANA_NAMESPACE) return null;
