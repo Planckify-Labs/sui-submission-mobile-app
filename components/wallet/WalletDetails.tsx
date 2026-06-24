@@ -202,12 +202,6 @@ export default function WalletDetails({
     }
   }, [showWalletInfo, deferredTask, setShowWalletInfo]);
 
-  // Token list is EVM-only this spec (§11 R7 / N1). Solana wallets
-  // render a single "coming soon" placeholder in place of the EVM
-  // token/history list. This is the only allowed namespace `if` in
-  // the display layer.
-  const isSolanaWallet = wallet?.namespace === "solana";
-
   return (
     <Animated.View
       className="bg-light rounded-3xl overflow-hidden mx-4"

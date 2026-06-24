@@ -1,5 +1,5 @@
 import * as Clipboard from "expo-clipboard";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Alert, Pressable, Text, View } from "react-native";
 import { useScreenshotGuard } from "@/services/security/screenshotGuard";
 
@@ -12,7 +12,6 @@ export function SeedExportScreen({ words, onClose }: SeedExportScreenProps) {
   useScreenshotGuard(true, { alertOnScreenshot: true });
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [showAll, setShowAll] = useState(false);
 
   const groupSize = 3;
   const totalGroups = Math.ceil(words.length / groupSize);

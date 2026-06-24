@@ -25,7 +25,8 @@ import {
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import type { ConversationSummary } from "@/api/conversations.types";
-import ApprovalSheet, {
+import {
+  ApprovalSheet,
   buildGrantOptions,
   type GrantChoice,
   specialWarning,
@@ -1005,7 +1006,7 @@ export default function AgentMode() {
         sessionIdRef.current = id;
       },
     }),
-    [walletContext, activeChain, queryClient],
+    [walletContext, activeChainId, queryClient],
   );
 
   const sendTextMessage = useCallback(

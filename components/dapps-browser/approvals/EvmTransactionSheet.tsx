@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { formatEther } from "viem";
 import type {
@@ -60,7 +60,6 @@ export function EvmTransactionSheet({
       }),
     [tx.from, tx.to, tx.value, tx.data, tx.chainId],
   );
-  const [signWithoutSimulation, setSignWithoutSimulation] = useState(false);
 
   const feeLabel =
     tx.type === 0 ? "Legacy" : tx.type === 1 ? "Access list" : "Dynamic fee";

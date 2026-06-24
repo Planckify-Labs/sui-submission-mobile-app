@@ -30,20 +30,16 @@ export function SwapInterface({
   userAddress,
   onSwap,
 }: SwapInterfaceProps) {
-  const [fromToken, setFromToken] = useState("");
-  const [toToken, setToToken] = useState("");
+  const [fromToken] = useState("");
+  const [toToken] = useState("");
   const [amount, setAmount] = useState("");
-  const [slippage, setSlippage] = useState(0.5);
+  const [slippage] = useState(0.5);
 
   const slippageValidation = validateSlippage(slippage);
   const showMev = isMevProtectionApplicable(chainId);
   const mevSettings = getMevSettings();
 
-  const {
-    data: route,
-    isLoading,
-    error,
-  } = useQuery({
+  const { data: route, isLoading } = useQuery({
     queryKey: ["swapRoute", fromToken, toToken, amount, slippage, chainId],
     queryFn: () =>
       getSwapRoute({
