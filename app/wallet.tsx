@@ -572,7 +572,6 @@ export default function Wallet() {
             </View>
             <ChevronRight size={18} color="#c71c4b" />
           </TouchableOpacity>
-
         </ScrollView>
 
         <WalletSwitcherModal

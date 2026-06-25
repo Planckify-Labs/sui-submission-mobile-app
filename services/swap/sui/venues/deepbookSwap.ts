@@ -403,11 +403,7 @@ async function computePriceImpact(
       // Selling `amountIn` base into the bids (best/highest first).
       let baseLeft = amountIn;
       let quoteOut = 0;
-      for (
-        let i = 0;
-        i < book.bid_prices.length && baseLeft > 0;
-        i++
-      ) {
+      for (let i = 0; i < book.bid_prices.length && baseLeft > 0; i++) {
         const fill = Math.min(book.bid_quantities[i], baseLeft);
         quoteOut += fill * book.bid_prices[i];
         baseLeft -= fill;

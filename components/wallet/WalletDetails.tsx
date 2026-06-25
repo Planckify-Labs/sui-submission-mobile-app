@@ -17,10 +17,10 @@ import UpgradeConfirmationSheet from "@/components/wallet/UpgradeConfirmationShe
 import type { TWallet } from "@/constants/types/walletTypes";
 import { useWallet } from "@/hooks/useWallet";
 import { chainCacheKey } from "@/hooks/useWallet.helpers";
+import { storage } from "@/lib/storage/mmkv";
 import { walletKitRegistry } from "@/services/walletKit/registry";
 import { authenticateUser } from "@/utils/authUtils";
 import { copyToClipboard } from "@/utils/helperUtils";
-import { storage } from "@/lib/storage/mmkv";
 
 const LazyWalletInfoDisplay = lazy(
   () => import("@/components/wallet/WalletInfoDisplay"),
@@ -294,45 +294,45 @@ export default function WalletDetails({
         ) : null}
 
         {typeof kit?.upgradeToSmartAccount === "function" &&
-          isSmartAccountActive === false && (
-            isUpgradePendingConfirmation ? (
-              <View className="bg-light-matte-black/[0.03] border border-light-matte-black/10 rounded-2xl p-4 mb-4 flex-row items-center justify-between">
-                <View className="flex-1">
-                  <View className="flex-row items-center mb-1">
-                    <ActivityIndicator size="small" color="#c71c4b" />
-                    <Text className="text-light-matte-black font-semibold text-sm ml-2">
-                      Upgrade Pending Confirmation
-                    </Text>
-                  </View>
-                  <Text className="text-light-matte-black/50 text-xs leading-4 mt-1">
-                    Your smart account upgrade is processing. Waiting for block confirmation... Pull to refresh to check status.
+          isSmartAccountActive === false &&
+          (isUpgradePendingConfirmation ? (
+            <View className="bg-light-matte-black/[0.03] border border-light-matte-black/10 rounded-2xl p-4 mb-4 flex-row items-center justify-between">
+              <View className="flex-1">
+                <View className="flex-row items-center mb-1">
+                  <ActivityIndicator size="small" color="#c71c4b" />
+                  <Text className="text-light-matte-black font-semibold text-sm ml-2">
+                    Upgrade Pending Confirmation
                   </Text>
                 </View>
+                <Text className="text-light-matte-black/50 text-xs leading-4 mt-1">
+                  Your smart account upgrade is processing. Waiting for block
+                  confirmation... Pull to refresh to check status.
+                </Text>
               </View>
-            ) : (
-              <View className="bg-light-primary-red/5 border border-light-primary-red/10 rounded-2xl p-4 mb-4 flex-row items-center justify-between">
-                <View className="flex-1 mr-3">
-                  <View className="flex-row items-center mb-1">
-                    <Sparkles size={14} color="#c71c4b" />
-                    <Text className="text-light-matte-black font-semibold text-sm ml-1">
-                      Smart Account Upgrade Available
-                    </Text>
-                  </View>
-                  <Text className="text-light-matte-black/50 text-xs leading-4">
-                    Unlock gasless payments, atomic batching, and secure AI agent
-                    micropayments.
+            </View>
+          ) : (
+            <View className="bg-light-primary-red/5 border border-light-primary-red/10 rounded-2xl p-4 mb-4 flex-row items-center justify-between">
+              <View className="flex-1 mr-3">
+                <View className="flex-row items-center mb-1">
+                  <Sparkles size={14} color="#c71c4b" />
+                  <Text className="text-light-matte-black font-semibold text-sm ml-1">
+                    Smart Account Upgrade Available
                   </Text>
                 </View>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  className="bg-light-primary-red py-2 px-4 rounded-full"
-                  onPress={() => setShowUpgradeSheet(true)}
-                >
-                  <Text className="text-white font-bold text-xs">Upgrade</Text>
-                </TouchableOpacity>
+                <Text className="text-light-matte-black/50 text-xs leading-4">
+                  Unlock gasless payments, atomic batching, and secure AI agent
+                  micropayments.
+                </Text>
               </View>
-            )
-          )}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                className="bg-light-primary-red py-2 px-4 rounded-full"
+                onPress={() => setShowUpgradeSheet(true)}
+              >
+                <Text className="text-white font-bold text-xs">Upgrade</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
       </View>
 
       {wallet.type !== "Social" && (

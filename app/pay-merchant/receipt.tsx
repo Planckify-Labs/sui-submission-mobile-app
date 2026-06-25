@@ -593,8 +593,8 @@ function MissingIntentCard() {
         Receipt unavailable
       </Text>
       <Text className="text-light-matte-black/60 text-sm mb-6">
-        We couldn&apos;t find a receipt for this link. The payment reference may have
-        expired.
+        We couldn&apos;t find a receipt for this link. The payment reference may
+        have expired.
       </Text>
       <TouchableOpacity
         activeOpacity={0.7}

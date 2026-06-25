@@ -110,7 +110,12 @@ function Shell({
   const className = `my-1.5 rounded-2xl border ${border} ${bg} px-3.5 py-3`;
   if (onPress) {
     return (
-      <Pressable accessible accessibilityRole="button" onPress={onPress} className={className}>
+      <Pressable
+        accessible
+        accessibilityRole="button"
+        onPress={onPress}
+        className={className}
+      >
         {children}
       </Pressable>
     );
@@ -165,7 +170,8 @@ const X402FetchCard: React.FC<
           </Text>
         </View>
         <Text className="text-sm text-light-matte-black/80 mt-1.5">
-          {data.message ?? `${label} costs more than your remaining delegated budget.`}
+          {data.message ??
+            `${label} costs more than your remaining delegated budget.`}
         </Text>
         <View className="flex-row items-center justify-between mt-2">
           <Text className="text-[11px] text-gray-500">
@@ -208,7 +214,8 @@ const X402FetchCard: React.FC<
           </Text>
         </View>
         <Text className="text-sm text-light-matte-black/80 mt-1.5">
-          {data.message ?? "We couldn't complete that paid request. Please try again."}
+          {data.message ??
+            "We couldn't complete that paid request. Please try again."}
         </Text>
       </Shell>
     );
@@ -217,8 +224,8 @@ const X402FetchCard: React.FC<
   // Paid — the receipt. Discloses the price of the autonomous spend.
   const txHash = data?.tx_hash ?? output?.tx_hash;
   const explorerUrl = txHash
-    ? explorerTxUrlFromBase(blockchain?.blockExplorer, txHash) ??
-      buildExplorerUrl(chainId, txHash as `0x${string}`)
+    ? (explorerTxUrlFromBase(blockchain?.blockExplorer, txHash) ??
+      buildExplorerUrl(chainId, txHash as `0x${string}`))
     : undefined;
   const rail = railLabel(data?.rail);
 
@@ -227,7 +234,9 @@ const X402FetchCard: React.FC<
       border="border-green-200"
       bg="bg-green-50/60"
       onPress={
-        explorerUrl ? () => Linking.openURL(explorerUrl).catch(() => {}) : undefined
+        explorerUrl
+          ? () => Linking.openURL(explorerUrl).catch(() => {})
+          : undefined
       }
     >
       <View className="flex-row items-center gap-2">
@@ -238,7 +247,9 @@ const X402FetchCard: React.FC<
       </View>
       <Text className="text-sm text-light-matte-black/80 mt-1.5 capitalize">
         {label}
-        {rail ? <Text className="text-light-matte-black/50"> · {rail}</Text> : null}
+        {rail ? (
+          <Text className="text-light-matte-black/50"> · {rail}</Text>
+        ) : null}
       </Text>
       {txHash ? (
         <View className="flex-row items-center gap-1.5 mt-2">

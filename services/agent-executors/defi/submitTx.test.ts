@@ -27,12 +27,13 @@ type Overrides = {
 };
 
 function makeClients(o: Overrides) {
-  const account = o.hasAccount === false
-    ? undefined
-    : {
-        address: "0xabc0000000000000000000000000000000000abc",
-        signTransaction: async () => SERIALIZED,
-      };
+  const account =
+    o.hasAccount === false
+      ? undefined
+      : {
+          address: "0xabc0000000000000000000000000000000000abc",
+          signTransaction: async () => SERIALIZED,
+        };
 
   const walletClient = {
     account,

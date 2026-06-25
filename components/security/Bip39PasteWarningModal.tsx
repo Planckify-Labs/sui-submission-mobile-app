@@ -51,7 +51,8 @@ export default function Bip39PasteWarningModal({
             other app (or malicious keyboard) that can read it.
           </Text>
           <Text className="text-light-matte-black/70 text-sm text-center mb-5">
-            Typing each word is safer. We&apos;ll clear your clipboard either way.
+            Typing each word is safer. We&apos;ll clear your clipboard either
+            way.
           </Text>
 
           <Pressable

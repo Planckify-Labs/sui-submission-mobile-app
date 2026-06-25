@@ -185,7 +185,10 @@ export async function buildScallopZapSupply(
   }
   const coin = resolveScallopCoin(args.supplyAssetSymbol);
   if (!coin) {
-    throw new DefiError("unsupported_asset", `scallop: ${args.supplyAssetSymbol}`);
+    throw new DefiError(
+      "unsupported_asset",
+      `scallop: ${args.supplyAssetSymbol}`,
+    );
   }
   try {
     const core = await getScallopCore();
@@ -308,7 +311,10 @@ export const ScallopSuiAdapter: DefiProtocolAdapter = {
           c.coinType.includes(`::${tail}>`),
       );
       if (marketCoins.length === 0) {
-        throw new DefiError("no_onchain_balance", "scallop: nothing to withdraw");
+        throw new DefiError(
+          "no_onchain_balance",
+          "scallop: nothing to withdraw",
+        );
       }
 
       const tx = new Transaction();

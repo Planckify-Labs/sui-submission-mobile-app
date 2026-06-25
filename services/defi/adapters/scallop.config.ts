@@ -73,8 +73,7 @@ export function resolveScallopCoin(symbol: string): ScallopCoin | null {
 const FALLBACK_CORE: ScallopCore = {
   protocolPkg:
     "0xde5c09ad171544aa3724dc67216668c80e754860f419136a68d78504eb2e2805",
-  version:
-    "0x07871c4b3c847a0f674510d4978d5cf6f960452795e8ff6f189fd2088a3f6ac7",
+  version: "0x07871c4b3c847a0f674510d4978d5cf6f960452795e8ff6f189fd2088a3f6ac7",
   market: "0xa757975255146dc9686aa823b7838b507f315d704f428cbadad2f4ea061939d9",
 };
 

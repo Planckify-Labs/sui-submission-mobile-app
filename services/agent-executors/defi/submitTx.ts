@@ -79,7 +79,9 @@ export async function submitEvmCall(
 
   // 2. Broadcast the raw, already-signed transaction.
   try {
-    await publicClient.sendRawTransaction({ serializedTransaction: serialized });
+    await publicClient.sendRawTransaction({
+      serializedTransaction: serialized,
+    });
     return { kind: "submitted", hash };
   } catch {
     // Broadcast errored — but the signed tx (with `hash`) may still have

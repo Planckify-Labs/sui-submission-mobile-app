@@ -30,7 +30,6 @@ import { readPosition } from "@/services/defi/positions/reader";
 import { getDefiAdapter, listDefiAdapters } from "@/services/defi/registry";
 import { getDefaultTokens } from "@/services/tokens/tokenList";
 import { resolveChainClients } from "../chainRouter";
-import { submitEvmCall } from "./submitTx";
 import {
   ExecutorError,
   ExecutorErrorCode,
@@ -40,6 +39,7 @@ import {
   resolveChainId,
   safeExecute,
 } from "../types";
+import { submitEvmCall } from "./submitTx";
 
 const APY_DRIFT_TOLERANCE_PCT = 5;
 

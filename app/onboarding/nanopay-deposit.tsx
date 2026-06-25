@@ -649,7 +649,8 @@ function DoneCard({ onContinue }: { onContinue: () => void }) {
           You&apos;re all set
         </Text>
         <Text className="text-light-matte-black/60 text-sm text-center mt-1">
-          Payments are now instant. We&apos;ll finish the setup in the background.
+          Payments are now instant. We&apos;ll finish the setup in the
+          background.
         </Text>
       </View>
       <TouchableOpacity

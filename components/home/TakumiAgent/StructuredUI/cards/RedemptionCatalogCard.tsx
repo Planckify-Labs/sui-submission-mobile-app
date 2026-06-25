@@ -225,7 +225,8 @@ const RedemptionCatalogCard: React.FC<
           </Text>
         </View>
         <Text className="text-sm text-light-matte-black/80 mt-1.5">
-          We couldn&apos;t load the catalog right now. Please try again in a moment.
+          We couldn&apos;t load the catalog right now. Please try again in a
+          moment.
         </Text>
       </View>
     );

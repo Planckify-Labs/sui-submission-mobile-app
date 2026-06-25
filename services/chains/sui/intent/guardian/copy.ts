@@ -78,7 +78,8 @@ export function formatRiskCopy(args: {
   params?: Record<string, string | number>;
 }): CopyTemplate {
   const template =
-    RISK_COPY[`${args.code}:${args.severity}`] ?? RISK_COPY[`${args.code}:warn`];
+    RISK_COPY[`${args.code}:${args.severity}`] ??
+    RISK_COPY[`${args.code}:warn`];
   if (!template) {
     return { title: "Risk", detail: "" };
   }
