@@ -315,60 +315,62 @@ const TakumiAgentSection = forwardRef<
     const [activeCard, setActiveCard] = useState(0);
     const activityRef = useRef<ActivitySectionRef>(null);
 
-    // ── Voice input (tap-to-arm once, then hold-to-talk) ─────────────
-    // Two-phase by design, to guard against an accidental tap firing the
-    // mic: the FIRST tap only *arms* voice mode — it scrolls the section
-    // into focus (once) and swaps the placeholder to a "hold to speak"
-    // hint, but records nothing. Arming is sticky: once armed, every
-    // subsequent press-and-hold records (same STT + waveform stack as
-    // agent mode's `ChatInput`) with no re-tap — including right after a
-    // transcription. Releasing transcribes, hands the text to the agent
-    // chat via `useAgentPrefill` (prefilled, not sent), and asks the
-    // parent to open that page.
+    // ── Voice input (tap = scroll, hold = record) ────────────────────
+    // Two independent gestures on the mic, so an accidental touch can
+    // never fire the recorder:
+    //   • a quick TAP just brings the section into focus and surfaces the
+    //     "hold to speak" hint — it records nothing, and works any time.
+    //   • a press-and-HOLD records (same STT + waveform stack as agent
+    //     mode's `ChatInput`); releasing transcribes, hands the text to
+    //     the agent chat via `useAgentPrefill` (prefilled, not sent), and
+    //     asks the parent to open that page.
+    // Tap/hold are split by the platform long-press detector
+    // (`onLongPress` + `delayLongPress`), so no prior tap is required
+    // before a hold and no re-tap is needed between recordings.
     const voice = useVoiceTranscription();
     const { setPrefill } = useAgentPrefill();
     const [voiceArmed, setVoiceArmed] = useState(false);
     const holdActiveRef = useRef(false);
-    // True for the duration of the arming tap so its matching press-out
-    // doesn't get mistaken for the end of a recording hold.
-    const justArmedRef = useRef(false);
+    // Set when a hold actually starts recording so the matching press-out
+    // (and not a plain tap's press-out) is what stops + transcribes.
+    const didStartRecordingRef = useRef(false);
 
-    // Fast-tap guard: `voice.start()` is async (permission + prepare), so
-    // a quick hold can flip to "recording" only AFTER the finger lifted.
-    // If that happens with no active hold, cancel immediately so the mic
-    // is never left open.
+    // Fast-hold guard: `voice.start()` is async (permission + prepare),
+    // so a quick hold can flip to "recording" only AFTER the finger
+    // lifted. If that happens with no active hold, cancel immediately so
+    // the mic is never left open.
     useEffect(() => {
       if (voice.status === "recording" && !holdActiveRef.current) {
         void voice.cancel();
       }
     }, [voice.status, voice.cancel]);
 
-    const handleMicPressIn = useCallback(() => {
-      if (voice.status === "transcribing") return;
-      // Phase 1 — first tap arms voice mode without recording.
-      if (!voiceArmed) {
-        justArmedRef.current = true;
-        setVoiceArmed(true);
-        onVoiceFocus?.();
+    // Quick tap — scroll the section into focus + show the hint. Never
+    // records (a tap never trips `onLongPress`).
+    const handleMicTap = useCallback(() => {
+      if (voice.status === "transcribing" || voice.status === "recording") {
         return;
       }
-      // Phase 2 — already armed: a press-and-hold starts recording.
+      setVoiceArmed(true);
+      onVoiceFocus?.();
+    }, [voice.status, onVoiceFocus]);
+
+    // Press-and-hold crossed the long-press threshold — start recording.
+    const handleMicHoldStart = useCallback(() => {
+      if (voice.status === "transcribing") return;
+      didStartRecordingRef.current = true;
       holdActiveRef.current = true;
       void voice.start();
-    }, [voice, voiceArmed, onVoiceFocus]);
+    }, [voice]);
 
     const handleMicPressOut = useCallback(() => {
-      // Release that completes the arming tap — nothing to record yet.
-      if (justArmedRef.current) {
-        justArmedRef.current = false;
-        return;
-      }
       holdActiveRef.current = false;
-      // Not yet recording (start still in flight from an ultra-quick
-      // hold): the status effect above will cancel it once it spins up.
+      // Was a tap, not a hold — nothing to stop.
+      if (!didStartRecordingRef.current) return;
+      didStartRecordingRef.current = false;
+      // Start still in flight from an ultra-quick hold: the status effect
+      // above cancels it once it spins up.
       if (voice.status !== "recording") return;
-      // NOTE: arming stays on — the user can hold to speak again straight
-      // away without re-tapping.
       void (async () => {
         const transcript = await voice.stopAndTranscribe();
         if (transcript) {
@@ -590,14 +592,12 @@ const TakumiAgentSection = forwardRef<
                   </TouchableOpacity>
                 )}
                 <Pressable
-                  onPressIn={handleMicPressIn}
+                  onPress={handleMicTap}
+                  onLongPress={handleMicHoldStart}
+                  delayLongPress={250}
                   onPressOut={handleMicPressOut}
                   disabled={voice.status === "transcribing"}
-                  accessibilityLabel={
-                    voiceArmed
-                      ? "Hold to record, release to send to TakumiAgent"
-                      : "Tap to start voice input for TakumiAgent"
-                  }
+                  accessibilityLabel="Tap to focus, hold to speak to TakumiAgent"
                   className="w-10 h-10 rounded-full bg-light-primary-red items-center justify-center active:opacity-90"
                 >
                   {voice.status === "transcribing" ? (
