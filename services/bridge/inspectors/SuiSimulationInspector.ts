@@ -106,11 +106,20 @@ export const SuiSimulationInspector: IntentInspector = {
     }
 
     if (summary.status !== "success") {
+      // `summary.status` carries the raw Sui Move/VM abort string on
+      // failure — that must never reach the user-facing RiskBanner.
+      if (__DEV__) {
+        console.warn(
+          "[SuiSimulationInspector] simulation failed:",
+          summary.status,
+        );
+      }
       annotations.push({
         code: "simulation.failed",
         severity: "danger",
         title: "Simulation failed",
-        detail: String(summary.status),
+        detail:
+          "This transaction is expected to fail if you continue. Proceed with caution.",
         source: "sui-simulation",
       });
     }

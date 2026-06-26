@@ -921,17 +921,25 @@ export default function AgentMode() {
         // with the last user message. Non-retryable errors
         // (session_error, internal_error) prompt the user to start a
         // fresh conversation instead.
-        console.error(
-          `[AgentMode] session error (retryable=${retryable}): ${message}`,
-        );
-        const fallback = retryable
-          ? "Something went wrong. Try again?"
+        //
+        // `message` is always a raw internal/server string (e.g.
+        // `[agentSession] SSE stream failed: ...` carrying the API host
+        // + IP, or a passthrough server `error.message`). It must never
+        // reach the user — keep it to __DEV__ logs only and always show
+        // hand-written friendly copy on screen.
+        if (__DEV__) {
+          console.error(
+            `[AgentMode] session error (retryable=${retryable}): ${message}`,
+          );
+        }
+        const friendly = retryable
+          ? "Something went wrong. Please try again."
           : "Something went wrong. Please start a new conversation.";
         if (retryable) {
-          setRetryableError(message?.length ? message : fallback);
+          setRetryableError(friendly);
           setNonRetryableError(null);
         } else {
-          setNonRetryableError(message?.length ? message : fallback);
+          setNonRetryableError(friendly);
           setRetryableError(null);
         }
         setCurrentStatus(null);

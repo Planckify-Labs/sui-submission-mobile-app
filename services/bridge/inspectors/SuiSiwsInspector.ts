@@ -66,11 +66,16 @@ export const SuiSiwsInspector: IntentInspector = {
     try {
       builtMessage = buildSiwsMessage(payload);
     } catch (err) {
+      // `detail` renders in the user-facing RiskBanner — never surface the
+      // raw parser error message. Keep it to __DEV__ logs only.
+      if (__DEV__) {
+        console.warn("[SuiSiwsInspector] buildSiwsMessage failed", err);
+      }
       annotations.push({
         code: "siws.invalid-input",
         severity: "warn",
         title: "SIWS input invalid",
-        detail: (err as Error).message,
+        detail: "This sign-in request couldn't be read and may be malformed.",
         source: "sui-siws",
       });
     }

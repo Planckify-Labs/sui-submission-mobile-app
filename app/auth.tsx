@@ -177,11 +177,13 @@ export default function AuthScreen() {
 
       router.replace("/");
     } catch (error: any) {
-      console.error("Authentication error:", error);
-      console.error(
-        "Authentication Failed:",
-        error?.message || "Failed to authenticate with wallet",
-      );
+      if (__DEV__) {
+        console.error("Authentication error:", error);
+        console.error(
+          "Authentication Failed:",
+          error?.message || "Failed to authenticate with wallet",
+        );
+      }
       stopLoading();
     }
   }, [

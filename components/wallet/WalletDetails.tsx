@@ -143,7 +143,8 @@ export default function WalletDetails({
 
     try {
       if (!kit || !kit.upgradeToSmartAccount || !chainForWallet) {
-        throw new Error("Smart account upgrade not supported on this chain.");
+        setUpgradeError("Smart account upgrade isn't supported on this chain.");
+        return;
       }
 
       await kit.upgradeToSmartAccount({
@@ -161,9 +162,13 @@ export default function WalletDetails({
       await queryClient.invalidateQueries({
         queryKey: ["wallet-smart-account-active"],
       });
-    } catch (err: any) {
-      console.error("Smart Account Upgrade error:", err);
-      setUpgradeError(err.message || "Failed to upgrade wallet.");
+    } catch (err) {
+      // Raw upgrade errors (viem/RPC strings carrying node URLs, etc.)
+      // must never reach the UI — log under __DEV__, show fixed copy.
+      if (__DEV__) {
+        console.error("Smart Account Upgrade error:", err);
+      }
+      setUpgradeError("We couldn't upgrade this wallet. Please try again.");
     } finally {
       setIsUpgrading(false);
     }

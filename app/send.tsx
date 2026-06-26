@@ -485,7 +485,7 @@ export default function SendScreen() {
       if (activeChain.namespace === "sui") {
         const verdict = classifySuiRecipient(recipient);
         if (!verdict.ok && verdict.kind === "legacy20") {
-          console.error(`Error: ${verdict.message}`);
+          if (__DEV__) console.error(`Error: ${verdict.message}`);
           return false;
         }
       }
