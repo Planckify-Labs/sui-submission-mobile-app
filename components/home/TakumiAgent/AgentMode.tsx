@@ -220,17 +220,10 @@ export default function AgentMode() {
   const lastSendTimeRef = useRef<number>(0);
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  // Voice prompt handed over from the home `TakumiAgentSection` mic.
-  // Prefill the composer (do NOT auto-send — the user reviews then taps
-  // send), then clear so a later remount doesn't re-fill a stale value.
+  // Prompt handed over from the home `TakumiAgentSection` (voice mic or
+  // capability / spotlight / quick-prompt cards). Drained by an effect
+  // below `sendTextMessage`, which the auto-send path depends on.
   const { prefill, clearPrefill } = useAgentPrefill();
-  useEffect(() => {
-    if (!prefill) return;
-    setInput((prev) =>
-      prev.trim().length > 0 ? `${prev} ${prefill}` : prefill,
-    );
-    clearPrefill();
-  }, [prefill, clearPrefill]);
 
   // Onboarding state
   const {
@@ -1221,6 +1214,53 @@ export default function AgentMode() {
     await sendTextMessage(pending);
     setInput("");
   }, [input, sendTextMessage]);
+
+  // Drain the cross-screen prompt hand-off from the home
+  // `TakumiAgentSection`. Voice transcripts arrive with `autoSend:false`
+  // — prefill the composer so the user reviews then taps send. Capability
+  // / spotlight / quick-prompt cards arrive with `autoSend:true` — fire
+  // the prompt straight into a turn. Auto-send waits for the session
+  // context to resolve (a cold AgentMode mount, opened by the card tap,
+  // settles a tick after render) before sending, then clears either way
+  // so a later remount can't replay a stale prompt.
+  useEffect(() => {
+    if (!prefill) return;
+    if (!prefill.autoSend) {
+      setInput((prev) =>
+        prev.trim().length > 0 ? `${prev} ${prefill.text}` : prefill.text,
+      );
+      clearPrefill();
+      return;
+    }
+    if (!walletContext || !connectedWallet || !executorContext) return;
+    clearPrefill();
+    // One-tap cards are discrete intents launched from the home screen,
+    // not a continuation of whatever thread happens to be loaded. Start a
+    // fresh conversation (same reset the "New conversation" button uses)
+    // so the agent carries no unrelated context and the prompt can't
+    // collide with a stale approval/preview from a prior thread. The
+    // previous thread is already persisted (History tab), so nothing is
+    // lost. Clear the registry too so a wallet toggle in the brief window
+    // before the new conversation id arrives doesn't rehydrate the
+    // abandoned thread.
+    const addr = activeWallet?.address as `0x${string}` | undefined;
+    if (addr) activeConvRegistry.clear(addr);
+    hardResetAgent();
+    // `hardResetAgent` leaves the composer untouched — drop any leftover
+    // value (typed text or an earlier voice prefill) so the card sends
+    // only its own prompt and the stale value isn't submitted later.
+    setInput("");
+    void sendTextMessage(prefill.text);
+  }, [
+    prefill,
+    clearPrefill,
+    walletContext,
+    connectedWallet,
+    executorContext,
+    sendTextMessage,
+    hardResetAgent,
+    activeWallet?.address,
+  ]);
 
   const handlePromptSelect = useCallback(
     async (prompt: string) => {
