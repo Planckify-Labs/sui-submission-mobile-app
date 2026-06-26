@@ -2,27 +2,30 @@
  * NL→PTB compiler (spec §4) — a thin dispatcher over the EXISTING DeFi
  * port + swap layer (§1.2.1), not a new registry:
  *
- *   supply / withdraw → getDefiAdapter("scallop-sui").build*  (services/defi)
+ *   supply / withdraw → resolved Sui lending adapter .build*  (services/defi)
  *   swap              → getSuiSwapRoute(...)                   (services/swap/sui)
  *
  * The LLM emits a symbol/human-amount `Intent`; the compiler resolves
- * symbols → coinTypes from the token registry (SI-2), builds the PTB via
- * the registry adapter / swap selector, decodes it for the preview, and
- * returns a `CompiledIntent`. The guardian (§5) then runs over the result.
+ * symbols → coinTypes from the token registry (SI-2), resolves the lending
+ * VENUE against the registered Sui adapters (never a hardcoded slug — see
+ * `pickVenueAdapter`), builds the PTB via the adapter / swap selector,
+ * decodes it for the preview, and returns a `CompiledIntent`. The guardian
+ * (§5) then runs over the result.
  *
- * Dependencies (swap router, adapter registry, Scallop meta read) are
- * injectable so the compiler is unit-testable without hitting a live SDK.
+ * Dependencies (swap router, adapter registry) are injectable so the
+ * compiler is unit-testable without hitting a live SDK. The supply meta and
+ * the atomic zap composer are OPTIONAL capabilities read off the resolved
+ * adapter — a venue that lacks them simply can't be zapped into.
  */
 
 import { parseUnits } from "viem";
 import type { TToken } from "@/api/types/token";
 import type { SuiChainConfig } from "@/constants/configs/chainConfig";
-import {
-  buildScallopZapSupply,
-  readScallopSupplyMeta,
-} from "@/services/defi/adapters/scallopSui";
 import { DefiError } from "@/services/defi/errors/defiErrors";
-import { listDefiAdaptersForChain } from "@/services/defi/registry";
+import {
+  listDefiAdaptersForChain,
+  pickVenueAdapter,
+} from "@/services/defi/registry";
 import { getSuiSwapRoute } from "@/services/swap/sui/suiSwapRouter";
 import { appendDeepbookSwap } from "@/services/swap/sui/venues/deepbookSwap";
 import { decodeSuiPtb } from "./decodeSuiPtb";
@@ -36,14 +39,10 @@ const SUI_NATIVE_COIN_TYPE = "0x2::sui::SUI";
 /** Native SUI decimals — a protocol constant (1 SUI = 10⁹ MIST), not a
  *  token-registry value. Used only for the native row / native fallback. */
 const SUI_NATIVE_DECIMALS = 9;
-const SCALLOP_SLUG = "scallop-sui";
 
 export interface CompileDeps {
   getSwapRoute: typeof getSuiSwapRoute;
   listAdaptersForChain: typeof listDefiAdaptersForChain;
-  readSupplyMeta: typeof readScallopSupplyMeta;
-  /** Atomic swap→supply composer (mainnet-only Scallop) — §4.7. */
-  buildZapSupply: typeof buildScallopZapSupply;
   /** The DEX swap leg appended into the zap's shared tx — §4.7. */
   appendSwapInto: typeof appendDeepbookSwap;
 }
@@ -51,8 +50,6 @@ export interface CompileDeps {
 const DEFAULT_DEPS: CompileDeps = {
   getSwapRoute: getSuiSwapRoute,
   listAdaptersForChain: listDefiAdaptersForChain,
-  readSupplyMeta: readScallopSupplyMeta,
-  buildZapSupply: buildScallopZapSupply,
   appendSwapInto: appendDeepbookSwap,
 };
 
@@ -102,7 +99,7 @@ export async function compileIntentToPtb(
   if (intent.action === "swap_and_supply") {
     return compileSwapAndSupply(intent, ctx, deps);
   }
-  return compileScallop(intent, ctx, deps);
+  return compileSupplyWithdraw(intent, ctx, deps);
 }
 
 async function compileSwap(
@@ -146,19 +143,44 @@ async function compileSwap(
   };
 }
 
+/**
+ * Resolve the lending venue for a supply-style intent against the registered
+ * Sui adapters for the active network. The network gate is free (mainnet-only
+ * adapters resolve to nothing on testnet → `supply_mainnet_only`, §4.6), and
+ * the venue is matched by slug / catalog alias / display name — never a
+ * hardcoded protocol id.
+ */
+function resolveLendingVenue(
+  ctx: CompileContext,
+  deps: CompileDeps,
+  venue?: string,
+) {
+  const adapter = pickVenueAdapter(
+    deps.listAdaptersForChain("sui", ctx.chain.network),
+    venue,
+  );
+  if (!adapter) {
+    // No registered venue for this network (testnet), or the named venue is
+    // unknown / ambiguous. Same curated code either way — the agent offers a
+    // plain swap (testnet) or re-asks for the venue.
+    throw new DefiError("unsupported_chain", "supply_mainnet_only");
+  }
+  return adapter;
+}
+
 async function compileSwapAndSupply(
   intent: Extract<Intent, { action: "swap_and_supply" }>,
   ctx: CompileContext,
   deps: CompileDeps,
 ): Promise<CompiledIntent> {
-  // Mainnet-only: the supply leg is Scallop. Gate via the registry exactly
-  // like compileScallop — on testnet the adapter isn't registered, so a zap
-  // returns `not_on_this_network` and the agent offers a plain swap instead.
-  const adapter = deps
-    .listAdaptersForChain("sui", ctx.chain.network)
-    .find((a) => a.slug === SCALLOP_SLUG);
-  if (!adapter) {
-    throw new DefiError("unsupported_chain", "supply_mainnet_only");
+  // Resolve the venue generically (network-gated). Mainnet-only because the
+  // lending adapters are mainnet-gated; on testnet nothing resolves and the
+  // agent offers a plain swap instead.
+  const adapter = resolveLendingVenue(ctx, deps, intent.venue);
+  if (!adapter.buildZapSupply) {
+    // The resolved venue can't do a single-PTB zap-in. Presence-check, never
+    // a name check — a venue without this capability just isn't zappable.
+    throw new DefiError("unsupported_chain", "venue_no_zap");
   }
 
   // Resolve the INPUT coin (held by the user); the output/supply coin is
@@ -166,9 +188,9 @@ async function compileSwapAndSupply(
   const from = resolveToken(ctx.tokens, intent.fromAsset);
   const amountRaw = parseAmount(intent.amount.human, from.decimals);
 
-  // Compose both legs into ONE atomic PTB: the swap leg appends to Scallop's
-  // shared tx and its output coin feeds the deposit (§4.7).
-  const result = await deps.buildZapSupply({
+  // Compose both legs into ONE atomic PTB: the swap leg appends to the
+  // venue's shared tx and its output coin feeds the deposit (§4.7).
+  const result = await adapter.buildZapSupply({
     wallet: ctx.wallet,
     chain: ctx.chain as SuiChainConfig,
     supplyAssetSymbol: intent.toAsset,
@@ -186,12 +208,13 @@ async function compileSwapAndSupply(
       }),
   });
 
-  const meta = await deps.readSupplyMeta(intent.toAsset, ctx.wallet.address);
+  const meta: { apy?: string; inputCoinType?: string } =
+    (await adapter.readSupplyMeta?.(intent.toAsset, ctx.wallet.address)) ?? {};
 
   return {
     ptbBase64: result.ptbBase64,
     decoded: decodeSuiPtb(result.ptbBase64),
-    summary: `Swap ${intent.amount.human} ${intent.fromAsset} to ${intent.toAsset}, then supply to Scallop${
+    summary: `Swap ${intent.amount.human} ${intent.fromAsset} to ${intent.toAsset}, then supply to ${adapter.displayName}${
       meta.apy ? `, earning ~${meta.apy}% APY` : ""
     }`,
     apy: meta.apy,
@@ -204,19 +227,12 @@ async function compileSwapAndSupply(
   };
 }
 
-async function compileScallop(
+async function compileSupplyWithdraw(
   intent: Extract<Intent, { action: "supply" | "withdraw" }>,
   ctx: CompileContext,
   deps: CompileDeps,
 ): Promise<CompiledIntent> {
-  // Network gate is free: the Scallop adapter is chainId "mainnet", so on
-  // testnet `listDefiAdaptersForChain("sui","testnet")` is empty (§4.6).
-  const adapter = deps
-    .listAdaptersForChain("sui", ctx.chain.network)
-    .find((a) => a.slug === SCALLOP_SLUG);
-  if (!adapter) {
-    throw new DefiError("unsupported_chain", "supply_mainnet_only");
-  }
+  const adapter = resolveLendingVenue(ctx, deps, intent.venue);
 
   const asset = resolveToken(ctx.tokens, intent.asset);
   const assetArg = {
@@ -250,20 +266,21 @@ async function compileScallop(
   }
 
   if (call.kind !== "sui-ptb") {
-    throw new DefiError("unsupported_chain", "scallop: non-sui-ptb call");
+    throw new DefiError("unsupported_chain", "venue: non-sui-ptb call");
   }
 
-  const meta =
+  const meta: { apy?: string; inputCoinType?: string } =
     intent.action === "supply"
-      ? await deps.readSupplyMeta(intent.asset, ctx.wallet.address)
+      ? ((await adapter.readSupplyMeta?.(intent.asset, ctx.wallet.address)) ??
+        {})
       : {};
 
   const summary =
     intent.action === "supply"
-      ? `Supply ${intent.amount.human} ${intent.asset} to Scallop${
+      ? `Supply ${intent.amount.human} ${intent.asset} to ${adapter.displayName}${
           meta.apy ? `, earning ~${meta.apy}% APY` : ""
         }`
-      : `Withdraw ${intent.amount?.human ?? "all"} ${intent.asset} from Scallop`;
+      : `Withdraw ${intent.amount?.human ?? "all"} ${intent.asset} from ${adapter.displayName}`;
 
   return {
     ptbBase64: call.transactionBlockBase64,

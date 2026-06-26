@@ -36,15 +36,18 @@ export type TAmount = z.infer<typeof Amount>;
 export const IntentSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("supply"),
-    // Scallop is the only Phase-1 lending venue; the registry only resolves
-    // it on mainnet (§4.6) so the literal stays even though it is gated.
-    venue: z.enum(["scallop"]),
+    // Free-form venue slug — NOT an enum. The compiler resolves it against
+    // the registered Sui lending adapters (canonical slug / externalSlugs /
+    // display name) and gates by network (§4.6). Keeping the schema
+    // venue-agnostic means a new lending protocol is a registration, never
+    // an edit here. An unknown venue fails at compile time, not parse time.
+    venue: z.string().min(1),
     asset: z.string().min(1), // symbol, e.g. "USDC" — resolved to coinType by the compiler
     amount: Amount,
   }),
   z.object({
     action: z.literal("withdraw"),
-    venue: z.enum(["scallop"]),
+    venue: z.string().min(1),
     asset: z.string().min(1),
     amount: Amount.optional(), // omit = withdraw all
   }),
@@ -60,12 +63,15 @@ export const IntentSchema = z.discriminatedUnion("action", [
   }),
   z.object({
     // "Zap": swap `fromAsset` → `toAsset` on a DEX, then supply `toAsset` to
-    // Scallop — composed into ONE atomic Programmable Transaction Block (the
-    // swap's output coin feeds the deposit; spec §4.7). MAINNET-ONLY (the
-    // supply leg is Scallop); on testnet the registry doesn't resolve Scallop
-    // so the compiler returns `not_on_this_network`. No venue field — the DEX
-    // is network-selected and the lending venue is implicitly Scallop.
+    // a lending venue — composed into ONE atomic Programmable Transaction
+    // Block (the swap's output coin feeds the deposit; spec §4.7).
+    // MAINNET-ONLY (the supply leg's venues are mainnet-gated); on testnet
+    // the registry resolves no venue so the compiler returns
+    // `not_on_this_network`. `venue` is optional: omit it to use the sole
+    // registered Sui lending venue, or name one (slug / catalog slug) when
+    // several exist. The DEX is always network-selected, never named.
     action: z.literal("swap_and_supply"),
+    venue: z.string().min(1).optional(),
     fromAsset: z.string().min(1), // what the user holds, e.g. "SUI"
     toAsset: z.string().min(1), // swapped to AND supplied, e.g. "USDC"
     amount: Amount, // exact-in of fromAsset

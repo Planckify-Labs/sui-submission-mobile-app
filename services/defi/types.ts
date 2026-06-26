@@ -1,4 +1,7 @@
-import type { ChainConfig } from "@/constants/configs/chainConfig";
+import type {
+  ChainConfig,
+  SuiChainConfig,
+} from "@/constants/configs/chainConfig";
 import type { TWallet } from "@/constants/types/walletTypes";
 import type { Namespace } from "@/services/chains/types";
 
@@ -55,6 +58,43 @@ export interface BuildWithdrawArgs extends Omit<BuildDepositArgs, "amount"> {
 }
 
 /**
+ * The DEX leg appended into a zap's shared `Transaction` (the swap side of
+ * an atomic swap→supply). Injected by the compiler so the DEX SDK stays in
+ * the swap layer and the lending adapter owns only its deposit leg.
+ */
+export interface ZapSwapLeg {
+  outputCoin: import("@mysten/sui/transactions").TransactionObjectArgument;
+  leftoverCoins: import("@mysten/sui/transactions").TransactionObjectArgument[];
+  expectedOut: bigint;
+  priceImpact: number;
+  toCoinType: string;
+  poolObjectId?: string;
+}
+
+export interface ZapSupplyArgs {
+  wallet: TWallet;
+  chain: SuiChainConfig;
+  /** Symbol of the asset to swap INTO and then supply (e.g. "USDC"). */
+  supplyAssetSymbol: string;
+  /**
+   * Appends the swap leg to the shared `Transaction` and returns its output
+   * coin + leftovers. Injected so the DEX SDK stays in the swap layer — the
+   * adapter owns only the supply (lending) leg (space-docking).
+   */
+  appendSwap: (
+    tx: import("@mysten/sui/transactions").Transaction,
+  ) => Promise<ZapSwapLeg | null>;
+}
+
+export interface ZapSupplyResult {
+  ptbBase64: string;
+  expectedOut: bigint;
+  priceImpact: number;
+  toCoinType: string;
+  poolObjectId?: string;
+}
+
+/**
  * One adapter per (protocol, chain) deployment. AaveV3 on Ethereum is
  * one, AaveV3 on Base is another. Solana / Sui protocols implement
  * the same interface; chain-specific submission lives in the
@@ -84,6 +124,31 @@ export interface DefiProtocolAdapter {
   staticSafetyScore?: number; // 0–100
   /** Per-deployment minimum deposit in raw asset units. */
   minDepositRaw?: bigint;
+
+  /**
+   * External catalog slugs this adapter fulfills — e.g. the DeFiLlama
+   * `pool.project` ("scallop-lend") that `defi_list_opportunities`
+   * surfaces. Lets a discovered opportunity slug (or a venue named by the
+   * agent) resolve to this adapter without a central per-protocol map —
+   * the next protocol docks by declaring its own aliases here, never by a
+   * branch in shared code. Matched case-insensitively alongside `slug`.
+   */
+  readonly externalSlugs?: readonly string[];
+  /**
+   * Atomic swap→supply zap composer (Sui Intent Engine §4.7): one PTB that
+   * swaps into the supply asset and supplies it, all-or-nothing. Optional —
+   * only venues that support single-PTB zap-in expose it; the compiler
+   * presence-checks it rather than branching on the venue name.
+   */
+  buildZapSupply?(args: ZapSupplyArgs): Promise<ZapSupplyResult>;
+  /**
+   * Best-effort supply-preview enrichment (APY / resolved input coinType)
+   * for the intent preview card. Optional and must never throw.
+   */
+  readSupplyMeta?(
+    assetSymbol: string,
+    ownerAddress: string,
+  ): Promise<{ apy?: string; inputCoinType?: string }>;
 }
 
 /**

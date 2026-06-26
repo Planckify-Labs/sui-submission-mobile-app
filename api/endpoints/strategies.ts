@@ -15,6 +15,9 @@ export interface TOpportunitySearchParams {
   tier?: string;
   asset_symbol?: string;
   chain_id?: number;
+  /** Chain namespace filter ("eip155" | "solana" | "sui") — lets the agent
+   *  ask for non-EVM yield (Sui rows are chainId 0, keyed by namespace). */
+  namespace?: string;
   liquidity_profile?: string;
   amount_usd?: number;
 }

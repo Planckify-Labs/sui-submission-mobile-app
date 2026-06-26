@@ -65,11 +65,24 @@ describe("intentSchema", () => {
     expect(parseIntent({ action: "borrow", asset: "USDC" })).toBeNull();
   });
 
-  it("rejects an unknown supply venue", () => {
+  it("accepts any non-empty venue (validation moves to the compiler)", () => {
+    // The schema is venue-agnostic — an unknown/typo'd venue is rejected at
+    // compile time (registry resolution), not parse time, so adding a
+    // lending protocol never needs an enum edit here.
+    const parsed = parseIntent({
+      action: "supply",
+      venue: "some-future-lender",
+      asset: "USDC",
+      amount: { human: "1" },
+    });
+    expect(parsed?.action).toBe("supply");
+  });
+
+  it("rejects an empty venue", () => {
     expect(
       parseIntent({
         action: "supply",
-        venue: "aave",
+        venue: "",
         asset: "USDC",
         amount: { human: "1" },
       }),

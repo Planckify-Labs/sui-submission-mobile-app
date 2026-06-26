@@ -95,6 +95,7 @@ export const listOpportunities: MobileToolExecutor = (input, _context) =>
     const tier = optionalString(input, "tier");
     const assetSymbol = optionalString(input, "asset_symbol");
     const chainId = optionalInt(input, "chain_id");
+    const namespace = optionalString(input, "namespace");
     const liquidityProfile = optionalString(input, "liquidity_profile");
     const amountUsd = optionalNumber(input, "amount_usd");
 
@@ -103,6 +104,7 @@ export const listOpportunities: MobileToolExecutor = (input, _context) =>
         tier,
         assetSymbol,
         chainId,
+        namespace,
         liquidityProfile,
         amountUsd,
       });
@@ -113,6 +115,7 @@ export const listOpportunities: MobileToolExecutor = (input, _context) =>
         ...(tier ? { tier } : {}),
         ...(assetSymbol ? { asset_symbol: assetSymbol } : {}),
         ...(chainId !== undefined ? { chain_id: chainId } : {}),
+        ...(namespace ? { namespace } : {}),
         ...(liquidityProfile ? { liquidity_profile: liquidityProfile } : {}),
         ...(amountUsd !== undefined ? { amount_usd: amountUsd } : {}),
       });

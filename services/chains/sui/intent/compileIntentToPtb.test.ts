@@ -43,13 +43,6 @@ function deps(over: Partial<CompileDeps>): CompileDeps {
       toCoinType: p.toCoinType ?? "",
     }),
     listAdaptersForChain: () => [],
-    readSupplyMeta: async () => ({}),
-    buildZapSupply: async () => ({
-      ptbBase64: "AAA=",
-      expectedOut: 9_000_000n,
-      priceImpact: 0.01,
-      toCoinType: USDC_COIN_TYPE,
-    }),
     appendSwapInto: async () => null,
     ...over,
   };
@@ -148,18 +141,18 @@ describe("compileIntentToPtb — swap_and_supply (atomic zap)", () => {
   });
 
   it("composes the swap + supply into one PTB on mainnet", async () => {
+    let zapArgs: { supplyAssetSymbol: string } | null = null;
+    // The zap composer + supply meta are now OPTIONAL ADAPTER capabilities
+    // (presence-checked by the compiler), not injected deps — a new venue
+    // docks them on its adapter.
     const scallop = {
       slug: "scallop-sui",
       namespace: "sui",
       chainId: "mainnet",
-    } as unknown as DefiProtocolAdapter;
-
-    let zapArgs: { supplyAssetSymbol: string } | null = null;
-    const compiled = await compileIntentToPtb(zap, ctxOn("mainnet"), {
-      ...deps({}),
-      listAdaptersForChain: () => [scallop],
+      displayName: "Scallop",
+      externalSlugs: ["scallop-lend", "scallop"],
       readSupplyMeta: async () => ({ apy: "5.20" }),
-      buildZapSupply: async (a) => {
+      buildZapSupply: async (a: { supplyAssetSymbol: string }) => {
         zapArgs = { supplyAssetSymbol: a.supplyAssetSymbol };
         return {
           ptbBase64: "AAA=",
@@ -168,6 +161,11 @@ describe("compileIntentToPtb — swap_and_supply (atomic zap)", () => {
           toCoinType: USDC_COIN_TYPE,
         };
       },
+    } as unknown as DefiProtocolAdapter;
+
+    const compiled = await compileIntentToPtb(zap, ctxOn("mainnet"), {
+      ...deps({}),
+      listAdaptersForChain: () => [scallop],
     });
 
     expect(zapArgs?.supplyAssetSymbol).toBe("USDC");
@@ -195,13 +193,14 @@ describe("compileIntentToPtb — supply", () => {
     ).rejects.toMatchObject({ code: "unsupported_chain" });
   });
 
-  it("routes to the Scallop adapter on mainnet and surfaces APY", async () => {
+  it("resolves the venue by alias on mainnet and surfaces APY", async () => {
     const scallop = {
       slug: "scallop-sui",
       namespace: "sui",
       kind: "stablecoin_lending",
       chainId: "mainnet",
-      displayName: "Scallop (Sui)",
+      displayName: "Scallop",
+      externalSlugs: ["scallop-lend", "scallop"],
       buildDeposit: async (): Promise<UnsignedCall> => ({
         kind: "sui-ptb",
         transactionBlockBase64: "BBB=",
@@ -211,21 +210,23 @@ describe("compileIntentToPtb — supply", () => {
         transactionBlockBase64: "CCC=",
       }),
       readPosition: async () => null,
+      readSupplyMeta: async () => ({
+        apy: "5.20",
+        inputCoinType: USDC_COIN_TYPE,
+      }),
     } as unknown as DefiProtocolAdapter;
 
+    // Venue named with the DeFiLlama catalog slug ("scallop-lend"), not the
+    // canonical adapter slug — the registry resolves it via externalSlugs.
     const intent: Intent = {
       action: "supply",
-      venue: "scallop",
+      venue: "scallop-lend",
       asset: "USDC",
       amount: { human: "100" },
     };
     const compiled = await compileIntentToPtb(intent, ctxOn("mainnet"), {
       ...deps({}),
       listAdaptersForChain: () => [scallop],
-      readSupplyMeta: async () => ({
-        apy: "5.20",
-        inputCoinType: USDC_COIN_TYPE,
-      }),
     });
 
     expect(compiled.ptbBase64).toBe("BBB=");

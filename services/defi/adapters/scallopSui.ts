@@ -32,7 +32,6 @@ import {
 } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import type { SuiChainConfig } from "@/constants/configs/chainConfig";
-import type { TWallet } from "@/constants/types/walletTypes";
 import { SuiSwapError } from "@/services/swap/sui/types";
 import { DefiError } from "../errors/defiErrors";
 import type {
@@ -41,6 +40,8 @@ import type {
   DefiPosition,
   DefiProtocolAdapter,
   UnsignedCall,
+  ZapSupplyArgs,
+  ZapSupplyResult,
 } from "../types";
 import { getScallopCore, resolveScallopCoin } from "./scallop.config";
 
@@ -135,37 +136,6 @@ export async function readScallopSupplyMeta(
   return { inputCoinType: coin.coinType };
 }
 
-/** The swap leg appended into the shared tx (the DEX side of a zap). */
-export interface ZapSwapLeg {
-  outputCoin: TransactionObjectArgument;
-  leftoverCoins: TransactionObjectArgument[];
-  expectedOut: bigint;
-  priceImpact: number;
-  toCoinType: string;
-  poolObjectId?: string;
-}
-
-export interface ZapSupplyArgs {
-  wallet: TWallet;
-  chain: SuiChainConfig;
-  /** Symbol of the asset to swap INTO and then supply (e.g. "USDC"). */
-  supplyAssetSymbol: string;
-  /**
-   * Appends the swap leg to the shared `Transaction` and returns its output
-   * coin + leftovers. Injected so the DEX SDK stays in the swap layer — this
-   * module owns only the Scallop deposit leg (space-docking).
-   */
-  appendSwap: (tx: Transaction) => Promise<ZapSwapLeg | null>;
-}
-
-export interface ZapSupplyResult {
-  ptbBase64: string;
-  expectedOut: bigint;
-  priceImpact: number;
-  toCoinType: string;
-  poolObjectId?: string;
-}
-
 /**
  * Atomic swap→supply (spec §4.7, the "why Sui" hero) — MAINNET-ONLY.
  *
@@ -227,8 +197,15 @@ export const ScallopSuiAdapter: DefiProtocolAdapter = {
   namespace: "sui",
   kind: "stablecoin_lending",
   chainId: NETWORK, // string id → free network gate via listDefiAdaptersForChain
-  displayName: "Scallop (Sui)",
+  displayName: "Scallop",
   staticSafetyScore: 80,
+  // DeFiLlama project slug (and shorthand) so a discovered opportunity or
+  // an agent-named venue resolves to this adapter without a central map.
+  externalSlugs: ["scallop-lend", "scallop"],
+  // Optional Sui Intent Engine capabilities, presence-checked by the
+  // compiler — the supply preview meta and the atomic swap→supply zap.
+  readSupplyMeta: readScallopSupplyMeta,
+  buildZapSupply: buildScallopZapSupply,
 
   async buildDeposit({
     wallet,
