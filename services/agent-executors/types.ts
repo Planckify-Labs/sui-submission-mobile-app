@@ -46,6 +46,18 @@ export interface ToolResult {
   data?: unknown;
   error?: string;
   /**
+   * Granular, curated sub-reason for a failure — the open per-tool detail
+   * behind the coarse `error` code (e.g. `error: "stale_precondition"` paired
+   * with `reason: "intent_expired"`). Populated by `safeExecute` from the
+   * thrown `ExecutorError.message`. MUST be a curated, stable string — never
+   * raw runtime / response text (CLAUDE.md user-facing-errors), because it is
+   * fed back into LLM context AND rendered (via `agentErrorCopy`) on the
+   * failure card. The coarse `error` is the agent's deterministic branch
+   * point; `reason` lets it (and the UI) be specific without growing the
+   * closed `ExecutorErrorCode` taxonomy per protocol.
+   */
+  reason?: string;
+  /**
    * Backend transaction record id created after a successful write.
    * Present when the executor successfully called `transactionApi.createTransaction`
    * (mirrors the send.tsx history-recording path). The dispatcher threads
@@ -56,11 +68,14 @@ export interface ToolResult {
 }
 
 /**
- * Inputs arrive from the server as `Record<string, unknown>`. Executors
- * narrow them with small type assertions — we do NOT pull in zod here
- * because the server already validated against the tool schema and
- * adding a second layer of runtime validation would just duplicate work
- * and cost bundle size.
+ * Inputs arrive from the server as `Record<string, unknown>`. Simple
+ * executors narrow them with the small `require*` helpers below. Tools with
+ * a non-trivial input shape should instead define ONE zod schema and validate
+ * via `parseToolInput` (./parseInput.ts): that schema doubles as the
+ * `z.infer` type and (via `z.toJSONSchema`) the LLM-facing JSON Schema, so
+ * "what the LLM may send" and "what the executor accepts" stay a single
+ * source of truth — see `defi/intentSchemaParity.test.ts`. The Sui Intent
+ * tools are the reference implementation.
  */
 export type ToolInput = Record<string, unknown>;
 
@@ -129,6 +144,17 @@ export const ExecutorErrorCode = {
   NetworkError: "network_error",
   NotImplemented: "not_implemented",
   InvalidInput: "invalid_input",
+  // A precondition that held at preview / quote time no longer holds — an
+  // expired cached intent, a pool that moved, a stale quote. This is its own
+  // recovery CLASS, deliberately distinct from `invalid_input` (deterministic
+  // bad params — re-sending the same call can't help) and `network_error` (a
+  // transient blip — a blind retry is safe). The recovery here is to REFRESH
+  // the precondition (re-preview / re-quote) and try again, which is the
+  // agent's job — so this code is intentionally NOT in `isRetryableError`
+  // (that wrapper retries the SAME call, which here is guaranteed to re-fail).
+  // New protocols map their "the world moved between prepare and execute"
+  // failures onto this instead of inventing a fresh top-level code.
+  StalePrecondition: "stale_precondition",
   // Catch-all curated code. Never surface raw runtime / response text
   // on `ToolResult.error` — that string ends up in LLM context on the
   // next turn (CLAUDE.md user-facing-error rule). `mapUnknownError`
@@ -165,7 +191,20 @@ export async function safeExecute<T extends ToolResult>(
     return await body();
   } catch (err) {
     if (err instanceof ExecutorError) {
-      return { status: "failed", error: err.code };
+      // Surface the granular curated sub-reason (the `ExecutorError` message)
+      // ALONGSIDE the coarse code, instead of discarding it. `error` stays the
+      // closed-taxonomy code the agent branches on; `reason` carries the
+      // open, per-tool detail (`intent_expired`, `quote_stale`, …) so the
+      // agent and the failure card can be specific. Both are curated strings
+      // — never raw text (CLAUDE.md). Omit `reason` when it would merely echo
+      // the code (the `ExecutorError` default when no message is supplied).
+      const reason =
+        err.message && err.message !== err.code ? err.message : undefined;
+      return {
+        status: "failed",
+        error: err.code,
+        ...(reason ? { reason } : {}),
+      };
     }
     return { status: "failed", error: mapUnknownError(err) };
   }

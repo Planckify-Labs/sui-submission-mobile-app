@@ -29,6 +29,7 @@ import {
 } from "lucide-react-native";
 import type React from "react";
 import { Pressable, Text, View } from "react-native";
+import { agentErrorCopy } from "../agentErrorCopy";
 import type { ToolComponentProps } from "../types";
 
 type Severity = "info" | "warn" | "block";
@@ -61,40 +62,13 @@ type IntentPreviewOutput = {
   status?: string;
   data?: IntentPreviewData;
   error?: string;
+  reason?: string;
 };
 
 const SUCCESS_GREEN = "#10b981";
 const WARN_AMBER = "#d97706";
 const BRAND_RED = "#c71c4b";
 const MUTED_GRAY = "#6b7280";
-
-/**
- * Curated reason CODE → friendly, specific copy. Codes come from the
- * executor's `ToolResult.error` (e.g. `amount_below_minimum`,
- * `insufficient_funds`, `no_swap_route`) — stable, non-raw strings. Anything
- * unmapped falls back to a generic line. All copy hand-written (no raw
- * detail ever reaches the user — CLAUDE.md).
- */
-const FAILED_COPY: Record<string, string> = {
-  amount_below_minimum:
-    "That amount is below the minimum for this swap. Try a larger amount.",
-  insufficient_funds:
-    "You don't have enough balance for this — including a little for gas.",
-  insufficient_balance:
-    "You don't have enough balance for this — including a little for gas.",
-  no_swap_route: "I couldn't find a swap route for that pair right now.",
-  unsupported_pair: "That token pair isn't available to swap here.",
-  unsupported_asset: "That asset isn't available on this network.",
-  unsupported_chain: "That isn't available on this network yet.",
-  network_error: "The network is busy right now. Please try again in a moment.",
-};
-
-const FAILED_FALLBACK =
-  "I couldn't prepare that plan right now. Try a different amount or pair, or check back in a moment.";
-
-function failedCopy(code: string | undefined): string {
-  return (code && FAILED_COPY[code]) || FAILED_FALLBACK;
-}
 
 function describeCommand(c: DecodedCommand): string {
   switch (c.kind) {
@@ -202,7 +176,7 @@ const IntentPreviewCard: React.FC<
   // copy so the user knows what to change. Deterministic here, so it's clear
   // even if the agent's chat prose drifts. Unknown codes fall back to generic.
   if (output.status !== "success") {
-    const msg = failedCopy(output.error);
+    const msg = agentErrorCopy(output.error, output.reason);
     return (
       <View className="my-1.5 rounded-2xl border border-amber-200 bg-amber-50/70 px-3.5 py-3">
         <View className="flex-row items-center gap-2">

@@ -30,6 +30,7 @@ import {
 } from "@/services/pendingTxStore";
 import { buildExplorerUrl } from "../../PendingTxCard/explorerUrl";
 import PendingTxCardLegacy from "../../PendingTxCard/PendingTxCard";
+import { agentErrorCopy } from "../agentErrorCopy";
 import type { ToolComponentProps } from "../types";
 import WriteApprovalGate from "../WriteApprovalGate";
 
@@ -41,6 +42,7 @@ type WriteToolOutput = {
   block_number?: number;
   data?: { chain_id?: number; [k: string]: unknown };
   error?: string;
+  reason?: string;
   user_decision?: "approved" | "rejected";
 };
 
@@ -122,6 +124,17 @@ function HistoricalReceipt({
   };
 
   if (isFailed) {
+    // Raw codes are for DEV diagnostics ONLY — never the user (CLAUDE.md
+    // user-facing-errors). The card shows hand-written `agentErrorCopy`.
+    if (
+      typeof __DEV__ !== "undefined" &&
+      __DEV__ &&
+      (output.error || output.reason)
+    ) {
+      console.warn(
+        `[PendingTxCard] write failed: error=${output.error ?? "?"} reason=${output.reason ?? "-"}`,
+      );
+    }
     return (
       <Pressable
         accessible
@@ -138,6 +151,13 @@ function HistoricalReceipt({
         </View>
         <Text className="text-sm text-light-matte-black/80 mt-1.5">
           {description}
+        </Text>
+        {/* Friendly copy only — the raw code went to the dev log above. */}
+        <Text
+          className="text-[13px] text-light-matte-black/70 mt-1"
+          numberOfLines={3}
+        >
+          {agentErrorCopy(output.error, output.reason)}
         </Text>
         {txHash ? (
           <View className="flex-row items-center gap-2 mt-2">

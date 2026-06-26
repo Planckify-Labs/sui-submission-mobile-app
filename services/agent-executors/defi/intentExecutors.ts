@@ -18,11 +18,15 @@
 import { SuiJsonRpcClient } from "@mysten/sui/jsonRpc";
 import { compileIntentToPtb } from "@/services/chains/sui/intent/compileIntentToPtb";
 import { runGuardian } from "@/services/chains/sui/intent/guardian/riskCheckRegistry";
-import { parseIntent } from "@/services/chains/sui/intent/intentSchema";
+import {
+  IntentExecuteInputSchema,
+  parseIntent,
+} from "@/services/chains/sui/intent/intentSchema";
 import { intentStore } from "@/services/chains/sui/intent/intentStore";
 import { simulateSuiTransaction } from "@/services/chains/sui/simulation";
 import { DefiError } from "@/services/defi/errors/defiErrors";
 import { SuiSwapError } from "@/services/swap/sui/types";
+import { parseToolInput } from "../parseInput";
 import {
   getActiveSuiChain,
   getSuiKit,
@@ -32,7 +36,6 @@ import {
   ExecutorError,
   ExecutorErrorCode,
   type MobileToolExecutor,
-  requireString,
   safeExecute,
 } from "../types";
 import { recordTransferHistory } from "../wallet/recordTransferHistory";
@@ -262,16 +265,29 @@ export const defiIntentExecute: MobileToolExecutor = (input, context) =>
     // the wallet), exactly like `send_sui`. A watch-only Sui wallet has no
     // signing material and fails in `signAndExecuteSuiPtb` below.
 
-    const intentId = requireString(input, "intent_id");
+    // Validate via the SAME zod schema the server derives its JSON Schema
+    // from (single source of truth; parity-tested). Fails as
+    // `invalid_intent_id` -> surfaced on `reason`.
+    const { intent_id: intentId } = parseToolInput(
+      IntentExecuteInputSchema,
+      input,
+      "intent_id",
+    );
     const entry = intentStore.get(intentId);
     if (!entry) {
-      throw new ExecutorError(ExecutorErrorCode.InvalidInput, "intent_expired");
+      // The cached PTB expired (5-min TTL) or was never stored — a stale
+      // precondition, NOT bad input. The agent's recovery is to re-preview.
+      throw new ExecutorError(
+        ExecutorErrorCode.StalePrecondition,
+        "intent_expired",
+      );
     }
 
-    // SI-5 un-bypassable block: a previewed-blocked intent never signs.
+    // SI-5 un-bypassable block: a previewed-blocked intent never signs. The
+    // plan is no longer safe to run as-is — re-preview / adjust, don't retry.
     if (entry.flags.some((f) => f.severity === "block")) {
       throw new ExecutorError(
-        ExecutorErrorCode.InvalidInput,
+        ExecutorErrorCode.StalePrecondition,
         "intent_no_longer_safe",
       );
     }
@@ -298,8 +314,11 @@ export const defiIntentExecute: MobileToolExecutor = (input, context) =>
       );
     }
     if (dryRun.status !== "success") {
+      // The re-guard dry-run now reverts — the on-chain world (pool / balance)
+      // moved between preview and execute. A stale precondition, not bad
+      // input: the agent should re-preview for a fresh intent, not retry this.
       throw new ExecutorError(
-        ExecutorErrorCode.InvalidInput,
+        ExecutorErrorCode.StalePrecondition,
         "intent_no_longer_safe",
       );
     }

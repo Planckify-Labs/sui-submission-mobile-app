@@ -74,6 +74,17 @@ export const IntentSchema = z.discriminatedUnion("action", [
 ]);
 
 export type Intent = z.infer<typeof IntentSchema>;
+
+/**
+ * Input schema for `defi_intent_execute` — the single source of truth for
+ * that tool's input. The mobile executor validates against it (via
+ * `parseToolInput`) and the server derives its LLM-facing JSON Schema from
+ * the same shape; `intentSchemaParity.test.ts` asserts the two never drift.
+ */
+export const IntentExecuteInputSchema = z.object({
+  intent_id: z.string().min(1),
+});
+export type IntentExecuteInput = z.infer<typeof IntentExecuteInputSchema>;
 export type SupplyIntent = Extract<Intent, { action: "supply" }>;
 export type WithdrawIntent = Extract<Intent, { action: "withdraw" }>;
 export type SwapIntent = Extract<Intent, { action: "swap" }>;

@@ -27,6 +27,8 @@ export default defineConfig({
       "services/swap/sui/appendIntentReceipt.test.ts",
       "services/swap/sui/intentReceiptPackageId.test.ts",
       "services/agent-executors/defi/intentExecutors.test.ts",
+      "services/agent-executors/defi/intentSchemaParity.test.ts",
+      "services/agent-executors/parseInput.test.ts",
     ],
   },
 });

@@ -109,12 +109,20 @@ describe("defiIntentPreview", () => {
       ...suiCtx,
       wallet: { namespace: "eip155", address: "0x1" },
     } as unknown as ExecutorContext);
-    expect(r).toEqual({ status: "failed", error: "unsupported_chain" });
+    expect(r).toEqual({
+      status: "failed",
+      error: "unsupported_chain",
+      reason: "wallet_not_sui",
+    });
   });
 
   it("rejects an intent that fails zod validation", async () => {
     const r = await defiIntentPreview({ action: "borrow" }, suiCtx);
-    expect(r).toEqual({ status: "failed", error: "invalid_input" });
+    expect(r).toEqual({
+      status: "failed",
+      error: "invalid_input",
+      reason: "invalid_intent",
+    });
   });
 
   it("compiles a safe swap and surfaces the live reads (inspected)", async () => {
@@ -160,7 +168,11 @@ describe("defiIntentPreview", () => {
   it("fails with insufficient_funds when the wallet can't fund the input", async () => {
     h.getBalance.mockResolvedValue({ totalBalance: "1000000000" }); // 1 SUI < 5
     const r = await defiIntentPreview(swapInput, suiCtx);
-    expect(r).toEqual({ status: "failed", error: "insufficient_funds" });
+    expect(r).toEqual({
+      status: "failed",
+      error: "insufficient_funds",
+      reason: "insufficient_balance",
+    });
   });
 
   it("does NOT block on a null dry-run (transient RPC, not a revert)", async () => {
@@ -188,7 +200,11 @@ describe("defiIntentExecute", () => {
       ...suiCtx,
       wallet: { namespace: "eip155", address: "0x1" },
     } as unknown as ExecutorContext);
-    expect(r).toEqual({ status: "failed", error: "unsupported_chain" });
+    expect(r).toEqual({
+      status: "failed",
+      error: "unsupported_chain",
+      reason: "wallet_not_sui",
+    });
   });
 
   it("rejects a watch-only wallet with no address", async () => {
@@ -199,12 +215,17 @@ describe("defiIntentExecute", () => {
     expect(r).toEqual({
       status: "failed",
       error: "wallet_type_cannot_execute",
+      reason: "no_connected_wallet",
     });
   });
 
-  it("rejects an unknown / expired intent_id", async () => {
+  it("rejects an unknown / expired intent_id as a stale precondition", async () => {
     const r = await defiIntentExecute({ intent_id: "nope" }, suiCtx);
-    expect(r).toEqual({ status: "failed", error: "invalid_input" });
+    expect(r).toEqual({
+      status: "failed",
+      error: "stale_precondition",
+      reason: "intent_expired",
+    });
   });
 
   it("SI-5: a previewed-blocked intent can never be signed", async () => {
@@ -219,7 +240,11 @@ describe("defiIntentExecute", () => {
       ],
     });
     const r = await defiIntentExecute({ intent_id: id }, suiCtx);
-    expect(r).toEqual({ status: "failed", error: "invalid_input" });
+    expect(r).toEqual({
+      status: "failed",
+      error: "stale_precondition",
+      reason: "intent_no_longer_safe",
+    });
     expect(h.signAndExecuteSuiPtb).not.toHaveBeenCalled();
   });
 
@@ -229,14 +254,22 @@ describe("defiIntentExecute", () => {
       status: "failure",
     });
     const r = await defiIntentExecute({ intent_id: putEntry() }, suiCtx);
-    expect(r).toEqual({ status: "failed", error: "invalid_input" });
+    expect(r).toEqual({
+      status: "failed",
+      error: "stale_precondition",
+      reason: "intent_no_longer_safe",
+    });
     expect(h.signAndExecuteSuiPtb).not.toHaveBeenCalled();
   });
 
   it("returns a retryable network_error (not invalid_input) when the re-guard dry-run is unobtainable", async () => {
     h.simulateSuiTransaction.mockResolvedValue(null); // RPC blip, not a revert
     const r = await defiIntentExecute({ intent_id: putEntry() }, suiCtx);
-    expect(r).toEqual({ status: "failed", error: "network_error" });
+    expect(r).toEqual({
+      status: "failed",
+      error: "network_error",
+      reason: "reguard_unavailable",
+    });
     expect(h.signAndExecuteSuiPtb).not.toHaveBeenCalled();
   });
 

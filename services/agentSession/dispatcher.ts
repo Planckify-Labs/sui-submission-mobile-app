@@ -286,10 +286,16 @@ async function runNonInteractive(
   } catch (err) {
     // `executeToolWithRetry` is documented as never-throw, but treat
     // any escaped exception as a failed tool result so the agent
-    // still sees a typed response rather than timing out.
+    // still sees a typed response rather than timing out. NEVER put the
+    // raw `String(err)` on `error` — it would flow into LLM context AND
+    // onto the failure card (CLAUDE.md user-facing-errors). Curated code
+    // only; the raw detail goes to a dev log.
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn(`[agentSession] executor threw for ${payload.name}:`, err);
+    }
     result = {
       status: "failed",
-      error: `unexpected_executor_error: ${String(err)}`,
+      error: "unknown_error",
     };
   } finally {
     clearTimeout(hintTimer);

@@ -29,6 +29,7 @@ import {
 } from "lucide-react-native";
 import type React from "react";
 import { Pressable, Text, View } from "react-native";
+import { agentErrorCopy } from "../agentErrorCopy";
 import type { ToolComponentProps } from "../types";
 import WriteApprovalGate from "../WriteApprovalGate";
 
@@ -47,6 +48,7 @@ type SolanaWriteOutput = {
   tx_confirmed?: boolean;
   data?: SolanaWriteData;
   error?: string;
+  reason?: string;
   user_decision?: "approved" | "rejected";
 };
 
@@ -160,11 +162,14 @@ function ResultCard({
         <Text className="text-sm text-light-matte-black/80 mt-1.5">
           {description}
         </Text>
-        {output.error ? (
-          <Text className="text-[11px] text-gray-500 mt-1" numberOfLines={2}>
-            {output.error}
-          </Text>
-        ) : null}
+        {/* Friendly copy only — never the raw `error` / `reason` code
+            (CLAUDE.md user-facing-errors). */}
+        <Text
+          className="text-[13px] text-light-matte-black/70 mt-1"
+          numberOfLines={3}
+        >
+          {agentErrorCopy(output.error, output.reason)}
+        </Text>
         {signature ? (
           <View className="flex-row items-center gap-2 mt-2">
             <Text
